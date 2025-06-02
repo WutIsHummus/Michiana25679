@@ -64,7 +64,7 @@ public class ActionOpMode extends OpMode {
     }
 
 
-    private boolean opModeIsActive() {
+    protected boolean opModeIsActive() {
         return !isStopRequested();
     }
 

@@ -282,6 +282,7 @@ public class MotorActions {
         public Action transfer()      { return set(0); }
         public Action specimen()      { return set(350); }
         public Action sample()      { return set(800); }
+        public Action vision()      { return set(235); }
 
         public Action findZero() {
             return new SequentialAction(t -> {mc.lift.findZero();return false;},

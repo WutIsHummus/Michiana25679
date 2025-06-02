@@ -38,8 +38,8 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
     private MotorControl.Limelight limelight;
 
     // Simple Poses
-    private final Pose startPose = new Pose(63, 110, Math.toRadians(270));
-    private final Pose parkPose  = new Pose(63, 96, Math.toRadians(270));
+    private final Pose startPose = new Pose(0, 0, Math.toRadians(0));
+    private final Pose parkPose  = new Pose(5, 0, Math.toRadians(0));
 
     // PathChains
     private PathChain parkChain;
@@ -50,6 +50,7 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
         parkChain = follower.pathBuilder()
                 .addPath(new BezierLine(new Point(startPose), new Point(parkPose)))
                 .setLinearHeadingInterpolation(startPose.getHeading(), parkPose.getHeading())
+                .addParametricCallback(0, run(motorActions.lift.vision()))
                 .setZeroPowerAccelerationMultiplier(4)
                 .build();
     }
@@ -57,7 +58,7 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
     // A helper method to build a dynamic alignment path at runtime
     private PathChain computeDynamicPath() {
         Pose currentPose = follower.getPose();
-        Vector2d limeAvg = limelight.getAverage();
+        Vector2d limeAvg = limelight.getAveragePose();
         double rawOffset = limeAvg.x;
         double fallbackOffset = 0.0;
         if (rawOffset == 99.99) {
@@ -65,11 +66,8 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
             rawOffset = fallbackOffset;
         }
 
-        // Shift X by scaled offset, clamp to [60, 85]
-        double xShift = rawOffset * 1.5;
-        double targetX = Math.min(85, Math.max(60, currentPose.getX() + xShift));
 
-        Pose targetPose = new Pose(targetX, currentPose.getY(), currentPose.getHeading());
+        Pose targetPose = new Pose(currentPose.getX(), rawOffset, currentPose.getHeading());
         telemetry.addData("Dynamic Align: Raw Offset", rawOffset);
         telemetry.addData("Dynamic Align: Target Pose", targetPose);
         telemetry.update();
@@ -78,33 +76,10 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
                 .addPath(new BezierLine(new Point(currentPose), new Point(targetPose)))
                 .setConstantHeadingInterpolation(targetPose.getHeading())
                 .setZeroPowerAccelerationMultiplier(4)
-                .addParametricCallback(0, () -> {
-                    // Example actions in param callback
-                    run(new SequentialAction(
-                            motorActions.inArm.sampleGrab(),
-                            motorActions.inPivot.sampleGrab(),
-                            motorActions.spin.eatUntil(Enums.DetectedColor.RED, motorControl)
-                    ));
-                })
+
                 .build();
     }
 
-    // Build SHIFT actions: move +5 or -5 in X
-    private Action shiftX(double dx) {
-        return packet -> {
-            Pose cur = follower.getPose();
-            Pose shiftPose = new Pose(cur.getX() + dx, cur.getY() - 8,  Math.toRadians(Math.toDegrees(cur.getHeading()) + dx *8)) ;
-
-            PathChain smallPath = follower.pathBuilder()
-                    .addPath(new BezierLine(new Point(cur), new Point(shiftPose)))
-                    .setLinearHeadingInterpolation(cur.getHeading(), shiftPose.getHeading(), 250)
-                    .setZeroPowerAccelerationMultiplier(2)
-                    .build();
-            // Start path (non-blocking)
-            follower.followPath(smallPath, false);
-            return false;
-        };
-    }
 
     // Override buildTaskList(): define tasks with wait times & conditions
     @Override
@@ -114,10 +89,14 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
         // 1) Park Task: use known path, short wait
         //    No overall condition => uses waitTime directly
         PathChainTask parkTask = new PathChainTask(parkChain, 1.0)
-                .addWaitAction(0, (packet) -> {
-                    limelight.startCollectingSamples();
-                    return false;
-                })
+                .addWaitAction(0, new SequentialAction(
+                        motorActions.lift.vision(),
+                        motorActions.lift.waitUntilFinished(),
+                        (packet) -> {
+                            limelight.startCollectingSamples();
+                            return false;
+                        }
+                ))
                 .addWaitAction(0.2, (packet) -> {
                     limelight.collectSamples();
                     return false;
@@ -125,38 +104,10 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
         // No overall condition => once 1s passes, the next task starts
         tasks.add(parkTask);
 
-        // 2) Dynamic Alignment Task: path built at runtime + condition + maxWaitTime
-        //    If a color is never detected, we exit after 2 seconds
-        //    once path is done, we wait an extra 0.5s after condition is met.
         PathChainTask dynamicTask = new PathChainTask(null, 0.2);
-        dynamicTask.addWaitAction(0, motorActions.extendo.set(50));
-        dynamicTask.addWaitAction(0, motorActions.extendo.set(100));
-        dynamicTask.pathChain = null; // i.e. dynamic
         tasks.add(dynamicTask);
 
 
-        PathChainTask shiftTask = new PathChainTask(null, 0.0)
-                .setWaitCondition(() -> motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN && motorControl.getDetectedColor() != Enums.DetectedColor.BLUE)
-                .setMaxWaitTime(2.0).addWaitAction(0,motorActions.inPivot.sampleGrab());
-
-        shiftTask.addWaitAction(0, motorActions.extendo.set(150));
-        shiftTask.addWaitAction(0.5, motorActions.extendo.set(250));
-
-        shiftTask.addWaitAction(() ->  motorControl.getDetectedColor() == Enums.DetectedColor.BLUE, new SequentialAction(
-                shiftX(-4.0),
-                new SleepAction(0.5),
-                motorActions.extendo.set(450),
-                shiftX(+2.0),
-                new SleepAction(0.5),
-                motorActions.extendo.set(500)
-        ));
-        shiftTask.addWaitAction(2, new SequentialAction(
-                shiftX(-2.0),
-                new SleepAction(0.5),
-                shiftX(+2.0),
-                new SleepAction(0.5)
-        ));
-        tasks.add(shiftTask);
     }
 
     // ---------- Overridden Methods from PathChainAutoOpMode ----------
@@ -227,7 +178,7 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
         follower.setStartingPose(startPose);
 
         // Any immediate actions
-        run(motorActions.intakeTransfer());
+        run(new SequentialAction(motorActions.ptolLatch.unlock(),motorActions.ptorLatch.unlock()));
 
         // Build known geometry & tasks
         buildPathChains();
@@ -256,7 +207,7 @@ public class ParkDynamicAlignmentTest extends PathChainAutoOpMode {
         telemetry.addData("Wait Timer", waitTimer.getElapsedTimeSeconds());
         telemetry.addData("Action Timer", actionTimer.getElapsedTimeSeconds());
         telemetry.addData("Color", motorControl.getDetectedColor());
-        telemetry.addData("LL offset", limelight.getAverage());
+        telemetry.addData("LL offset", limelight.getAveragePose());
         telemetry.update();
     }
 }

@@ -454,7 +454,7 @@ public class NewBucket extends PathChainAutoOpMode {
 
     private PathChain computeDynamicPath() {
         Pose currentPose = follower.getPose();
-        double rawOffset = limelight.getAverage().x;
+        double rawOffset = limelight.getAveragePose().x;
         double fallbackOffset = 0.0;
         if (rawOffset == 99.99) {
             telemetry.addData("Dynamic Align", "No valid limelight data; fallback=0");
@@ -555,7 +555,7 @@ public class NewBucket extends PathChainAutoOpMode {
         telemetry.addData("Wait Timer", pathTimer.getElapsedTimeSeconds());
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.addData("Detected Color", motorControl.getDetectedColor());
-        telemetry.addData("Limelight Avg", limelight.getAverage());
+        telemetry.addData("Limelight Avg", limelight.getAveragePose());
         telemetry.update();
     }
 }
