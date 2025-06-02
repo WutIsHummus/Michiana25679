@@ -54,6 +54,8 @@ public class LimelightAlignmentTest extends PathChainAutoOpMode {
     private PathChainTask executeStrafeTask;
     private TurnTask executeTurnTask;
 
+    private Pose targetStrafePose = new Pose(0,0,0);
+
     @Override
     public void init() {
         super.init();
@@ -83,16 +85,13 @@ public class LimelightAlignmentTest extends PathChainAutoOpMode {
     @Override
     protected void buildTaskList() {
         tasks.clear();
-        limelightReadAndDecideTask = new PathChainTask(null, 0.05);
+        limelightReadAndDecideTask = new PathChainTask(null, 3);
         tasks.add(limelightReadAndDecideTask);
 
         executeStrafeTask = new PathChainTask(null, 0.1) // waitTime is for after path completes
                 .setWaitCondition(() -> !follower.isBusy())
                 .setMaxWaitTime(3.0);
 
-        executeTurnTask = new TurnTask(0, false, 0.1) // Placeholder angle, isLeft
-                .setWaitCondition(() -> !follower.isTurning())
-                .setMaxWaitTime(3.0);
         tasks.add(executeStrafeTask);
     }
 
@@ -134,10 +133,11 @@ public class LimelightAlignmentTest extends PathChainAutoOpMode {
             }
 
             // User's "tiny path" - robot moves 5 inches along Field X
-            Pose tinyTargetPose = new Pose(currentPose.getX() + 2, currentPose.getY(), currentPose.getHeading());
+            Pose tinyTargetPose = new Pose(currentPose.getX(), currentPose.getY() + 2, currentPose.getHeading());
             PathChain tinyPath = follower.pathBuilder().addPath(new BezierLine(
                             new Point(currentPose),
                             new Point(tinyTargetPose)))
+                    .addParametricCallback(0, ()-> run(motorActions.lift.vision()))
                     .build();
             task.pathChain = tinyPath;
             follower.followPath((PathChain) task.pathChain, true);
@@ -200,11 +200,6 @@ public class LimelightAlignmentTest extends PathChainAutoOpMode {
 
             if (!limelightDataValid) {
                 telemetry.addLine("Limelight data invalid after read task. Ending current alignment cycle.");
-                // The super.runTasks() would have advanced currentTaskIndex because the waitTime of limelightReadAndDecideTask expired.
-                // To prevent trying to set a task that's out of bounds if this was the only task,
-                // we simply let it end. The outer check for currentTaskIndex will catch this.
-                // If currentTaskIndex was already advanced by super.runTasks(), this condition might not even be met.
-                // A more robust way if this task should definitively end the sequence on invalid data:
                 if (tasks.get(currentTaskIndex) == limelightReadAndDecideTask) { // Check if it's *still* this task
                     currentTaskIndex = tasks.size(); // Force end of tasks
                 }
@@ -229,9 +224,9 @@ public class LimelightAlignmentTest extends PathChainAutoOpMode {
                 // Let's use a gain for clarity, assuming latestHorizontalError > 0 means target is RIGHT,
                 // and robot needs to decrease its Field Y to move "right" on a typical field graph if it's sideways.
                 // The sign of STRAFE_GAIN_DIRECT_Y_MODIFICATION will determine direction.
-                double fieldYModification = latestHorizontalError * 10;
+                double fieldYModification = latestHorizontalError;
 
-                Pose targetStrafePose = new Pose(
+                targetStrafePose = new Pose(
                         currentPose.getX(), // X field coordinate remains the same
                         currentPose.getY() + fieldYModification, // Modify Y field coordinate
                         currentHeadingRad // Maintain heading
@@ -254,7 +249,7 @@ public class LimelightAlignmentTest extends PathChainAutoOpMode {
             } else if (Math.abs(latestAngleError) > ANGLE_ERROR_THRESHOLD) {
                 telemetry.addData("Decision", "Turn needed. Angle_Error: %.2f", latestAngleError);
                 // Positive latestAngleError = Target "yawed" CW (from cam view), Robot needs CCW (positive) turn.
-                double turnAmountDegrees = -latestAngleError * TURN_GAIN_DEGREES_PER_LL_ANGLE_ERROR;
+                double turnAmountDegrees = -latestAngleError;
 
                 // **Added Telemetry for turnAmountDegrees**
                 telemetry.addData("Calculated Turn", "%.2f degrees", turnAmountDegrees);
@@ -361,7 +356,7 @@ public class LimelightAlignmentTest extends PathChainAutoOpMode {
             }
         }
 
-
+        telemetry.addData("Target Strafe Pose", targetStrafePose.toString());
         telemetry.addData("Follower Pose", follower != null ? follower.getPose().toString() : "Follower Null!");
         telemetry.addData("LL H_Error", String.format("%.2f", latestHorizontalError));
         telemetry.addData("LL A_Error", String.format("%.2f", latestAngleError));
