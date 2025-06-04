@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import android.graphics.Color;
+
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
@@ -34,6 +36,7 @@ public class TeleopBlue extends ActionOpMode {
     private boolean leftTriggerPressed = false;
     private boolean dpadDownPressed = false;
     private boolean dpadUpPressed = false;
+    private boolean squarePressed = false;
     private boolean dpadLeftPressed = false;
     private boolean dpadRightPressed = false;
 
@@ -97,11 +100,21 @@ public class TeleopBlue extends ActionOpMode {
             if (autoOuttake) {
                 double extPos = motorControl.extendo.motor.getCurrentPosition();
                 run(new SequentialAction(
-                        motorActions.grabUntilSpecimen(allianceColor),
+                        new ParallelAction(
+                                motorActions.outtakeTransfer(),
+                                motorActions.grabUntilSpecimen(allianceColor)
+                        ),
+                        motorActions.intakeTransfer(),
                         motorActions.outtakeSample()
                 ));
             } else {
-                run(motorActions.grabUntilSpecimen(allianceColor));
+                run(new SequentialAction(
+                        new ParallelAction(
+                                motorActions.outtakeTransfer(),
+                                motorActions.grabUntilSpecimen(allianceColor)
+                        ),
+                        motorActions.intakeTransfer()
+                ));
             }
             leftBumperPressed = true;
         } else if (!gamepad1.left_bumper) {
@@ -177,6 +190,15 @@ public class TeleopBlue extends ActionOpMode {
             dpadUpPressed = false;
         }
 
+
+        if (gamepad1.square && !squarePressed)  {
+            run(motorActions.spitSample());
+            motorControl.spin.setPower(-1);
+            squarePressed = true;
+        } else if (!gamepad1.square) {
+            squarePressed = false;
+        }
+
         // Specimen controls
         if (gamepad1.a) {
             run(motorActions.intakeSpecimen());
@@ -214,6 +236,7 @@ public class TeleopBlue extends ActionOpMode {
         follower.update();
         super.loop();
         motorControl.update();
+
 
         // Telemetry
         telemetry.addData("X", follower.getPose().getX());

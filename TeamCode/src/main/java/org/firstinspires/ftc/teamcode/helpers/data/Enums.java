@@ -19,6 +19,8 @@ public class Enums {
         BLUE,
         YELLOW,
         BLACK,
+        WHITE,
+        GRAY,
         UNKNOWN
     }
 

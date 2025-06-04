@@ -2,20 +2,27 @@ package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
+import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.pedropathing.pathgen.BezierCurve;
 import com.pedropathing.pathgen.BezierLine;
+import com.pedropathing.pathgen.BezierPoint;
 import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.Point;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 
+import org.firstinspires.ftc.teamcode.helpers.data.AngleUtils;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums;
 import org.firstinspires.ftc.teamcode.helpers.hardware.MotorControl;
+import org.firstinspires.ftc.teamcode.helpers.hardware.actions.ActionHelpers.WaitUntilAction;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.MotorActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+import org.opencv.core.Mat;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * SpecimenAuto is an autonomous OpMode that uses a series of PathChainTasks.
@@ -33,14 +40,14 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     private Timer opModeTimer;  // additional timer if desired
 
     // -------- Poses --------
-    private final Pose startPose = new Pose(9, 58, Math.toRadians(0));
-    private final Pose preloadPose = new Pose(40, 77, Math.toRadians(0));
-    private final Pose scorePose = new Pose(40, 69, Math.toRadians(0));
-    private final Pose scorePose1 = new Pose(40, 80, Math.toRadians(0));
-    private final Pose scorePose2 = new Pose(40, 74, Math.toRadians(0));
-    private final Pose scorePose3 = new Pose(40, 71, Math.toRadians(0));
-    private final Pose scorePose4 = new Pose(40, 82, Math.toRadians(0));
-    private final Pose pickup1Pose = new Pose(28, 45, Math.toRadians(311));
+    private final Pose startPose = new Pose(9, 56, Math.toRadians(0));
+    private final Pose preloadPose = new Pose(40, 70, Math.toRadians(0));
+    private final Pose scorePose = new Pose(41, 68, Math.toRadians(25));
+    private final Pose scorePose1 = new Pose(41, 68, Math.toRadians(25));
+    private final Pose scorePose2 = new Pose(41, 68, Math.toRadians(25));
+    private final Pose scorePose3 = new Pose(41, 68, Math.toRadians(25));
+    private final Pose scorePose4 = new Pose(41, 68, Math.toRadians(25));
+    private final Pose pickup1Pose = new Pose(20, 24, Math.toRadians(0));
     private final Pose pickup1Control = new Pose(22, 76, Math.toRadians(311));
     private final Pose pickup2Pose = new Pose(25, 35, Math.toRadians(315));
     private final Pose pickup3Pose = new Pose(28, 30, Math.toRadians(305));
@@ -53,13 +60,21 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     private final Pose parkPose = new Pose(11, 22, Math.toRadians(90));
     private final Pose parkControlPose = new Pose(12, 74, Math.toRadians(90));
 
+    private boolean spitDone1, spitDone2, spitDone3 = false;
+
+    private final AtomicBoolean specimenProcessingComplete = new AtomicBoolean(false);
+
+
     // -------- PathChains --------
     private PathChain scorePreload;
     private PathChain grabPickup1, grabPickup2, grabPickup3;
     private PathChain depositHP1, depositHP2, depositHP3;
     private PathChain intake1, intake2, intake3, intake4;
     private PathChain  score1, score2, score3, score4;
+    private PathChain  vision1deposit, vision2intake, vision2deposit;
+    private PathChain  preoloadIntake;
     private PathChain parkChain;
+
 
     // -------- Override buildPathChains() --------
     @Override
@@ -67,64 +82,49 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         // Intake path from deposit to intake.
         intake1 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Point(depositPose1),
+                        new Point(pickup1Pose),
                         new Point(intakeControl3),
                         new Point(intake)))
-                .setLinearHeadingInterpolation(Math.toRadians(depositPose1.getHeading()),
-                        Math.toRadians(intake.getHeading()))
+                .setConstantHeadingInterpolation(Math.toRadians(intake.getHeading()))
                     .addParametricCallback(0.5, () -> motorControl.spin.setPower(0))
+                .addParametricCallback(0, ()->run(motorActions.intakeTransfer()))
                 .addParametricCallback(0, () -> run(motorActions.intakeSpecimen()))
                 .build();
 
 
+
         score1 = follower.pathBuilder()
-                .addPath(new BezierCurve(
+                .addPath(new BezierLine(
                         new Point(intake),
-                        new Point(intakeControl1),
-                        new Point(intakeControl2),
                         new Point(scorePose1)))
-                .setLinearHeadingInterpolation(Math.toRadians(intake.getHeading()),
-                        Math.toRadians(scorePose1.getHeading()))
-                .setZeroPowerAccelerationMultiplier(7)
+                .setConstantHeadingInterpolation(scorePose.getHeading())
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0, () -> motorControl.spin.setPower(0))
                 .build();
 
         score2 = follower.pathBuilder()
-                .addPath(new BezierCurve(
+                .addPath(new BezierLine(
                         new Point(intake),
-                        new Point(intakeControl1),
-                        new Point(intakeControl2),
                         new Point(scorePose2)))
-                .setLinearHeadingInterpolation(Math.toRadians(intake.getHeading()),
-                        Math.toRadians(scorePose2.getHeading()))
-                .setZeroPowerAccelerationMultiplier(7)
+                .setConstantHeadingInterpolation(scorePose.getHeading())
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0.5, () -> motorControl.spin.setPower(0))
                 .build();
 
         score3 = follower.pathBuilder()
-                .addPath(new BezierCurve(
+                .addPath(new BezierLine(
                         new Point(intake),
-                        new Point(intakeControl1),
-                        new Point(intakeControl2),
                         new Point(scorePose3)))
-                .setLinearHeadingInterpolation(Math.toRadians(intake.getHeading()),
-                        Math.toRadians(scorePose3.getHeading()))
-                .setZeroPowerAccelerationMultiplier(7)
+                .setConstantHeadingInterpolation(scorePose.getHeading())
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0.5, () -> motorControl.spin.setPower(0))
                 .build();
 
         score4 = follower.pathBuilder()
-                .addPath(new BezierCurve(
+                .addPath(new BezierLine(
                         new Point(intake),
-                        new Point(intakeControl1),
-                        new Point(intakeControl2),
                         new Point(scorePose4)))
-                .setLinearHeadingInterpolation(Math.toRadians(intake.getHeading()),
-                        Math.toRadians(scorePose4.getHeading()))
-                .setZeroPowerAccelerationMultiplier(7)
+                .setConstantHeadingInterpolation(scorePose.getHeading())
 
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .build();
@@ -133,39 +133,30 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         intake2 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(scorePose),
-                        new Point(intakeControl2),
-                        new Point(intakeControl1),
                         new Point(intake)))
                 .setLinearHeadingInterpolation(Math.toRadians(scorePose.getHeading()),
                         Math.toRadians(intake.getHeading()))
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
-                .setZeroPowerAccelerationMultiplier(6)
                 .addParametricCallback(0.2, () -> run(motorActions.intakeSpecimen()))
                 .build();
 
         intake3 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(scorePose),
-                        new Point(intakeControl2),
-                        new Point(intakeControl1),
                         new Point(intake)))
                 .setLinearHeadingInterpolation(Math.toRadians(scorePose.getHeading()),
                         Math.toRadians(intake.getHeading()))
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
-                .setZeroPowerAccelerationMultiplier(6)
                 .addParametricCallback(0.2, () -> run(motorActions.intakeSpecimen()))
                 .build();
 
         intake4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(scorePose),
-                        new Point(intakeControl2),
-                        new Point(intakeControl1),
                         new Point(intake)))
                 .setLinearHeadingInterpolation(Math.toRadians(scorePose.getHeading()),
                         Math.toRadians(intake.getHeading()))
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
-                .setZeroPowerAccelerationMultiplier(6)
                 .addParametricCallback(0.2, () -> run(motorActions.intakeSpecimen()))
                 .build();
 
@@ -176,57 +167,10 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                         new Point(startPose),
                         new Point(preloadPose)))
                 .setLinearHeadingInterpolation(startPose.getHeading(), preloadPose.getHeading())
-                .setZeroPowerAccelerationMultiplier(4)
+                .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
+                .addParametricCallback(0, () ->  run(motorActions.safePositions()))
                 .build();
 
-        // Grab (pickup) paths.
-        grabPickup1 = follower.pathBuilder()
-                .addPath(new BezierCurve(
-                        new Point(scorePose),
-                        new Point(pickup1Control),
-                        new Point(pickup1Pose)))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup1Pose.getHeading())
-                .addParametricCallback(0.8, ()->run(motorActions.extendo.set(300)))
-                .build();
-
-        grabPickup2 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Point(scorePose),
-                        new Point(pickup2Pose)))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup2Pose.getHeading())
-                .build();
-
-        grabPickup3 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Point(scorePose),
-                        new Point(pickup3Pose)))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), pickup3Pose.getHeading())
-                .build();
-
-        // Deposit paths.
-        depositHP1 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Point(pickup1Pose),
-                        new Point(depositPose1)))
-                .setLinearHeadingInterpolation(pickup1Pose.getHeading(), depositPose1.getHeading())
-                .addParametricCallback(0.8, () -> motorControl.spin.setPower(-1.0))
-                .build();
-
-        depositHP2 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Point(pickup2Pose),
-                        new Point(depositPose2)))
-                .setLinearHeadingInterpolation(pickup2Pose.getHeading(), depositPose2.getHeading())
-                .addParametricCallback(0.8, () -> motorControl.spin.setPower(-1.0))
-                .build();
-
-        depositHP3 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Point(pickup3Pose),
-                        new Point(depositPose2)))
-                .setLinearHeadingInterpolation(pickup3Pose.getHeading(), depositPose2.getHeading())
-                .addParametricCallback(0.8, () -> motorControl.spin.setPower(-1.0))
-                .build();
 
         // Park path.
         parkChain = follower.pathBuilder()
@@ -237,54 +181,155 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
                 .setZeroPowerAccelerationMultiplier(6)
                 .build();
+
+        vision1deposit = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Point(preloadPose),
+                        new Point(intake)))
+                .addParametricCallback(0.2, () -> run(motorActions.spitSample()))
+                .addParametricCallback(0.85, () -> run(motorActions.spin.poop()))
+                .setLinearHeadingInterpolation(preloadPose.getHeading(),intake.getHeading())
+                .build();
+
+        vision2intake = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Point(intake),
+                        new Point(scorePose)))
+                .addParametricCallback(0, ()->run(motorActions.spin.stop()))
+                .setConstantHeadingInterpolation(scorePose.getHeading())
+                .build();
+
+        vision2deposit = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Point(scorePose),
+                        new Point(pickup1Pose)))
+                .addParametricCallback(0, ()->run(motorActions.spin.stop()))
+                .addParametricCallback(0, () -> run(motorActions.spitSample()))
+                .addParametricCallback(0.85, () -> run(motorActions.spin.poop()))
+                .addParametricCallback(1, () -> run(motorActions.extendo.extended()))
+                .setConstantHeadingInterpolation(
+                        Math.toRadians(pickup1Pose.getHeading()))
+                .build();
+
+
     }
 
-    // -------- Override buildTaskList() --------
     @Override
     protected void buildTaskList() {
         tasks.clear();
 
         // Preload task.
-        PathChainTask preloadTask = new PathChainTask(scorePreload, 0.5)
-                .addWaitAction(0.2, motorActions.depositSpecimen());
-        tasks.add(preloadTask);
+        addPath(scorePreload, 1).addWaitAction(0,
+                new SequentialAction(
+                        motorActions.depositSpecimen(),
+                        motorActions.lift.vision()
+                ));
 
-        // Pickup task 1.
-        PathChainTask pickUpTask1 = new PathChainTask(grabPickup1, 0.1)
-                .setMaxWaitTime(0.4)
-                .addWaitAction(0, motorActions.extendo.set(500))
-                .addWaitAction(0.32, motorActions.extendo.set(450))
-                .setWaitCondition(() -> motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN);
+        //todo: add turn action with intake and vision
 
-        tasks.add(pickUpTask1);
+        addPath(vision1deposit, 0.1).addWaitAction(0,motorActions.outtakeSpecimen());
 
-        // Deposit task 1.
-        PathChainTask depositTask1 = new PathChainTask(depositHP1, 0.2)
-                .addWaitAction(0, motorActions.extendo.set(200));
-        tasks.add(depositTask1);
 
-        // Pickup task 2.
-        PathChainTask pickUpTask2 = new PathChainTask(grabPickup2, 0.1)
-                .setMaxWaitTime(0.4)
-                .setWaitCondition(() -> motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN);
-        tasks.add(pickUpTask2);
 
-        // Deposit task 2.
-        PathChainTask depositTask2 = new PathChainTask(depositHP2, 0.2)
-                .addWaitAction(0, motorActions.extendo.set(0));
-        tasks.add(depositTask2);
+        addPath(vision2intake, 1).addWaitAction(0,
+                new SequentialAction(
+                        motorActions.depositSpecimen(),
+                        motorActions.lift.vision()
+                ));
 
-        // Pickup task 3.
-        PathChainTask pickUpTask3 = new PathChainTask(grabPickup3, 0.1)
-                .setMaxWaitTime(0.4)
+        //todo: add turn action with intake and vision
 
-                .setWaitCondition(() -> motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN);
-        tasks.add(pickUpTask3);
+        addPath(vision2deposit, 0)
+                .addWaitAction(0,  motorActions.extendo.extended())
+                .addWaitAction(0, new SequentialAction(
+                        motorActions.extendo.set(640),
+                        new SleepAction(0.05),
+                        motorActions.grabUntilSpecimen(),
+                        motorActions.spitSample(),
+                        motorActions.extendo.retracted(),
+                        motorActions.extendo.waitUntilFinished(),
+                        motorActions.extendo.findZero(),
+                        motorActions.spin.poop(),
+                        motorActions.spin.waitUntilEmpty(motorControl),
+                        telemetryPacket -> {
+                            spitDone1 = true; return false;
+                        }
+                ))
+                .setMaxWaitTime(2)
+                .setWaitCondition(() -> spitDone1)
+        ;
 
-        // Deposit task 3.
-        PathChainTask depositTask3 = new PathChainTask(depositHP3, 0.2)
-                .addWaitAction(0, motorActions.extendo.set(0));
-        tasks.add(depositTask3);
+        addTurnToDegrees(-15, 0)
+                .addWaitAction(0, new SequentialAction(
+                        motorActions.extendo.set(660),
+                        new SleepAction(0.05),
+                        motorActions.grabUntilSpecimen(),
+                        motorActions.spitSample(),
+                        motorActions.extendo.retracted(),
+                        motorActions.extendo.waitUntilFinished(),
+                        motorActions.extendo.findZero(),
+                        motorActions.spin.poop(),
+                        motorActions.spin.waitUntilEmpty(motorControl),
+                        telemetryPacket -> {
+                            spitDone2 = true; return false;
+                        }
+                ))
+                .setMaxWaitTime(2)
+                .setWaitCondition(() -> spitDone2)
+        ;
+
+
+        addTurnToDegrees(-34, 0)
+                .addWaitAction(0, new SequentialAction(
+                        motorActions.extendo.set(860),
+                        new SleepAction(0.05),
+                        motorActions.grabUntilSpecimen(),
+                        motorActions.spitSample(),
+                        motorActions.extendo.retracted(),
+                        motorActions.extendo.waitUntilFinished(),
+                        motorActions.extendo.findZero(),
+                        motorActions.spin.poop(),
+                        motorActions.spin.waitUntilEmpty(motorControl),
+                        motorActions.intakeSpecimen(),
+                        telemetryPacket -> {
+                            spitDone3 = true; return false;
+                        }
+
+                ))
+                .setMaxWaitTime(2)
+                .setWaitCondition(() -> spitDone3)
+        ;
+
+        addPath(intake1, 0.1).addWaitAction(0, motorActions.outtakeSpecimen());
+
+        /*
+
+
+
+
+
+
+        addPath(score1, 0.1)
+                .addWaitAction(0, motorActions.depositSpecimen());
+
+        addPath(intake2, 0.2).addWaitAction(0.01, motorActions.outtakeSpecimen());
+
+        addPath(score2, 0.1)
+                .addWaitAction(0, motorActions.depositSpecimen());
+
+        addPath(intake3, 0.2).addWaitAction(0, motorActions.outtakeSpecimen());
+
+        addPath(score3, 0.1)
+                .addWaitAction(0, motorActions.depositSpecimen());
+
+        addPath(intake4, 0.2).addWaitAction(0, motorActions.outtakeSpecimen());
+
+        addPath(score4, 0.1)
+                .addWaitAction(0, motorActions.depositSpecimen());
+
+
+        /*
+
 
         // Intake task 1.
         PathChainTask intakeTask1 = new PathChainTask(intake1, 0.2)
@@ -320,6 +365,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
         // Park task.
         tasks.add(new PathChainTask(parkChain, 0.0));
+
+         */
     }
 
     // -------- Override dummy follower methods --------
@@ -330,8 +377,30 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     @Override
     protected boolean isTurning() {
-        return follower.isTurning();
-    };
+
+        if (!isActivelyTurningInternalFlag) {
+            return false;
+        }
+
+        // This is just an example, replace with your actual follower's heading retrieval
+        double currentHeading = follower.getPose().getHeading();
+
+        // Calculate the shortest difference, handling wrap-around
+        double headingError = AngleUtils.shortestAngleDifference(targetHeadingRadians ,currentHeading);
+
+        if (Math.abs(headingError) < HEADING_TOLERANCE) {
+            isActivelyTurningInternalFlag = false;
+            follower.breakFollowing();
+            return false;
+        }
+
+        if (!follower.isBusy()) {
+            isActivelyTurningInternalFlag = false;
+            return false;
+        }
+
+        return true;
+    }
 
     @Override
     protected double getCurrentTValue() {
@@ -340,8 +409,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        // Cast the task's pathChain to PathChain and command the follower to follow it.
-        follower.followPath((PathChain) task.pathChain, false);
+        isActivelyTurningInternalFlag = false;
+        follower.followPath((PathChain) task.pathChain, true);
     }
 
     // -------- Standard OpMode Lifecycle Methods --------
@@ -351,11 +420,15 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         opModeTimer.resetTimer();
         pathTimer.resetTimer();
 
+        setHeadingTolerance(0.5);
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
         follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
         follower.setStartingPose(startPose);
-        run(motorActions.claw.close());
+
+
+
+
 
         // Build the paths and tasks.
         buildPathChains();
@@ -364,22 +437,30 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     @Override
     protected void startTurn(TurnTask task) {
+        Pose currentRobotPose = follower.getPose();
+        double currentX = currentRobotPose.getX();
+        double currentY = currentRobotPose.getY();
+        double currentHeadingRadians = currentRobotPose.getHeading();
+
         if (task.isRelative) {
-            // Relative turn
-            if (task.useDegrees) {
-                follower.turnDegrees(task.angle, task.isLeft);
-            } else {
-                follower.turn(task.angle, task.isLeft);
-            }
+            double turnAmountRadians = task.useDegrees ? Math.toRadians(task.angle) : task.angle;
+            targetHeadingRadians = currentHeadingRadians + (task.isLeft ? turnAmountRadians : -turnAmountRadians);
         } else {
-            // Absolute turn
-            if (task.useDegrees) {
-                follower.turnToDegrees(task.angle);
-            } else {
-                follower.turnTo(task.angle);
-            }
+            targetHeadingRadians = task.useDegrees ? Math.toRadians(task.angle) : task.angle;
         }
+
+        targetHeadingRadians = AngleUtils.normalizeRadians(targetHeadingRadians);
+
+        PathChain turnPath = follower.pathBuilder()
+                .addPath(new BezierPoint(new Point(new Pose(currentX, currentY, currentHeadingRadians))))
+                .setConstantHeadingInterpolation(targetHeadingRadians)
+                .build();
+
+        follower.followPath(turnPath, true);
+
+        isActivelyTurningInternalFlag = true;
     }
+
 
     @Override
     public void start() {
@@ -400,6 +481,10 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
         telemetry.addData("T Value", follower.getCurrentTValue());
         telemetry.addData("Wait Timer", pathTimer.getElapsedTimeSeconds());
+        telemetry.addData("Turning", isTurning());
+        telemetry.addData("Busy", follower.isBusy());
+        telemetry.addData("isEmpty",motorControl.isEmpty());
+        telemetry.addData("extendoReset",motorControl.extendo.resetting);
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.update();
     }

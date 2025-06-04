@@ -13,9 +13,12 @@ import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.hardware.*;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.teamcode.helpers.data.Enums;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums.DetectedColor;
 
 import java.util.ArrayList;
@@ -36,7 +39,12 @@ public class MotorControl {
     public final Servo outtakeLinkage, intakeArmR, intakeArmL;
     public final Servo hangr, hangl;
 
-    public final ColorSensor colorSensor;
+
+    private float lastNormalizedRed = 0;
+    private float lastNormalizedGreen = 0;
+    private float lastNormalizedBlue = 0;
+
+    public final RevColorSensorV3  colorSensor;
     public final DcMotorEx spin;
 
     public final Lift lift;
@@ -68,8 +76,10 @@ public class MotorControl {
 
         spin = hardwareMap.get(DcMotorEx.class, "spin");
         spin.setDirection(DcMotorSimple.Direction.REVERSE);
-        colorSensor = hardwareMap.get(ColorSensor.class, "color");
-        colorSensor.enableLed(false);
+        colorSensor = hardwareMap.get(RevColorSensorV3.class, "color");
+
+
+        outtakeClaw.setPosition(0.11);
     }
 
     public void update() {
@@ -77,36 +87,78 @@ public class MotorControl {
         extendo.update();
     }
 
-    public DetectedColor getDetectedColor() {
-        float red = colorSensor.red();
-        float green = colorSensor.green();
-        float blue = colorSensor.blue();
-
-        float maxRawValue = Math.max(red, Math.max(green, blue));
-        if (maxRawValue == 0) return DetectedColor.UNKNOWN; // Avoid division by zero
-        float scale = 255 / maxRawValue;
-
-        red *= scale;
-        green *= scale;
-        blue *= scale;
-
-        red = Math.min(red, 255);
-        green = Math.min(green, 255);
-        blue = Math.min(blue, 255);
-
-        float[] hsv = new float[3];
-        Color.RGBToHSV((int) red, (int) green, (int) blue, hsv);
-
-        if (red > 100 && red > green && red > blue) {
-            return DetectedColor.RED;
-        } else if (blue > 100 && blue > red && blue > green) {
-            return DetectedColor.BLUE;
-        } else if (red > 100 && green > 100 && blue < 100) {
-            return DetectedColor.YELLOW;
-        } else {
-            return DetectedColor.UNKNOWN;
-        }
+    private double getDistanceCm() {
+        DistanceSensor d = (DistanceSensor) colorSensor;
+        return d.getDistance(DistanceUnit.CM);
     }
+
+    private double[] normalizedRGB() {
+        int r = colorSensor.red();
+        int g = colorSensor.green();
+        int b = colorSensor.blue();
+        double sum = r + g + b;
+        if (sum <= 0) return new double[]{0.0, 0.0, 0.0};
+        return new double[]{ r / sum, g / sum, b / sum };
+    }
+
+    public boolean isEmpty(){
+        double distanceCm = getDistanceCm();
+
+        if (distanceCm < 6){
+            return  false;
+        }
+        return  true;
+    }
+
+    public Enums.DetectedColor getDetectedColor() {
+        double distanceCm = getDistanceCm();
+        double[] norm = normalizedRGB();
+
+        // Compute scaled values: D * normalized channels
+        double scaledR = distanceCm * norm[0];
+        double scaledG = distanceCm * norm[1];
+        double scaledB = distanceCm * norm[2];
+
+
+
+        Enums.DetectedColor detected = Enums.DetectedColor.UNKNOWN;
+
+        // Red thresholds:
+        //   1.0  < D*Rnorm < 1.3
+        //   0.9  < D*Gnorm < 1.7
+        //   0.676< D*Bnorm < 1.45
+        if (scaledR > 0.97  &&
+                scaledG > 0.9  && scaledG < 1.4 &&
+                scaledB < 1.2) {
+            detected = Enums.DetectedColor.RED;
+        }
+        // Yellow thresholds:
+        //   0.8  < D*Rnorm < 1.25
+        //   1.2  < D*Gnorm < 1.9
+        //   0.4  < D*Bnorm < 1.2
+        else if (scaledR < 0.97 &&
+                scaledG > 1.2 && scaledG < 1.6  &&
+                scaledB > 0.4  && scaledB < 1.2) {
+            detected = Enums.DetectedColor.YELLOW;
+        }
+        // Blue thresholds:
+        //   0.5  < D*Rnorm < 1.0
+        //   0.95 < D*Gnorm < 1.9
+        //   1.45 < D*Bnorm < 2.0
+        else if (scaledR > 0.5   && scaledR < 1.05  &&
+                scaledG > 0.95  && scaledG < 1.94  &&
+                scaledB > 1.43 ) {
+            detected = Enums.DetectedColor.BLUE;
+        }
+
+        if (distanceCm > 6){
+            detected = Enums.DetectedColor.UNKNOWN;
+        }
+        return detected;
+    }
+
+
+
 
     public abstract static class ControlledDevice {
         public CachingDcMotorEx motor;
@@ -154,7 +206,7 @@ public class MotorControl {
 
         public void findZero() {
             motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            motor.setPower(-0.5);
+            motor.setPower(-0.7);
             resetting = true;
         }
 
@@ -222,7 +274,7 @@ public class MotorControl {
 
         public void update() {
             if (resetting) {
-                if (Math.abs(motor.getVelocity()) < 10) { // Assuming primary motor velocity indicates stop
+                if (Math.abs(motor.getVelocity()) < 5) { // Assuming primary motor velocity indicates stop
                     reset();
                     resetting = false;
                 }

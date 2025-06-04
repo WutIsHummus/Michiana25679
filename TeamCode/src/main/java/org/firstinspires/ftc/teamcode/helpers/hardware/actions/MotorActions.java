@@ -66,7 +66,7 @@ public class MotorActions {
                 claw.open(),
                 new SleepAction(0.3),
                 claw.transfer(),
-                outArm.transfer(),
+                outArm.pretransfer(),
                 linkage.transfer(),
                 lift.transfer(),
                 lift.waitUntilFinished(0,150),
@@ -94,6 +94,7 @@ public class MotorActions {
         return new SequentialAction(
                 inPivot.transfer(),
                 inArm.transfer(),
+                outArm.transfer(),
                 extendo.retracted(),
                 extendo.waitUntilFinished(0, 50),
                 extendo.findZero()
@@ -101,28 +102,39 @@ public class MotorActions {
     }
 
     public Action grabUntilSpecimen(Enums.DetectedColor allianceColor) {
-        return new ParallelAction(
-                new SequentialAction(
-                        lift.transfer(),
-                        inArm.specimenGrab(),
-                        inPivot.specimenGrab(),
-                        spin.eatUntil(allianceColor, mc),
-                        intakeTransfer()
-                ),
-                outtakeTransfer()
+        return new SequentialAction(
+                lift.transfer(),
+                inArm.specimenGrab(),
+                inPivot.specimenGrab(),
+                spin.eatUntil(allianceColor, mc)
         );
     }
 
+    public Action grabUntilSpecimen() {
+        return new SequentialAction(
+                lift.transfer(),
+                inArm.specimenGrab(),
+                inPivot.specimenGrab(),
+                spin.eatUntilNotEmpty(mc)
+        );
+    }
+
+
     public Action grabUntilSample(Enums.DetectedColor allianceColor) {
-        return new ParallelAction(
-                new SequentialAction(
-                        lift.transfer(),
-                        inArm.sampleGrab(),
-                        inPivot.sampleGrab(),
-                        spin.eatUntil(allianceColor, mc),
-                        intakeTransfer()
-                ),
-                outtakeTransfer()
+        return new SequentialAction(
+                lift.transfer(),
+                inArm.sampleGrab(),
+                inPivot.sampleGrab(),
+                spin.eatUntil(allianceColor, mc)
+                );
+    }
+
+    public Action grabUntilSample() {
+        return new SequentialAction(
+                lift.transfer(),
+                inArm.sampleGrab(),
+                inPivot.sampleGrab(),
+                spin.eatUntilNotEmpty(mc)
         );
     }
 
@@ -217,23 +229,25 @@ public class MotorActions {
     public Action depositSpecimen(){
         return new SequentialAction(
                 claw.open(),
-                new SleepAction(0.1),
+                new SleepAction(0.2),
                 outArm.middle(),
-                linkage.retracted(),
-                lift.transfer(),
-                lift.waitUntilFinished(),
-                lift.findZero()
+                linkage.retracted()
         );
     }
 
 
     public Action spitSample(){
         return new SequentialAction(
+
           inArm.sampleSpit(),
           inPivot.sampleSpit(),
-          intakeSpecimen(),
-          new SleepAction(0.5),
-                spin.poop()
+                lift.set(100),
+                claw.open(),
+                outArm.specimenIntake(),
+                linkage.retracted(),
+                extendo.retracted(),
+                extendo.waitUntilFinished(),
+                extendo.findZero()
         );
     }
 
@@ -280,7 +294,7 @@ public class MotorActions {
     public class Lift {
         public Action set(double pos) { return t -> { mc.lift.setTargetPosition(pos); return false; }; }
         public Action transfer()      { return set(0); }
-        public Action specimen()      { return set(350); }
+        public Action specimen()      { return set(400); }
         public Action sample()      { return set(800); }
         public Action vision()      { return set(235); }
 
@@ -345,6 +359,7 @@ public class MotorActions {
         private static final double SPEC_DEPOSIT  = 0.82;
         private static final double FLIP          = 0.17;
         private static final double SAMPLE_SCORE  = 0.35;
+        private static final double PRE_TRANSFER  = 0.7;
         private static final double MIDDLE        = 0.50;
         private static final double TRANSFER      = 1.00;
         private Action set(double p){ return t -> { mc.outtakeArmR.setPosition(p); mc.outtakeArmL.setPosition(p); return false; }; }
@@ -354,13 +369,14 @@ public class MotorActions {
         public Action sampleScore()     { return set(SAMPLE_SCORE);  }
         public Action middle()          { return set(MIDDLE);        }
         public Action transfer()        { return set(TRANSFER);      }
+        public Action pretransfer()        { return set(PRE_TRANSFER);      }
     }
 
     // ----------------------- Intake Arm (R+L) ---------------------------
     public class IntakeArm {
         private static final double TRANSFER          = 0.24;
         private static final double SPEC_EXTENDED     = 0.51;
-        private static final double SPEC_GRAB         = 0.60;
+        private static final double SPEC_GRAB         = 0.57;
         private static final double SAMPLE_EXTENDED   = 0.48;
         private static final double SAMPLE_GRAB       = 0.59;
         private static final double SAMPLE_SPIT       = 0.22;
@@ -496,6 +512,36 @@ public class MotorActions {
                 return false;
             };
 
+        }
+
+        public Action eatUntilNotEmpty(MotorControl motorControl) {
+            final boolean[] started = {false};
+            return telemetryPacket -> {
+                if (!started[0]) {
+                    started[0] = true;
+                    motorControl.spin.setPower(1);  // start spinning forward
+                }
+                // once isEmpty() returns false, stop and finish the action
+                if (!motorControl.isEmpty()) {
+                    motorControl.spin.setPower(0);
+                    return false;
+                }
+                return true; // keep spinning if still empty
+            };
+        }
+
+        public Action waitUntilEmpty(MotorControl motorControl) {
+            final boolean[] started = {false};
+            return telemetryPacket -> {
+                if (!started[0]) {
+                    started[0] = true;
+                }
+
+                if (motorControl.isEmpty()) {
+                    return false;
+                }
+                return true; // keep spinning if still empty
+            };
         }
 
 

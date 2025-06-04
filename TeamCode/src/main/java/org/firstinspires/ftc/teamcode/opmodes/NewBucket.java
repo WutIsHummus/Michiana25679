@@ -153,51 +153,51 @@ public class NewBucket extends PathChainAutoOpMode {
         tasks.clear();
 
         // 1) Preload scoring
-        PathChainTask preloadTask = createPathTask(scorePreload, 0.35)
+        PathChainTask preloadTask = new PathChainTask(scorePreload, 0.35)
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> motorControl.lift.closeEnough(800));
         tasks.add(preloadTask);
 
         // 2) pickup1 -> score1
-        PathChainTask pickup1Task = createPathTask(intake1, 0.2)
+        PathChainTask pickup1Task = new PathChainTask(intake1, 0.2)
                 .setMaxWaitTime(1.25)
                 .addWaitAction(1, motorActions.intakeTransfer())
                 .addWaitAction(0.3, motorActions.extendo.set(500))
                 .setWaitCondition(() -> motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN);
         tasks.add(pickup1Task);
 
-        PathChainTask score1Task = createPathTask(score1, 0.4)
+        PathChainTask score1Task = new PathChainTask(score1, 0.4)
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> motorControl.lift.closeEnough(800));
         tasks.add(score1Task);
 
         // 3) pickup2 -> score2
-        PathChainTask pickup2Task = createPathTask(intake2, 0.2)
+        PathChainTask pickup2Task = new PathChainTask(intake2, 0.2)
                 .setMaxWaitTime(1.25)
                 .addWaitAction(1, motorActions.intakeTransfer())
                 .addWaitAction(0, motorActions.extendo.set(500))
                 .setWaitCondition(() -> motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN);
         tasks.add(pickup2Task);
 
-        PathChainTask score2Task = createPathTask(score2, 0.4)
+        PathChainTask score2Task = new PathChainTask(score2, 0.4)
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> motorControl.lift.closeEnough(800));
         tasks.add(score2Task);
 
         // 4) pickup3 -> score3
-        PathChainTask pickup3Task = createPathTask(intake3, 0.2)
+        PathChainTask pickup3Task = new PathChainTask(intake3, 0.2)
                 .setMaxWaitTime(1.25)
                 .addWaitAction(1, motorActions.intakeTransfer())
                 .setWaitCondition(() -> motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN);
         tasks.add(pickup3Task);
 
-        PathChainTask score3Task = createPathTask(score3, 0.4)
+        PathChainTask score3Task = new PathChainTask(score3, 0.4)
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> motorControl.lift.closeEnough(800));
         tasks.add(score3Task);
 
         // 5) Park #1
-        PathChainTask parkTask = createPathTask(parkChain, 0.2)
+        PathChainTask parkTask = new PathChainTask(parkChain, 0.2)
                 .addWaitAction(0, (packet) -> {
                     limelight.startCollectingSamples();
                     return false;
@@ -209,13 +209,13 @@ public class NewBucket extends PathChainAutoOpMode {
         tasks.add(parkTask);
 
         // 6) Dynamic Alignment #1 (null => computeDynamicPath)
-        dynamicTask = createPathTask(null, 0.2);
+        dynamicTask = new PathChainTask(null, 0.2);
         dynamicTask.addWaitAction(0, motorActions.extendo.set(50));
         dynamicTask.addWaitAction(0, motorActions.extendo.set(100));
         tasks.add(dynamicTask);
 
         // 7) SHIFT Task #1
-        shiftTask = createPathTask(null, 0.0)
+        shiftTask = new PathChainTask(null, 0.0)
                 // WaitCondition for SHIFT if color != UNKNOWN && color != RED
                 .setWaitCondition(() ->
                         motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN
@@ -249,13 +249,13 @@ public class NewBucket extends PathChainAutoOpMode {
         tasks.add(shiftTask);
 
         // 8) ScoreSub1
-        scoreSub1Task = createPathTask(null, 0.5)
+        scoreSub1Task = new PathChainTask(null, 0.5)
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> motorControl.lift.closeEnough(800));
         tasks.add(scoreSub1Task);
 
         // 9) Park2
-        park2Task = createPathTask(null, 0.15)
+        park2Task = new PathChainTask(null, 0.15)
                 .addWaitAction(0, (packet) -> {
                     limelight.resetSamples();
                     limelight.startCollectingSamples();
@@ -268,12 +268,12 @@ public class NewBucket extends PathChainAutoOpMode {
         tasks.add(park2Task);
 
         // 10) Align2
-        align2Task = createPathTask(null, 0);
+        align2Task = new PathChainTask(null, 0);
         align2Task.addWaitAction(0, motorActions.extendo.set(25));
         tasks.add(align2Task);
 
         // 11) SHIFT2
-        shiftTask2 = createPathTask(null, 0.0)
+        shiftTask2 = new PathChainTask(null, 0.0)
                 .setWaitCondition(() ->
                         motorControl.getDetectedColor() != Enums.DetectedColor.UNKNOWN
                                 && motorControl.getDetectedColor() != Enums.DetectedColor.RED
@@ -304,7 +304,7 @@ public class NewBucket extends PathChainAutoOpMode {
         tasks.add(shiftTask2);
 
         // 12) ScoreSub2
-        scoreSub2Task = createPathTask(null, 0.5)
+        scoreSub2Task = new PathChainTask(null, 0.5)
                 .setMaxWaitTime(2)
                 .addWaitAction(2, (packet) -> {
                     requestOpModeStop();
@@ -552,7 +552,6 @@ public class NewBucket extends PathChainAutoOpMode {
         telemetry.addData("T Value", follower.getCurrentTValue());
         telemetry.addData("Path Active", isPathActive());
         telemetry.addData("Turning", isTurning());
-        telemetry.addData("Wait Timer", pathTimer.getElapsedTimeSeconds());
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.addData("Detected Color", motorControl.getDetectedColor());
         telemetry.addData("Limelight Avg", limelight.getAveragePose());
