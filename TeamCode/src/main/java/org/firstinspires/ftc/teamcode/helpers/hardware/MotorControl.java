@@ -413,7 +413,7 @@ public class MotorControl {
             if (!isCollectingSamples) return false;
 
             limelight.pipelineSwitch(PIPE_A);
-            try { Thread.sleep(20); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false;}
+            try { Thread.sleep(1); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false;}
 
             LLResult resultA = limelight.getLatestResult();
             if (resultA == null || resultA.getDetectorResults() == null) {
@@ -480,7 +480,7 @@ public class MotorControl {
 
             limelight.pipelineSwitch(PIPE_B);
             limelight.updatePythonInputs(llRobotData);
-            try { Thread.sleep(30); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false;}
+            try { Thread.sleep(1); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false;}
 
             LLResult resultB = limelight.getLatestResult();
             if (resultB == null || resultB.getPythonOutput() == null) {

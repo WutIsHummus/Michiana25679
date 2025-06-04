@@ -63,6 +63,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     private MotorControl.Limelight limelight;
 
+    private boolean scan1Done, scan2Done = false;
+
     private boolean spitDone1, spitDone2, spitDone3 = false;
 
     // --- Vision turn related fields ---
@@ -86,28 +88,14 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     private PathChain  preoloadIntake;
     private PathChain parkChain;
 
+    private boolean visionStarted     = false;
+    private double  visionStartTime   = 0.0;  // in seconds
+
     /**
      * Collects a single set of Limelight samples and stores the results
      * into {@code latestVisionPose} (horizontal, forward) and
      * {@code latestVisionAngle}. Returns true if successful.
      */
-    private boolean collectVisionData() {
-        limelight.startCollectingSamples();
-        long start = System.currentTimeMillis();
-        boolean success = false;
-        while (opModeIsActive() && System.currentTimeMillis() - start < 5000) {
-            if (limelight.collectSamples()) {
-                Vector2d pose = limelight.getAveragePose();
-                if (pose.x != 99.99) {
-                    latestVisionPose = pose;
-                    latestVisionAngle = -limelight.getAverageAngle();
-                    success = true;
-                    break;
-                }
-            }
-        }
-        return success;
-    }
 
 
     // -------- Override buildPathChains() --------
@@ -264,8 +252,6 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .setConstantHeadingInterpolation(
                         Math.toRadians(pickup1Pose.getHeading()))
                 .build();
-
-
     }
 
     @Override
@@ -273,15 +259,40 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         tasks.clear();
 
         // Preload task.
-        addPath(scorePreload, 0.3).addWaitAction(0,
+        addPath(scorePreload, 0).addWaitAction(0,
                 new SequentialAction(
                         motorActions.depositSpecimen(),
                         motorActions.lift.vision(),
                         motorActions.lift.waitUntilFinished(),
-                        telemetryPacket -> {
-                            collectVisionData(); return false;
-                        }
-                ));
+                        new WaitUntilAction(() -> {
+                            // 1) The first time this lambda runs, start collecting samples and record start time
+                            if (!visionStarted) {
+                                limelight.startCollectingSamples();
+                                visionStarted   = true;
+                                visionStartTime = opModeTimer.getElapsedTimeSeconds();
+                                telemetry.addData("Vision", "Started");
+                            }
+                            // 2) Try to collect one batch of samples; if we get a valid pose, store it and return true
+                            if (limelight.collectSamples()) {
+                                Vector2d pose = limelight.getAveragePose();
+                                telemetry.addData("Vision", pose);
+                                if (pose.x != 99.99) {
+                                    latestVisionPose  = pose;
+                                    latestVisionAngle = -limelight.getAverageAngle();
+                                    scan1Done = true;
+                                    return true;
+                                }
+                            }
+                            // 3) If 5 seconds have already passed, give up and return true (timeout)
+                            if (opModeTimer.getElapsedTimeSeconds() - visionStartTime > 5.0) {
+                                return true;
+                            }
+                            // 4) Otherwise, keep waiting (return false)
+                            return false;
+                        })
+                ))
+                .setMaxWaitTime(5)
+                .setWaitCondition(()->scan1Done);
 
         // Vision-based turn before first vision deposit
         visionTurn1 = addRelativeTurnDegrees(0, true, 0);
@@ -466,28 +477,23 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     @Override
     protected void startTurn(TurnTask task) {
         if (task == visionTurn1 || task == visionTurn2) {
-            if (collectVisionData()) {
-                double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
-                lastDistance = inches;
-                if (lastDistance != 0){
-                    task.addWaitAction(0, new SequentialAction(
-                            motorActions.extendo.set(Math.min(inches * 32.25, 800)),
-                            motorActions.extendo.waitUntilFinished(),
-                            motorActions.grabUntilSpecimen(Enums.DetectedColor.BLUE),
-                            motorActions.extendo.set(Math.min(inches * 32.25 + 50, 800))
-                    ));
-                }
-                task.angle = Math.abs(latestVisionAngle);
-                task.isLeft = latestVisionAngle > 0;
-                task.useDegrees = true;
-                task.isRelative = true;
-                limelight.resetSamples();
-            } else {
-                task.angle = 0;
-                task.isLeft = true;
-                task.useDegrees = true;
-                task.isRelative = true;
+            double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
+            lastDistance = inches;
+
+            if (lastDistance != 0) {
+                task.addWaitAction(0, new SequentialAction(
+                        motorActions.extendo.set(Math.min(inches * 32.25, 800)),
+                        motorActions.extendo.waitUntilFinished(),
+                        motorActions.grabUntilSpecimen(Enums.DetectedColor.BLUE),
+                        motorActions.extendo.set(Math.min(inches * 32.25 + 50, 800))
+                ));
             }
+
+            // Now set the turn angle/side based on the stored vision angle:
+            task.angle      = Math.abs(latestVisionAngle);
+            task.isLeft     = (latestVisionAngle > 0);
+            task.useDegrees = true;
+            task.isRelative = true;
         }
 
         Pose currentRobotPose = follower.getPose();
