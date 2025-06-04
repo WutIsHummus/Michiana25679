@@ -103,7 +103,6 @@ public class MotorActions {
 
     public Action grabUntilSpecimen(Enums.DetectedColor allianceColor) {
         return new SequentialAction(
-                lift.transfer(),
                 inArm.specimenGrab(),
                 inPivot.specimenGrab(),
                 spin.eatUntil(allianceColor, mc)
@@ -296,7 +295,7 @@ public class MotorActions {
         public Action transfer()      { return set(0); }
         public Action specimen()      { return set(450); }
         public Action sample()      { return set(800); }
-        public Action vision()      { return set(235); }
+        public Action vision()      { return set(350); }
 
         public Action findZero() {
             return new SequentialAction(t -> {mc.lift.findZero();return false;},

@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.helpers.hardware;
 
+import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
+
 import android.graphics.Color;
 // PointF is not directly used for DetectorResult corners anymore,
 // but might be used elsewhere or by other Limelight result types if you extend this.
@@ -46,6 +48,7 @@ public class MotorControl {
 
     public final RevColorSensorV3  colorSensor;
     public final DcMotorEx spin;
+
 
     public final Lift lift;
     public final Extendo extendo;
@@ -239,7 +242,7 @@ public class MotorControl {
 
     public static class Lift extends ControlledDevice {
         public CachingDcMotorEx motor2;
-        public static final double p = -0.025, i = 0, d = -0.00025;
+        public static final double p = -0.02, i = 0, d = -0.00025;
         // public static final double GRAVITY_FEEDFORWARD = 0; // Not used in current update
 
         public Lift(HardwareMap hardwareMap) {

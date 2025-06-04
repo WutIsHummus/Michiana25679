@@ -37,7 +37,6 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     private Follower follower;
     private MotorActions motorActions;
     private MotorControl motorControl;
-    private MotorControl.Limelight limelight;
     private Timer opModeTimer;  // additional timer if desired
 
     // -------- Poses --------
@@ -61,12 +60,18 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     private final Pose parkPose = new Pose(11, 22, Math.toRadians(90));
     private final Pose parkControlPose = new Pose(12, 74, Math.toRadians(90));
 
+
+    private MotorControl.Limelight limelight;
+
     private boolean spitDone1, spitDone2, spitDone3 = false;
 
     // --- Vision turn related fields ---
     private TurnTask visionTurn1, visionTurn2;
     private Vector2d latestVisionPose = new Vector2d(0, 0);
     private double latestVisionAngle = 0;
+    private double lastDistance = 0;
+
+
 
     private final AtomicBoolean specimenProcessingComplete = new AtomicBoolean(false);
 
@@ -90,18 +95,17 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         limelight.startCollectingSamples();
         long start = System.currentTimeMillis();
         boolean success = false;
-        while (opModeIsActive() && System.currentTimeMillis() - start < 1000) {
+        while (opModeIsActive() && System.currentTimeMillis() - start < 5000) {
             if (limelight.collectSamples()) {
                 Vector2d pose = limelight.getAveragePose();
                 if (pose.x != 99.99) {
                     latestVisionPose = pose;
-                    latestVisionAngle = limelight.getAverageAngle();
+                    latestVisionAngle = -limelight.getAverageAngle();
                     success = true;
                     break;
                 }
             }
         }
-        limelight.resetSamples();
         return success;
     }
 
@@ -115,6 +119,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                         new Point(pickup1Pose),
                         new Point(intakeControl3),
                         new Point(intake)))
+                .addParametricCallback(0.95, () -> limelight.startCollectingSamples())
                 .setConstantHeadingInterpolation(Math.toRadians(intake.getHeading()))
                 .addParametricCallback(0.5, () -> motorControl.spin.setPower(0))
                 .addParametricCallback(0, () -> run(motorActions.intakeSpecimen()))
@@ -214,6 +219,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), preloadPose.getHeading())
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0, () ->  run(motorActions.safePositions()))
+                .addParametricCallback(0.2, () ->  run(motorActions.specimenExtend(0)))
                 .build();
 
 
@@ -267,14 +273,20 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         tasks.clear();
 
         // Preload task.
-        addPath(scorePreload, 1).addWaitAction(0,
+        addPath(scorePreload, 0.3).addWaitAction(0,
                 new SequentialAction(
                         motorActions.depositSpecimen(),
-                        motorActions.lift.vision()
+                        motorActions.lift.vision(),
+                        motorActions.lift.waitUntilFinished(),
+                        telemetryPacket -> {
+                            collectVisionData(); return false;
+                        }
                 ));
 
         // Vision-based turn before first vision deposit
         visionTurn1 = addRelativeTurnDegrees(0, true, 0);
+
+        /*
 
         addPath(vision1deposit, 0.1).addWaitAction(0,motorActions.outtakeSpecimen());
 
@@ -381,7 +393,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
         tasks.add(new PathChainTask(score5, 0));
 
-
+*/
 
     }
 
@@ -444,6 +456,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
 
 
+        limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
 
         // Build the paths and tasks.
         buildPathChains();
@@ -455,11 +468,20 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         if (task == visionTurn1 || task == visionTurn2) {
             if (collectVisionData()) {
                 double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
-                motorControl.extendo.setTargetPosition(inches * 32.0);
+                lastDistance = inches;
+                if (lastDistance != 0){
+                    task.addWaitAction(0, new SequentialAction(
+                            motorActions.extendo.set(Math.min(inches * 32.25, 800)),
+                            motorActions.extendo.waitUntilFinished(),
+                            motorActions.grabUntilSpecimen(Enums.DetectedColor.BLUE),
+                            motorActions.extendo.set(Math.min(inches * 32.25 + 50, 800))
+                    ));
+                }
                 task.angle = Math.abs(latestVisionAngle);
                 task.isLeft = latestVisionAngle > 0;
                 task.useDegrees = true;
                 task.isRelative = true;
+                limelight.resetSamples();
             } else {
                 task.angle = 0;
                 task.isLeft = true;
@@ -508,6 +530,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         runTasks();
         motorControl.update();
 
+
         telemetry.addData("Task Index", currentTaskIndex + "/" + tasks.size());
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
         telemetry.addData("T Value", follower.getCurrentTValue());
@@ -517,6 +540,9 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         telemetry.addData("isEmpty",motorControl.isEmpty());
         telemetry.addData("extendoReset",motorControl.extendo.resetting);
         telemetry.addData("Running Actions", runningActions.size());
+        telemetry.addData("Angle", latestVisionAngle);
+        telemetry.addData("Pose", latestVisionPose);
+        telemetry.addData("Distance", lastDistance);
         telemetry.update();
     }
 }
