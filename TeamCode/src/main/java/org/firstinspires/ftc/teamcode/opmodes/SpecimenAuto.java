@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.pedropathing.pathgen.BezierCurve;
@@ -62,6 +63,11 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     private boolean spitDone1, spitDone2, spitDone3 = false;
 
+    // --- Vision turn related fields ---
+    private TurnTask visionTurn1, visionTurn2;
+    private Vector2d latestVisionPose = new Vector2d(0, 0);
+    private double latestVisionAngle = 0;
+
     private final AtomicBoolean specimenProcessingComplete = new AtomicBoolean(false);
 
 
@@ -74,6 +80,30 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     private PathChain  vision1deposit, vision2intake, vision2deposit;
     private PathChain  preoloadIntake;
     private PathChain parkChain;
+
+    /**
+     * Collects a single set of Limelight samples and stores the results
+     * into {@code latestVisionPose} (horizontal, forward) and
+     * {@code latestVisionAngle}. Returns true if successful.
+     */
+    private boolean collectVisionData() {
+        limelight.startCollectingSamples();
+        long start = System.currentTimeMillis();
+        boolean success = false;
+        while (opModeIsActive() && System.currentTimeMillis() - start < 1000) {
+            if (limelight.collectSamples()) {
+                Vector2d pose = limelight.getAveragePose();
+                if (pose.x != 99.99) {
+                    latestVisionPose = pose;
+                    latestVisionAngle = limelight.getAverageAngle();
+                    success = true;
+                    break;
+                }
+            }
+        }
+        limelight.resetSamples();
+        return success;
+    }
 
 
     // -------- Override buildPathChains() --------
@@ -130,8 +160,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Point(scorePose),
                         new Point(intake)))
-                .setLinearHeadingInterpolation(Math.toRadians(scorePose.getHeading()),
-                        Math.toRadians(intake.getHeading()), 50)
+                .setLinearHeadingInterpolation(scorePose.getHeading(),
+                        intake.getHeading(), 50)
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .addParametricCallback(0.2, () -> run(motorActions.intakeSpecimen()))
                 .build();
@@ -140,8 +170,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Point(scorePose),
                         new Point(intake)))
-                .setLinearHeadingInterpolation(Math.toRadians(scorePose.getHeading()),
-                        Math.toRadians(intake.getHeading()), 50)
+                .setLinearHeadingInterpolation(scorePose.getHeading(),
+                        intake.getHeading(), 50)
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .addParametricCallback(0.2, () -> run(motorActions.intakeSpecimen()))
                 .build();
@@ -150,8 +180,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Point(scorePose),
                         new Point(intake)))
-                .setLinearHeadingInterpolation(Math.toRadians(scorePose.getHeading()),
-                        Math.toRadians(intake.getHeading()), 50)
+                .setLinearHeadingInterpolation(scorePose.getHeading(),
+                        intake.getHeading(), 50)
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .addParametricCallback(0.2, () -> run(motorActions.intakeSpecimen()))
                 .build();
@@ -160,8 +190,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Point(scorePose),
                         new Point(intake)))
-                .setLinearHeadingInterpolation(Math.toRadians(scorePose.getHeading()),
-                        Math.toRadians(intake.getHeading()), 50)
+                .setLinearHeadingInterpolation(scorePose.getHeading(),
+                        intake.getHeading(), 50)
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .addParametricCallback(0.2, () -> run(motorActions.intakeSpecimen()))
                 .build();
@@ -243,7 +273,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                         motorActions.lift.vision()
                 ));
 
-        //todo: add turn action with intake and vision
+        // Vision-based turn before first vision deposit
+        visionTurn1 = addRelativeTurnDegrees(0, true, 0);
 
         addPath(vision1deposit, 0.1).addWaitAction(0,motorActions.outtakeSpecimen());
 
@@ -255,7 +286,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                         motorActions.lift.vision()
                 ));
 
-        //todo: add turn action with intake and vision
+        // Vision-based turn before second vision deposit
+        visionTurn2 = addRelativeTurnDegrees(0, true, 0);
 
         addPath(vision2deposit, 0)
                 .addWaitAction(0, new SequentialAction(
@@ -420,6 +452,22 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     @Override
     protected void startTurn(TurnTask task) {
+        if (task == visionTurn1 || task == visionTurn2) {
+            if (collectVisionData()) {
+                double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
+                motorControl.extendo.setTargetPosition(inches * 32.0);
+                task.angle = Math.abs(latestVisionAngle);
+                task.isLeft = latestVisionAngle > 0;
+                task.useDegrees = true;
+                task.isRelative = true;
+            } else {
+                task.angle = 0;
+                task.isLeft = true;
+                task.useDegrees = true;
+                task.isRelative = true;
+            }
+        }
+
         Pose currentRobotPose = follower.getPose();
         double currentX = currentRobotPose.getX();
         double currentY = currentRobotPose.getY();
