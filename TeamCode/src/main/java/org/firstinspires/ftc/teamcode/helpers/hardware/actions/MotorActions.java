@@ -215,9 +215,9 @@ public class MotorActions {
 
     public Action outtakeSpecimen(){
         return new ParallelAction(
+                claw.close(),
                 new SequentialAction(
-                        claw.close(),
-                        new SleepAction(0.2),
+                        new SleepAction(0.4),
                         lift.specimen(),
                         outArm.specimenDeposit(),
                         linkage.extended()
@@ -294,7 +294,7 @@ public class MotorActions {
     public class Lift {
         public Action set(double pos) { return t -> { mc.lift.setTargetPosition(pos); return false; }; }
         public Action transfer()      { return set(0); }
-        public Action specimen()      { return set(400); }
+        public Action specimen()      { return set(450); }
         public Action sample()      { return set(800); }
         public Action vision()      { return set(235); }
 
