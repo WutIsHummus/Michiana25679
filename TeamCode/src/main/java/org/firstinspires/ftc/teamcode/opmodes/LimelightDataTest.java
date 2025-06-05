@@ -49,8 +49,7 @@ public class LimelightDataTest extends LinearOpMode {
 
             while (opModeIsActive()) {
                 // Attempt to collect a new set of samples (which runs the full PipeA -> PipeB logic)
-                boolean newDataCollectedSuccessfully = limelight.collectSamples();
-
+                boolean newDataCollectedSuccessfully =  true;
                 if (newDataCollectedSuccessfully) {
                     // Get the processed data
                     // If maxSamples in your Limelight class is 1, these are effectively the latest readings.

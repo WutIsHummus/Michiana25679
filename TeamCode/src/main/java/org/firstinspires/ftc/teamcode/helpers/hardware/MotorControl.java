@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.helpers.hardware;
 
-import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.telemetry;
-
 import android.graphics.Color;
 // PointF is not directly used for DetectorResult corners anymore,
 // but might be used elsewhere or by other Limelight result types if you extend this.
@@ -10,6 +8,8 @@ import android.graphics.Color;
 
 import androidx.annotation.NonNull;
 
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Vector2d;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.hardware.limelightvision.LLResult;
@@ -48,7 +48,6 @@ public class MotorControl {
 
     public final RevColorSensorV3  colorSensor;
     public final DcMotorEx spin;
-
 
     public final Lift lift;
     public final Extendo extendo;
@@ -242,7 +241,7 @@ public class MotorControl {
 
     public static class Lift extends ControlledDevice {
         public CachingDcMotorEx motor2;
-        public static final double p = -0.02, i = 0, d = -0.00025;
+        public static final double p = -0.025, i = 0, d = -0.00025;
         // public static final double GRAVITY_FEEDFORWARD = 0; // Not used in current update
 
         public Lift(HardwareMap hardwareMap) {
@@ -309,6 +308,12 @@ public class MotorControl {
         private final Limelight3A limelight;
         private final Telemetry telemetry;
 
+        final double IMAGE_WIDTH  = 2592;
+        final double IMAGE_HEIGHT = 1944;
+
+        final double CENTER_X = IMAGE_WIDTH  / 2.0;
+        final double CENTER_Y = IMAGE_HEIGHT / 3.0;
+
         private static final int PIPE_A = 0;
         private static final int PIPE_B = 1;
         private String PRIMARY_CLASS = "blue";
@@ -355,6 +360,8 @@ public class MotorControl {
             isCollectingSamples = true;
         }
 
+
+
         // Corrected getBoundingBox to use List<List<Double>>
         private double[] getBoundingBox(List<List<Double>> corners) {
             if (corners == null || corners.isEmpty()) {
@@ -376,138 +383,133 @@ public class MotorControl {
             return new double[]{minX, minY, maxX - minX, maxY - minY}; // x, y, w, h
         }
 
-        // Corrected getDirectionalSubtractors
-        private List<double[]> getDirectionalSubtractors(
-                double primaryX, double primaryY, double primaryW, double primaryH,
-                List<LLResultTypes.DetectorResult> otherDetections) {
 
-            List<double[]> subtractionRois = new ArrayList<>();
-            for (LLResultTypes.DetectorResult extraDet : otherDetections) {
-                // Use getTargetCorners() which returns List<List<Double>>
-                List<List<Double>> extraDetCorners = extraDet.getTargetCorners();
-                if (extraDetCorners == null || extraDetCorners.isEmpty()) {
-                    continue;
+        public Action collectSamplesAction() {
+            return new Action() {
+                private long startTime = -1;
+                private long nextTime = -1;
+                private boolean inPipelineA = true;
+                private boolean processingB = false;
+
+                @Override
+                public boolean run(TelemetryPacket tp) {
+                    long now = System.currentTimeMillis();
+
+                    // Initialize collection on first run
+                    if (startTime < 0) {
+                        startTime = now;
+                        startCollectingSamples();
+                        limelight.pipelineSwitch(PIPE_A);
+                        nextTime = now + 20;
+                        return true;
+                    }
+
+                    // Abort if overall timeout exceeded (2 seconds)
+                    if (now - startTime > 3000) {
+                        isCollectingSamples = false;
+                        return false;
+                    }
+
+                    // Stage A: process pipeline A result after ~20ms
+                    if (inPipelineA) {
+                        if (now < nextTime) {
+                            return true; // still waiting
+                        }
+                        LLResult resultA = limelight.getLatestResult();
+                        if (resultA == null || resultA.getDetectorResults() == null) {
+                            nextTime = now + 20;
+                            return true;
+                        }
+                        List<LLResultTypes.DetectorResult> detsA = resultA.getDetectorResults();
+                        if (detsA.isEmpty()) {
+                            nextTime = now + 20;
+                            return true;
+                        }
+                        // Split detections into primary-class vs extras
+                        List<LLResultTypes.DetectorResult> primaries = new ArrayList<>();
+                        List<LLResultTypes.DetectorResult> extras = new ArrayList<>();
+                        for (LLResultTypes.DetectorResult d : detsA) {
+                            if (d.getClassName().equalsIgnoreCase(PRIMARY_CLASS)) {
+                                primaries.add(d);
+                            } else {
+                                extras.add(d);
+                            }
+                        }
+                        if (primaries.isEmpty()) {
+                            nextTime = now + 20;
+                            return true;
+                        }
+                        // Choose the largest primary target by area
+                        LLResultTypes.DetectorResult primary = Collections.max(primaries, Comparator.comparingDouble(d -> {
+                            double[] box = getBoundingBox(d.getTargetCorners());
+                            return box[2] * box[3];
+                        }));
+                        for (LLResultTypes.DetectorResult d : primaries) {
+                            if (d != primary) extras.add(d);
+                        }
+                        double[] pBox = getBoundingBox(primary.getTargetCorners());
+                        double colorCode = COLOR_MAP.getOrDefault(primary.getClassName().toLowerCase(), 1.0);
+                        // Compute subtraction ROIs from other detections
+                        // Prepare inputs: primary box + color + each sub-ROI
+                        ArrayList<Double> inputs = new ArrayList<>();
+                        for (double v : pBox) inputs.add(v);
+                        inputs.add(colorCode);
+
+                        // Switch to pipeline B and send inputs to Python
+                        limelight.pipelineSwitch(PIPE_B);
+                        limelight.updatePythonInputs(inputs.stream().mapToDouble(Double::doubleValue).toArray());
+
+                        // Move to pipeline B stage
+                        inPipelineA = false;
+                        processingB = true;
+                        nextTime = now + 30;
+                        return true;
+                    }
+
+                    // Stage B: process pipeline B result after ~30ms
+                    if (processingB) {
+                        if (now < nextTime) {
+                            return true; // still waiting
+                        }
+                        LLResult resultB = limelight.getLatestResult();
+                        processingB = false;
+                        if (resultB != null && resultB.getPythonOutput() != null) {
+                            double[] out = resultB.getPythonOutput();
+                            if (out.length >= 3) {
+                                double forward = out[0], horiz = out[1], ang = out[2];
+                                forwardMeasurements.add(forward);
+                                horizontalMeasurements.add(horiz);
+                                angleMeasurements.add(ang);
+                                // Keep only the latest maxSamples entries
+                                if (forwardMeasurements.size() > maxSamples)
+                                    forwardMeasurements.remove(0);
+                                if (horizontalMeasurements.size() > maxSamples)
+                                    horizontalMeasurements.remove(0);
+                                if (angleMeasurements.size() > maxSamples)
+                                    angleMeasurements.remove(0);
+                                telemetry.addData("Limelight Sample",
+                                        String.format("Fwd: %.1f, Horz: %.1f, Ang: %.1f", forward, horiz, ang));
+                            }
+                        }
+                        // If we've collected enough samples, finish
+                        if (forwardMeasurements.size() >= maxSamples) {
+                            isCollectingSamples = false;
+                            return false;
+                        }
+                        // Otherwise, go back to pipeline A for another round
+                        inPipelineA = true;
+                        limelight.pipelineSwitch(PIPE_A);
+                        nextTime = now + 20;
+                        return true;
+                    }
+
+                    // Should not reach here, but just in case
+                    isCollectingSamples = false;
+                    return false;
                 }
-
-                double[] extraDetBox = getBoundingBox(extraDetCorners);
-                double ex_x = extraDetBox[0];
-                double ex_y = extraDetBox[1];
-                double ex_w = extraDetBox[2];
-                double ex_h = extraDetBox[3];
-
-                double intersect_x1 = Math.max(primaryX, ex_x);
-                double intersect_y1 = Math.max(primaryY, ex_y);
-                double intersect_x2 = Math.min(primaryX + primaryW, ex_x + ex_w);
-                double intersect_y2 = Math.min(primaryY + primaryH, ex_y + ex_h);
-
-                if (intersect_x2 > intersect_x1 && intersect_y2 > intersect_y1) {
-                    double intersect_w = intersect_x2 - intersect_x1;
-                    double intersect_h = intersect_y2 - intersect_y1;
-                    subtractionRois.add(new double[]{intersect_x1, intersect_y1, intersect_w, intersect_h});
-                }
-            }
-            return subtractionRois;
+            };
         }
 
-        public boolean collectSamples() {
-            if (!isCollectingSamples) return false;
-
-            limelight.pipelineSwitch(PIPE_A);
-            try { Thread.sleep(1); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false;}
-
-            LLResult resultA = limelight.getLatestResult();
-            if (resultA == null || resultA.getDetectorResults() == null) {
-                return false;
-            }
-
-            List<LLResultTypes.DetectorResult> detections = resultA.getDetectorResults();
-            if (detections.isEmpty()) {
-                return false;
-            }
-
-            LLResultTypes.DetectorResult primaryDetection = null;
-            List<LLResultTypes.DetectorResult> extraDetections = new ArrayList<>();
-            List<LLResultTypes.DetectorResult> tempPrimaryCandidates = new ArrayList<>();
-
-            for (LLResultTypes.DetectorResult d : detections) {
-                if (d.getClassName().equalsIgnoreCase(PRIMARY_CLASS)) {
-                    tempPrimaryCandidates.add(d);
-                } else {
-                    extraDetections.add(d);
-                }
-            }
-
-            if (tempPrimaryCandidates.isEmpty()) {
-                return false;
-            }
-
-            primaryDetection = Collections.max(tempPrimaryCandidates, Comparator.comparingDouble(d -> {
-                // Use getTargetCorners() here
-                double[] box = getBoundingBox(d.getTargetCorners());
-                return box[2] * box[3]; // w * h
-            }));
-
-            for (LLResultTypes.DetectorResult cand : tempPrimaryCandidates) {
-                if (cand != primaryDetection) {
-                    extraDetections.add(cand);
-                }
-            }
-
-            // Use getTargetCorners() for primaryDetection as well
-            double[] primaryBox = getBoundingBox(primaryDetection.getTargetCorners());
-            double p_x0 = primaryBox[0];
-            double p_y0 = primaryBox[1];
-            double p_w0 = primaryBox[2];
-            double p_h0 = primaryBox[3];
-
-            double color_code = COLOR_MAP.getOrDefault(primaryDetection.getClassName().toLowerCase(), 1.0);
-
-            List<double[]> subtractionRois = getDirectionalSubtractors(p_x0, p_y0, p_w0, p_h0, extraDetections);
-
-            ArrayList<Double> llRobotDataList = new ArrayList<>();
-            llRobotDataList.add(p_x0);
-            llRobotDataList.add(p_y0);
-            llRobotDataList.add(p_w0);
-            llRobotDataList.add(p_h0);
-            llRobotDataList.add(color_code);
-
-            for (double[] strip : subtractionRois) {
-                for (double val : strip) {
-                    llRobotDataList.add(val);
-                }
-            }
-            double[] llRobotData = llRobotDataList.stream().mapToDouble(Double::doubleValue).toArray();
-
-            limelight.pipelineSwitch(PIPE_B);
-            limelight.updatePythonInputs(llRobotData);
-            try { Thread.sleep(1); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return false;}
-
-            LLResult resultB = limelight.getLatestResult();
-            if (resultB == null || resultB.getPythonOutput() == null) {
-                return false;
-            }
-
-            double[] pyOut = resultB.getPythonOutput();
-
-            if (pyOut.length >= 3) {
-                double forwardDist = pyOut[0];
-                double horizontalDist = pyOut[1];
-                double angleVal = pyOut[2]; // Renamed to avoid conflict
-
-                forwardMeasurements.add(forwardDist);
-                horizontalMeasurements.add(horizontalDist);
-                angleMeasurements.add(angleVal);
-
-                if (forwardMeasurements.size() > maxSamples) forwardMeasurements.remove(0);
-                if (horizontalMeasurements.size() > maxSamples) horizontalMeasurements.remove(0);
-                if (angleMeasurements.size() > maxSamples) angleMeasurements.remove(0);
-
-                telemetry.addData("Limelight Output", String.format("Dist: %.1f, Hoz: %.1f, Ang: %.1f", forwardDist, horizontalDist, angleVal));
-                return forwardMeasurements.size() == maxSamples;
-            } else {
-                return false;
-            }
-        }
 
         public Vector2d getAveragePose() {
             if (horizontalMeasurements.isEmpty() || forwardMeasurements.isEmpty()) {

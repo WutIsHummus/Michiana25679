@@ -183,12 +183,7 @@ public class LimelightAlignmentTest extends ActionOpMode {
                     long samplingStartTime = System.currentTimeMillis();
                     boolean samplesCollectedSuccessfully = false;
                     while (opModeIsActive() && (System.currentTimeMillis() - samplingStartTime) < 1000) {
-                        if (limelight.collectSamples()) {
-                            if (limelight.getAveragePose().x != 99.99) {
-                                samplesCollectedSuccessfully = true;
-                                break;
-                            }
-                        }
+                        
                     }
 
                     if (samplesCollectedSuccessfully) {

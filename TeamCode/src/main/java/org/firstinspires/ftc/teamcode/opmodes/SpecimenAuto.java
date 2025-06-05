@@ -41,8 +41,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     // -------- Poses --------
     private final Pose startPose = new Pose(9, 56, Math.toRadians(0));
-    private final Pose preloadPose = new Pose(40, 70, Math.toRadians(0));
-    private final Pose scorePose = new Pose(41, 68, Math.toRadians(25));
+    private final Pose preloadPose = new Pose(42, 70, Math.toRadians(0));
+    private final Pose scorePose = new Pose(41,     68, Math.toRadians(25));
     private final Pose scorePose1 = new Pose(41, 68, Math.toRadians(25));
     private final Pose scorePose2 = new Pose(41, 68, Math.toRadians(25));
     private final Pose scorePose3 = new Pose(41, 68, Math.toRadians(25));
@@ -107,7 +107,6 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                         new Point(pickup1Pose),
                         new Point(intakeControl3),
                         new Point(intake)))
-                .addParametricCallback(0.95, () -> limelight.startCollectingSamples())
                 .setConstantHeadingInterpolation(Math.toRadians(intake.getHeading()))
                 .addParametricCallback(0.5, () -> motorControl.spin.setPower(0))
                 .addParametricCallback(0, () -> run(motorActions.intakeSpecimen()))
@@ -206,7 +205,9 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                         new Point(preloadPose)))
                 .setLinearHeadingInterpolation(startPose.getHeading(), preloadPose.getHeading())
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
-                .addParametricCallback(0, () ->  run(motorActions.safePositions()))
+                .addParametricCallback(0, () ->  run(motorActions.safeServos()))
+                .setZeroPowerAccelerationMultiplier(3)
+                .addParametricCallback(0.98, ()->run(new SequentialAction(motorActions.depositSpecimen())))
                 .addParametricCallback(0.2, () ->  run(motorActions.specimenExtend(0)))
                 .build();
 
@@ -259,47 +260,26 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         tasks.clear();
 
         // Preload task.
-        addPath(scorePreload, 0).addWaitAction(0,
-                new SequentialAction(
-                        motorActions.depositSpecimen(),
-                        motorActions.lift.vision(),
-                        motorActions.lift.waitUntilFinished(),
-                        new WaitUntilAction(() -> {
-                            // 1) The first time this lambda runs, start collecting samples and record start time
-                            if (!visionStarted) {
-                                limelight.startCollectingSamples();
-                                visionStarted   = true;
-                                visionStartTime = opModeTimer.getElapsedTimeSeconds();
-                                telemetry.addData("Vision", "Started");
-                            }
-                            // 2) Try to collect one batch of samples; if we get a valid pose, store it and return true
-                            if (limelight.collectSamples()) {
-                                Vector2d pose = limelight.getAveragePose();
-                                telemetry.addData("Vision", pose);
-                                if (pose.x != 99.99) {
-                                    latestVisionPose  = pose;
-                                    latestVisionAngle = -limelight.getAverageAngle();
-                                    scan1Done = true;
-                                    return true;
-                                }
-                            }
-                            // 3) If 5 seconds have already passed, give up and return true (timeout)
-                            if (opModeTimer.getElapsedTimeSeconds() - visionStartTime > 5.0) {
-                                return true;
-                            }
-                            // 4) Otherwise, keep waiting (return false)
-                            return false;
-                        })
+        addPath(scorePreload, 0)
+                .addWaitAction(0.2,new SequentialAction(
+                        limelight.collectSamplesAction(),
+                        telemetryPacket -> {
+                            latestVisionPose = limelight.getAveragePose();
+                            latestVisionAngle = Math.min(15, Math.max(-limelight.getAverageAngle(), -15));
+                            scan1Done = true; return false;
+                        }
                 ))
-                .setMaxWaitTime(5)
+                .setMaxWaitTime(6)
                 .setWaitCondition(()->scan1Done);
 
         // Vision-based turn before first vision deposit
         visionTurn1 = addRelativeTurnDegrees(0, true, 0);
 
+        addPath(vision1deposit, 0.1).addWaitAction(0,motorActions.outtakeSpecimen());
+
         /*
 
-        addPath(vision1deposit, 0.1).addWaitAction(0,motorActions.outtakeSpecimen());
+
 
 
 
@@ -469,6 +449,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
         limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
 
+        limelight.setPrimaryClass("red");
+
         // Build the paths and tasks.
         buildPathChains();
         buildTaskList();
@@ -477,15 +459,17 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     @Override
     protected void startTurn(TurnTask task) {
         if (task == visionTurn1 || task == visionTurn2) {
+
             double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
             lastDistance = inches;
 
             if (lastDistance != 0) {
                 task.addWaitAction(0, new SequentialAction(
-                        motorActions.extendo.set(Math.min(inches * 32.25, 800)),
+                        motorActions.sampleExtend(Math.min(inches * 32.25, 800)),
                         motorActions.extendo.waitUntilFinished(),
-                        motorActions.grabUntilSpecimen(Enums.DetectedColor.BLUE),
-                        motorActions.extendo.set(Math.min(inches * 32.25 + 50, 800))
+                        motorActions.extendo.set(Math.min((inches + 3) * 32.25, 800)),
+                        motorActions.spin.eat(),
+                        motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl)
                 ));
             }
 
@@ -527,6 +511,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         currentTaskIndex = 0;
         taskPhase = 0;
         pathTimer.resetTimer();
+        run(motorActions.outtakeSpecimen());
     }
 
     @Override
@@ -543,6 +528,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         telemetry.addData("Wait Timer", pathTimer.getElapsedTimeSeconds());
         telemetry.addData("Turning", isTurning());
         telemetry.addData("Busy", follower.isBusy());
+        telemetry.addData("liftCurrent",motorControl.lift.motor.getCurrentPosition());
+        telemetry.addData("liftTarget",motorControl.lift.getTargetPosition());
         telemetry.addData("isEmpty",motorControl.isEmpty());
         telemetry.addData("extendoReset",motorControl.extendo.resetting);
         telemetry.addData("Running Actions", runningActions.size());

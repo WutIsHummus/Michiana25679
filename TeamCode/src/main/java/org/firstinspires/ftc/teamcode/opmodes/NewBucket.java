@@ -198,14 +198,8 @@ public class NewBucket extends PathChainAutoOpMode {
 
         // 5) Park #1
         PathChainTask parkTask = new PathChainTask(parkChain, 0.2)
-                .addWaitAction(0, (packet) -> {
-                    limelight.startCollectingSamples();
-                    return false;
-                })
-                .addWaitAction(0.1, (packet) -> {
-                    limelight.collectSamples();
-                    return false;
-                });
+                .addWaitAction(0.1, limelight.collectSamplesAction()
+                        );
         tasks.add(parkTask);
 
         // 6) Dynamic Alignment #1 (null => computeDynamicPath)
@@ -256,15 +250,7 @@ public class NewBucket extends PathChainAutoOpMode {
 
         // 9) Park2
         park2Task = new PathChainTask(null, 0.15)
-                .addWaitAction(0, (packet) -> {
-                    limelight.resetSamples();
-                    limelight.startCollectingSamples();
-                    return false;
-                })
-                .addWaitAction(0.1, (packet) -> {
-                    limelight.collectSamples();
-                    return false;
-                });
+                .addWaitAction(0, limelight.collectSamplesAction());
         tasks.add(park2Task);
 
         // 10) Align2
