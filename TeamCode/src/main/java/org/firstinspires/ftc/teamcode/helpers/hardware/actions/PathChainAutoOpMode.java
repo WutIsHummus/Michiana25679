@@ -185,7 +185,6 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
         if (!turnTask.initiated) {
             if (isTurning() || isPathActive()) return; // Wait for previous turn/path
             startTurn(turnTask); // Implemented by subclass, starts the turn
-            turnTask.initiated = true;
             resetTimersAndActionsForTask(turnTask); // Resets timers and prepares for this task's own wait phase
         } else {
             // Turn has been initiated, check if it's still active

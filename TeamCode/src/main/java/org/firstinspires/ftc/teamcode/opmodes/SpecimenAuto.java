@@ -261,7 +261,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
         // Preload task.
         addPath(scorePreload, 0)
-                .addWaitAction(0.2,new SequentialAction(
+                .addWaitAction(0,new SequentialAction(
                         limelight.collectSamplesAction(),
                         telemetryPacket -> {
                             latestVisionPose = limelight.getAveragePose();
@@ -273,9 +273,9 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                 .setWaitCondition(()->scan1Done);
 
         // Vision-based turn before first vision deposit
-        visionTurn1 = addRelativeTurnDegrees(0, true, 0);
+        visionTurn1 = addRelativeTurnDegrees(0, true, 3).addWaitAction(2.5, motorActions.intakeTransfer());
 
-        addPath(vision1deposit, 0.1).addWaitAction(0,motorActions.outtakeSpecimen());
+        addPath(vision1deposit, 0.2).addWaitAction(0,motorActions.outtakeSpecimen());
 
         /*
 
@@ -460,8 +460,11 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     protected void startTurn(TurnTask task) {
         if (task == visionTurn1 || task == visionTurn2) {
 
+
             double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
             lastDistance = inches;
+
+            if (lastDistance==0) return;
 
             if (lastDistance != 0) {
                 task.addWaitAction(0, new SequentialAction(
@@ -478,8 +481,9 @@ public class SpecimenAuto extends PathChainAutoOpMode {
             task.isLeft     = (latestVisionAngle > 0);
             task.useDegrees = true;
             task.isRelative = true;
-        }
 
+        }
+        task.initiated = true;
         Pose currentRobotPose = follower.getPose();
         double currentX = currentRobotPose.getX();
         double currentY = currentRobotPose.getY();
@@ -527,6 +531,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         telemetry.addData("T Value", follower.getCurrentTValue());
         telemetry.addData("Wait Timer", pathTimer.getElapsedTimeSeconds());
         telemetry.addData("Turning", isTurning());
+        telemetry.addData("PathActive", isPathActive());
         telemetry.addData("Busy", follower.isBusy());
         telemetry.addData("liftCurrent",motorControl.lift.motor.getCurrentPosition());
         telemetry.addData("liftTarget",motorControl.lift.getTargetPosition());

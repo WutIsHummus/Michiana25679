@@ -312,7 +312,7 @@ public class MotorControl {
         final double IMAGE_HEIGHT = 1944;
 
         final double CENTER_X = IMAGE_WIDTH  / 2.0;
-        final double CENTER_Y = IMAGE_HEIGHT / 3.0;
+        final double CENTER_Y = IMAGE_HEIGHT * 2 / 3.0;
 
         private static final int PIPE_A = 0;
         private static final int PIPE_B = 1;
@@ -405,7 +405,7 @@ public class MotorControl {
                     }
 
                     // Abort if overall timeout exceeded (2 seconds)
-                    if (now - startTime > 3000) {
+                    if (now - startTime > 6000) {
                         isCollectingSamples = false;
                         return false;
                     }
@@ -514,11 +514,11 @@ public class MotorControl {
         public Vector2d getAveragePose() {
             if (horizontalMeasurements.isEmpty() || forwardMeasurements.isEmpty()) {
                 telemetry.addLine("Limelight Average Pose: No samples collected.");
-                return new Vector2d(99.99, 99.99);
+                return new Vector2d(0, 0);
             }
 
-            double avgHorizontal = horizontalMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(99.99);
-            double avgForward = forwardMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(99.99);
+            double avgHorizontal = horizontalMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+            double avgForward = forwardMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(0);
 
             telemetry.addData("Limelight Avg Horizontal", String.format("%.2f", avgHorizontal));
             telemetry.addData("Limelight Avg Forward", String.format("%.2f", avgForward));
@@ -528,9 +528,9 @@ public class MotorControl {
         public double getAverageAngle() {
             if (angleMeasurements.isEmpty()) {
                 telemetry.addLine("Limelight Average Angle: No samples collected.");
-                return 99.99;
+                return 0;
             }
-            double avgAngle = angleMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(99.99);
+            double avgAngle = angleMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(0);
             telemetry.addData("Limelight Avg Angle", String.format("%.2f", avgAngle));
             return avgAngle;
         }
