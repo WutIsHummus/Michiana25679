@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
 
@@ -311,236 +312,111 @@ public class MotorControl {
         }
     }
 
-    // REVAMPED Limelight Class
     public static class Limelight {
         private final Limelight3A limelight;
         private final Telemetry telemetry;
 
-        final double IMAGE_WIDTH  = 2592;
-        final double IMAGE_HEIGHT = 1944;
+        // --- Calibration constants (adjust as needed) ---
+        private static final double CAMERA_HEIGHT_M   = 0.61;
+        private static final double CAMERA_PITCH_DEG  = 29.0;
+        private static final double IMAGE_WIDTH_PX    = 2592.0;
+        private static final double IMAGE_HEIGHT_PX   = 1944.0;
+        private static final double VERTICAL_FOV_DEG  = 42.0;
+        private static final double FOCAL_LENGTH_PX   = (IMAGE_HEIGHT_PX / 2.0)
+                / Math.tan(Math.toRadians(VERTICAL_FOV_DEG / 2.0));
 
-        final double CENTER_X = IMAGE_WIDTH  / 2.0;
-        final double CENTER_Y = IMAGE_HEIGHT * 2 / 3.0;
-
-        private static final int PIPE_A = 0;
-        private static final int PIPE_B = 1;
-        private String PRIMARY_CLASS = "blue";
-        private static final Map<String, Double> COLOR_MAP = new HashMap<String, Double>() {{
-            put("red", 0.0);
-            put("blue", 1.0);
-            put("yellow", 2.0);
-        }};
-
-        private final int maxSamples = 1;
-        private final List<Double> horizontalMeasurements = new ArrayList<>();
-        private final List<Double> forwardMeasurements = new ArrayList<>();
-        private final List<Double> angleMeasurements = new ArrayList<>();
-        private boolean isCollectingSamples;
+        private String primaryClass = "blue";
 
         public Limelight(HardwareMap hardwareMap, Telemetry telemetry) {
             this.telemetry = telemetry;
-            limelight = hardwareMap.get(Limelight3A.class, "limelight");
-            limelight.start();
+            this.limelight = hardwareMap.get(Limelight3A.class, "limelight");
+            this.limelight.start();
             telemetry.addData("Limelight", "Initialized and polling started.");
         }
 
-        public void setPrimaryClass(String primaryClass) {
-            this.PRIMARY_CLASS = primaryClass.toLowerCase();
+        public void setPrimaryClass(String cls) {
+            this.primaryClass = cls.toLowerCase();
         }
 
         public void stop() {
             limelight.stop();
         }
 
-        public void resetSamples() {
-            horizontalMeasurements.clear();
-            forwardMeasurements.clear();
-            angleMeasurements.clear();
-            isCollectingSamples = false;
+        /**
+         * Computes distance & yaw for every primary-class detection,
+         * then returns the one whose yaw is closest to 0° and distance closest to 24".
+         */
+        public DetectionResult getDistance() {
+            LLResult result = limelight.getLatestResult();
+            if (result == null || result.getDetectorResults() == null
+                    || result.getDetectorResults().isEmpty()) {
+                telemetry.addLine("No detections found.");
+                return null;
+            }
+
+            // Filter only primary-class targets
+            List<LLResultTypes.DetectorResult> primaries = result.getDetectorResults().stream()
+                    .filter(d -> d.getClassName().equalsIgnoreCase(primaryClass))
+                    .collect(Collectors.toList());
+            if (primaries.isEmpty()) {
+                telemetry.addLine("Primary class not detected.");
+                return null;
+            }
+
+            DetectionResult best = null;
+            double bestCost = Double.MAX_VALUE;
+
+            for (LLResultTypes.DetectorResult det : primaries) {
+                double[] box = getBoundingBox(det.getTargetCorners());
+                double bottomX = box[0] + box[2] * 0.5;
+                double bottomY = box[1] + box[3];
+
+                double dx = bottomX - (IMAGE_WIDTH_PX  / 2.0);
+                double dy = bottomY - (IMAGE_HEIGHT_PX / 2.0);
+
+                double yawRad    = Math.atan(dx / FOCAL_LENGTH_PX);
+                double pitchRad  = Math.atan(dy / FOCAL_LENGTH_PX);
+                double totalPitch = Math.toRadians(CAMERA_PITCH_DEG) + pitchRad;
+
+                double distM  = CAMERA_HEIGHT_M / Math.tan(totalPitch);
+                double distIn = distM * 39.3701;
+                double yawDeg = Math.toDegrees(yawRad) + 2;
+
+                // cost combines yaw closeness and distance closeness to 24"
+                double cost = Math.abs(yawDeg) + Math.abs(distIn - 24.0);
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    best = new DetectionResult(distIn, yawDeg);
+                }
+            }
+
+            if (best != null) {
+                telemetry.addData("Best Dist (in)", String.format("%.1f", best.distanceInches));
+                telemetry.addData("Best Yaw (°)",   String.format("%.1f", best.yawDegrees));
+            }
+            return best;
         }
 
-        public boolean isCollectingSamples() {
-            return isCollectingSamples;
-        }
-
-        public void startCollectingSamples() {
-            resetSamples();
-            isCollectingSamples = true;
-        }
-
-
-
-        // Corrected getBoundingBox to use List<List<Double>>
         private double[] getBoundingBox(List<List<Double>> corners) {
-            if (corners == null || corners.isEmpty()) {
-                return new double[]{0, 0, 0, 0}; // x, y, w, h
-            }
-            double minX = corners.get(0).get(0);
-            double maxX = corners.get(0).get(0);
-            double minY = corners.get(0).get(1);
-            double maxY = corners.get(0).get(1);
-
+            double minX = Double.MAX_VALUE, minY = Double.MAX_VALUE;
+            double maxX = Double.MIN_VALUE, maxY = Double.MIN_VALUE;
             for (List<Double> p : corners) {
-                if (p.size() == 2) {
-                    minX = Math.min(minX, p.get(0));
-                    maxX = Math.max(maxX, p.get(0));
-                    minY = Math.min(minY, p.get(1));
-                    maxY = Math.max(maxY, p.get(1));
-                }
+                minX = Math.min(minX, p.get(0));
+                maxX = Math.max(maxX, p.get(0));
+                minY = Math.min(minY, p.get(1));
+                maxY = Math.max(maxY, p.get(1));
             }
-            return new double[]{minX, minY, maxX - minX, maxY - minY}; // x, y, w, h
+            return new double[]{ minX, minY, maxX - minX, maxY - minY };
         }
 
-
-        public Action collectSamplesAction() {
-            return new Action() {
-                private long startTime = -1;
-                private long nextTime = -1;
-                private boolean inPipelineA = true;
-                private boolean processingB = false;
-
-                @Override
-                public boolean run(TelemetryPacket tp) {
-                    long now = System.currentTimeMillis();
-
-                    // Initialize collection on first run
-                    if (startTime < 0) {
-                        startTime = now;
-                        startCollectingSamples();
-                        limelight.pipelineSwitch(PIPE_A);
-                        nextTime = now + 20;
-                        return true;
-                    }
-
-                    // Abort if overall timeout exceeded (2 seconds)
-                    if (now - startTime > 6000) {
-                        isCollectingSamples = false;
-                        return false;
-                    }
-
-                    // Stage A: process pipeline A result after ~20ms
-                    if (inPipelineA) {
-                        if (now < nextTime) {
-                            return true; // still waiting
-                        }
-                        LLResult resultA = limelight.getLatestResult();
-                        if (resultA == null || resultA.getDetectorResults() == null) {
-                            nextTime = now + 20;
-                            return true;
-                        }
-                        List<LLResultTypes.DetectorResult> detsA = resultA.getDetectorResults();
-                        if (detsA.isEmpty()) {
-                            nextTime = now + 20;
-                            return true;
-                        }
-                        // Split detections into primary-class vs extras
-                        List<LLResultTypes.DetectorResult> primaries = new ArrayList<>();
-                        List<LLResultTypes.DetectorResult> extras = new ArrayList<>();
-                        for (LLResultTypes.DetectorResult d : detsA) {
-                            if (d.getClassName().equalsIgnoreCase(PRIMARY_CLASS)) {
-                                primaries.add(d);
-                            } else {
-                                extras.add(d);
-                            }
-                        }
-                        if (primaries.isEmpty()) {
-                            nextTime = now + 20;
-                            return true;
-                        }
-                        // Choose the largest primary target by area
-                        LLResultTypes.DetectorResult primary = Collections.max(primaries, Comparator.comparingDouble(d -> {
-                            double[] box = getBoundingBox(d.getTargetCorners());
-                            return box[2] * box[3];
-                        }));
-                        for (LLResultTypes.DetectorResult d : primaries) {
-                            if (d != primary) extras.add(d);
-                        }
-                        double[] pBox = getBoundingBox(primary.getTargetCorners());
-                        double colorCode = COLOR_MAP.getOrDefault(primary.getClassName().toLowerCase(), 1.0);
-                        // Compute subtraction ROIs from other detections
-                        // Prepare inputs: primary box + color + each sub-ROI
-                        ArrayList<Double> inputs = new ArrayList<>();
-                        for (double v : pBox) inputs.add(v);
-                        inputs.add(colorCode);
-
-                        // Switch to pipeline B and send inputs to Python
-                        limelight.pipelineSwitch(PIPE_B);
-                        limelight.updatePythonInputs(inputs.stream().mapToDouble(Double::doubleValue).toArray());
-
-                        // Move to pipeline B stage
-                        inPipelineA = false;
-                        processingB = true;
-                        nextTime = now + 30;
-                        return true;
-                    }
-
-                    // Stage B: process pipeline B result after ~30ms
-                    if (processingB) {
-                        if (now < nextTime) {
-                            return true; // still waiting
-                        }
-                        LLResult resultB = limelight.getLatestResult();
-                        processingB = false;
-                        if (resultB != null && resultB.getPythonOutput() != null) {
-                            double[] out = resultB.getPythonOutput();
-                            if (out.length >= 3) {
-                                double forward = out[0], horiz = out[1], ang = out[2];
-                                forwardMeasurements.add(forward);
-                                horizontalMeasurements.add(horiz);
-                                angleMeasurements.add(ang);
-                                // Keep only the latest maxSamples entries
-                                if (forwardMeasurements.size() > maxSamples)
-                                    forwardMeasurements.remove(0);
-                                if (horizontalMeasurements.size() > maxSamples)
-                                    horizontalMeasurements.remove(0);
-                                if (angleMeasurements.size() > maxSamples)
-                                    angleMeasurements.remove(0);
-                                telemetry.addData("Limelight Sample",
-                                        String.format("Fwd: %.1f, Horz: %.1f, Ang: %.1f", forward, horiz, ang));
-                            }
-                        }
-                        // If we've collected enough samples, finish
-                        if (forwardMeasurements.size() >= maxSamples) {
-                            isCollectingSamples = false;
-                            return false;
-                        }
-                        // Otherwise, go back to pipeline A for another round
-                        inPipelineA = true;
-                        limelight.pipelineSwitch(PIPE_A);
-                        nextTime = now + 20;
-                        return true;
-                    }
-
-                    // Should not reach here, but just in case
-                    isCollectingSamples = false;
-                    return false;
-                }
-            };
-        }
-
-
-        public Vector2d getAveragePose() {
-            if (horizontalMeasurements.isEmpty() || forwardMeasurements.isEmpty()) {
-                telemetry.addLine("Limelight Average Pose: No samples collected.");
-                return new Vector2d(0, 0);
+        public static class DetectionResult {
+            public final double distanceInches;
+            public final double yawDegrees;
+            public DetectionResult(double distanceInches, double yawDegrees) {
+                this.distanceInches = distanceInches;
+                this.yawDegrees     = yawDegrees;
             }
-
-            double avgHorizontal = horizontalMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-            double avgForward = forwardMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-
-            telemetry.addData("Limelight Avg Horizontal", String.format("%.2f", avgHorizontal));
-            telemetry.addData("Limelight Avg Forward", String.format("%.2f", avgForward));
-            return new Vector2d(avgHorizontal, avgForward);
-        }
-
-        public double getAverageAngle() {
-            if (angleMeasurements.isEmpty()) {
-                telemetry.addLine("Limelight Average Angle: No samples collected.");
-                return 0;
-            }
-            double avgAngle = angleMeasurements.stream().mapToDouble(Double::doubleValue).average().orElse(0);
-            telemetry.addData("Limelight Avg Angle", String.format("%.2f", avgAngle));
-            return avgAngle;
         }
     }
+
 }

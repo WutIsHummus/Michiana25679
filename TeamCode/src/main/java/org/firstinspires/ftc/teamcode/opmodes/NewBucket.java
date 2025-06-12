@@ -197,9 +197,7 @@ public class NewBucket extends PathChainAutoOpMode {
         tasks.add(score3Task);
 
         // 5) Park #1
-        PathChainTask parkTask = new PathChainTask(parkChain, 0.2)
-                .addWaitAction(0.1, limelight.collectSamplesAction()
-                        );
+        PathChainTask parkTask = new PathChainTask(parkChain, 0.2);
         tasks.add(parkTask);
 
         // 6) Dynamic Alignment #1 (null => computeDynamicPath)
@@ -249,8 +247,7 @@ public class NewBucket extends PathChainAutoOpMode {
         tasks.add(scoreSub1Task);
 
         // 9) Park2
-        park2Task = new PathChainTask(null, 0.15)
-                .addWaitAction(0, limelight.collectSamplesAction());
+        park2Task = new PathChainTask(null, 0.15);
         tasks.add(park2Task);
 
         // 10) Align2
@@ -438,47 +435,23 @@ public class NewBucket extends PathChainAutoOpMode {
                 .build();
     }
 
-    private PathChain computeDynamicPath() {
-        Pose currentPose = follower.getPose();
-        double rawOffset = limelight.getAveragePose().x;
-        double fallbackOffset = 0.0;
-        if (rawOffset == 99.99) {
-            telemetry.addData("Dynamic Align", "No valid limelight data; fallback=0");
-            rawOffset = fallbackOffset;
-        }
-        double xShift = rawOffset * 1.5;
-        double targetX = Math.min(85, Math.max(60, currentPose.getX() + xShift));
-
-        Pose targetPose = new Pose(targetX, currentPose.getY(), currentPose.getHeading());
-        telemetry.addData("Dynamic Align: Raw Offset", rawOffset);
-        telemetry.addData("Dynamic Align: Target Pose", targetPose);
-        telemetry.update();
-
+    protected PathChain computeDynamicPath() {
+        Pose cur = follower.getPose();
+        double rawYaw = limelight.getDistance() != null
+                ? limelight.getDistance().yawDegrees
+                : 0.0;
+        double xShift = rawYaw * 1.5;
+        Pose target = new Pose(
+                Math.min(85, Math.max(60, cur.getX() + xShift)),
+                cur.getY(),
+                cur.getHeading()
+        );
         return follower.pathBuilder()
-                .addPath(new BezierLine(new Point(currentPose), new Point(targetPose)))
-                .setConstantHeadingInterpolation(targetPose.getHeading())
-                .setZeroPowerAccelerationMultiplier(7)
+                .addPath(new BezierLine(new Point(cur), new Point(target)))
+                .setConstantHeadingInterpolation(target.getHeading())
                 .build();
     }
 
-    private Action shiftX(double dx) {
-        return packet -> {
-            Pose cur = follower.getPose();
-            Pose shiftPose = new Pose(
-                    cur.getX() + dx,
-                    cur.getY(),
-                    Math.toRadians(Math.toDegrees(cur.getHeading()) + Math.abs(dx)* 5)
-            );
-            PathChain smallPath = follower.pathBuilder()
-                    .addPath(new BezierLine(new Point(cur), new Point(shiftPose)))
-                    .setLinearHeadingInterpolation(cur.getHeading(), shiftPose.getHeading(), 450)
-                    .setZeroPowerAccelerationMultiplier(4)
-                    .build();
-
-            follower.followPath(smallPath, false);
-            return false;
-        };
-    }
 
     // ---------------------------
     // Required Follower Integration Methods

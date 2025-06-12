@@ -268,9 +268,8 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         // Preload task.
         addPath(scorePreload, 0)
                 .addWaitAction(0,new SequentialAction(
-                        limelight.collectSamplesAction(),
                         telemetryPacket -> {
-                            latestVisionPose = limelight.getAveragePose();
+                            latestVisionPose = limelight.getDistance();
                             latestVisionAngle = Math.min(15, Math.max(-limelight.getAverageAngle(), -15));
                             scan1Done = true; return false;
                         }
