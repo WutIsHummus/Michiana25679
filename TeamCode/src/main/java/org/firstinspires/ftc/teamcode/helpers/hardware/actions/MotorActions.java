@@ -35,6 +35,8 @@ public class MotorActions {
     public final PtolLatch      ptolLatch;
     public final PtorLatch      ptorLatch;
     public final Sweeper        sweeper;
+    public final Led led;
+
 
     public MotorActions(MotorControl mc) {
         this.mc = mc;
@@ -51,6 +53,8 @@ public class MotorActions {
         inPivot   = new IntakePivot();
         ptolLatch = new PtolLatch();
         ptorLatch = new PtorLatch();
+        led = new Led();
+
     }
 
 
@@ -63,19 +67,22 @@ public class MotorActions {
 
     public Action outtakeTransfer(){
         return new SequentialAction(
-                claw.open(),
+                led.yellow(),
+                claw.transfer(),
                 new SleepAction(0.3),
                 claw.transfer(),
                 outArm.pretransfer(),
                 linkage.transfer(),
                 lift.transfer(),
                 lift.waitUntilFinished(0,150),
-                lift.findZero()
+                lift.findZero(),
+                led.green()
         );
     }
 
     public Action safeServos(){
         return  new ParallelAction(
+                led.white(),
                 ptolLatch.unlock(),
                 ptorLatch.unlock(),
                 sweeper.retracted(),
@@ -105,17 +112,21 @@ public class MotorActions {
 
     public Action intakeTransfer(){
         return new SequentialAction(
+                led.yellow(),
                 inPivot.transfer(),
+                claw.transfer(),
                 inArm.transfer(),
                 outArm.transfer(),
                 extendo.retracted(),
                 extendo.waitUntilFinished(0, 50),
-                extendo.findZero()
+                extendo.findZero(),
+                led.green()
         );
     }
 
     public Action grabUntilSpecimen(Enums.DetectedColor allianceColor) {
         return new SequentialAction(
+                led.blue(),
                 inArm.specimenGrab(),
                 inPivot.specimenGrab(),
                 spin.eatUntil(allianceColor, mc)
@@ -123,6 +134,23 @@ public class MotorActions {
     }
 
     public Action grabUntilSpecimen() {
+        return new SequentialAction(
+                led.blue(),
+                lift.transfer(),
+                inArm.specimenGrab(),
+                inPivot.specimenGrab(),
+                spin.eatUntilNotEmpty(mc)
+        );
+    }
+
+    public Action specgrabpositions() {
+        return new SequentialAction(
+                lift.transfer(),
+                inArm.specimenGrab(),
+                inPivot.specimenGrab()
+        );
+    }
+    public Action grabUntilSpecimenauto() {
         return new SequentialAction(
                 lift.transfer(),
                 inArm.specimenGrab(),
@@ -134,6 +162,7 @@ public class MotorActions {
 
     public Action grabUntilSample(Enums.DetectedColor allianceColor) {
         return new SequentialAction(
+                led.blue(),
                 lift.transfer(),
                 inArm.sampleGrab(),
                 inPivot.sampleGrab(),
@@ -143,6 +172,7 @@ public class MotorActions {
 
     public Action grabUntilSample() {
         return new SequentialAction(
+                led.blue(),
                 lift.transfer(),
                 inArm.sampleGrab(),
                 inPivot.sampleGrab(),
@@ -152,28 +182,45 @@ public class MotorActions {
 
     public Action sampleExtend(double Position) {
         return new SequentialAction(
+                led.yellow(),
                 inArm.sampleExtended(),
                 inPivot.sampleExtended(),
                 extendo.set(Position),
-                extendo.waitUntilFinished());
+                extendo.waitUntilFinished(),
+                led.green());
     }
 
     public Action specimenExtend(double Position) {
         return new SequentialAction(
+                led.yellow(),
                 inArm.specimenExtended(),
                 inPivot.specimenExtended(),
                 extendo.set(Position),
-                extendo.waitUntilFinished());
+                extendo.waitUntilFinished(),
+                led.green());
     }
+
+    public Action specgone() {
+        return new SequentialAction(
+                led.yellow(),
+                depositSpecimen(),
+                new SleepAction(0.2),
+                intakeSpecimen(),
+                led.green()
+        );
+    }
+
+
 
     public Action outtakeSample() {
         return new SequentialAction(
+                led.yellow(),
                 spin.eat(),
                 claw.partialClose(),
                 new SleepAction(0.1),
                 new ParallelAction(
                         new SequentialAction(
-                                new SleepAction(0.1),
+                                new SleepAction(0.3),
                                 outArm.flip(),
                                 new SleepAction(0.4),
                                 spin.slowpoop(),
@@ -182,11 +229,38 @@ public class MotorActions {
                                 linkage.transfer()
                         ),
                         lift.sample(),
-                        inArm.sampleExtended(),
-                        inPivot.sampleExtended()
+                        inArm.specimenExtended(),
+                        inPivot.specimenExtended()
                 ),
                 lift.waitUntilFinished(),
-                outArm.sampleScore()
+                outArm.sampleScore(),
+                led.green()
+
+        );
+    }
+    public Action outtakeSample(int height) {
+        return new SequentialAction(
+                led.yellow(),
+                spin.eat(),
+                claw.partialClose(),
+                new SleepAction(0.1),
+                new ParallelAction(
+                        new SequentialAction(
+                                new SleepAction(0.3),
+                                outArm.flip(),
+                                new SleepAction(0.4),
+                                spin.slowpoop(),
+                                claw.close(),
+                                outArm.middle(),
+                                linkage.transfer()
+                        ),
+                        lift.set(height),
+                        inArm.specimenExtended(),
+                        inPivot.specimenExtended()
+                ),
+                lift.waitUntilFinished(),
+                outArm.sampleScore(),
+                led.green()
 
         );
     }
@@ -194,6 +268,38 @@ public class MotorActions {
 
 
     public Action outtakeSampleAuto() {
+        return new SequentialAction(
+                led.yellow(),
+                extendo.waitUntilFinished(),
+                spin.eat(),
+                claw.partialClose(),
+                new SleepAction(0.1),
+                new ParallelAction(
+                        new SequentialAction(
+                                new SleepAction(0.2),
+                                spin.slowpoop(),
+                                outArm.middle(),
+                                linkage.transfer()
+                        ),
+                        lift.sample(),
+                        inArm.specimenExtended(),
+                        inPivot.specimenExtended()
+                ),
+                linkage.extended(),
+                lift.waitUntilFinished(800,60),
+                outArm.sampleScore(),
+                new SleepAction(0.2),
+                claw.open(),
+                new SleepAction(0.1),
+                linkage.transfer(),
+                outArm.pretransfer(),
+                lift.transfer(),
+                claw.transfer(),
+                led.green()
+
+        );
+    }
+    public Action outtakeSampleAuto2() {
         return new SequentialAction(
                 spin.eat(),
                 claw.partialClose(),
@@ -209,51 +315,103 @@ public class MotorActions {
                         inArm.specimenExtended(),
                         inPivot.specimenExtended()
                 ),
-                lift.waitUntilFinished(),
+                linkage.extended(),
+                lift.waitUntilFinished(800),
                 outArm.sampleScore()
 
         );
     }
 
 
+
     public Action intakeSpecimen(){
         return new SequentialAction(
+                led.yellow(),
+                claw.open(),
+                outArm.specimenIntake(),
+                linkage.retracted(),
                 lift.transfer(),
                 lift.waitUntilFinished(),
                 lift.findZero(),
-                claw.open(),
-                outArm.specimenIntake(),
-                linkage.retracted()
+                led.green()
+
+        );
+    }
+
+    public Action sweepcycle(){
+        return new SequentialAction(
+                sweeper.extended(),
+                new SleepAction(0.2),
+                sweeper.retracted()
+        );
+    }
+    public Action cycle(){
+        return new SequentialAction(
+                led.yellow(),
+                extendo.set(660),
+                inArm.specimenGrab(),
+                inPivot.specimenGrab(),
+                spin.eat(),
+                extendo.waitUntilFinished(),
+                led.green(),
+                intakeTransfer(),
+                extendo.waitUntilFinished(),
+                led.yellow(),
+                outtakeSampleAuto()
         );
     }
 
     public Action outtakeSpecimen(){
         return new ParallelAction(
+                led.yellow(),
                 claw.close(),
+
+                inArm.transfer(),
+                inPivot.transfer(),
+                new SleepAction(0.1),
+                lift.specimen(),
                 new SequentialAction(
-                        new SleepAction(0.4),
-                        lift.specimen(),
+                        new SleepAction(0.2),
                         outArm.specimenDeposit(),
                         linkage.extended()
                 ),
-                intakeTransfer()
+                led.green()
+                //intakeTransfer()
+        );
+    }
+
+    public Action outtakespecvision(){
+        return new ParallelAction(
+                claw.close(),
+                inArm.transfer(),
+                inPivot.transfer(),
+                new SleepAction(0.1),
+                lift.vision(),
+                new SequentialAction(
+                        new SleepAction(0.2),
+                        outArm.specimenDeposit(),
+                        linkage.extended()
+                )
+                //intakeTransfer()
         );
     }
 
 
     public Action depositSpecimen(){
         return new SequentialAction(
+                led.yellow(),
                 claw.open(),
                 new SleepAction(0.2),
                 outArm.middle(),
-                linkage.retracted()
+                linkage.retracted(),
+                led.green()
         );
     }
 
 
     public Action spitSample(){
         return new SequentialAction(
-
+          led.red(),
           inArm.sampleSpit(),
           inPivot.sampleSpit(),
                 lift.set(100),
@@ -265,6 +423,39 @@ public class MotorActions {
                 extendo.findZero()
         );
     }
+    public Action spitSamplettele(){
+        return new SequentialAction(
+                led.red(),
+                inPivot.sampleSpit(),
+                spin.slow(),
+                lift.set(100),
+                claw.open(),
+                outArm.specimenIntake(),
+                linkage.retracted(),
+                extendo.retracted(),
+                extendo.waitUntilFinished(),
+                inArm.sampleSpit(),
+                extendo.findZero()
+        );
+    }
+
+    public class Led {
+        private Action set(double p) {
+            return t -> {
+                mc.led.setPosition(p);
+                mc.lede.setPosition(p);
+                return false;
+            };
+        }
+
+        public Action red()    { return set(0.28); }
+        public Action green()  { return set(0.50); }
+        public Action blue()   { return set(0.60); }
+        public Action yellow() { return set(0.37); }
+        public Action white()  { return set(1.00); }
+        public Action off()    { return set(0.00); }
+    }
+
 
 
 
@@ -309,7 +500,8 @@ public class MotorActions {
     public class Lift {
         public Action set(double pos) { return t -> { mc.lift.setTargetPosition(pos); return false; }; }
         public Action transfer()      { return set(0); }
-        public Action specimen()      { return set(450); }
+        public Action specimen()      { return set(345); }
+        public Action vision()      { return set(450); }
         public Action sample()      { return set(800); }
 
         public Action findZero() {
@@ -356,7 +548,7 @@ public class MotorActions {
 
     // ------------------------ Outtake Claw ------------------------------
     public class OuttakeClaw {
-        private static final double OPEN   = 0.40;
+        private static final double OPEN   = 0.35;
         private static final double TRANS  = 0.30;
         private static final double PART   = 0.17;
         private static final double CLOSED = 0.11;
@@ -391,7 +583,7 @@ public class MotorActions {
     // ----------------------- Intake Arm (R+L) ---------------------------
     public class IntakeArm {
         private static final double TRANSFER          = 0.24;
-        private static final double SPEC_EXTENDED     = 0.51;
+        private static final double SPEC_EXTENDED     = 0.48;
         private static final double SPEC_GRAB         = 0.57;
         private static final double SAMPLE_EXTENDED   = 0.42;
         private static final double SAMPLE_GRAB       = 0.55;

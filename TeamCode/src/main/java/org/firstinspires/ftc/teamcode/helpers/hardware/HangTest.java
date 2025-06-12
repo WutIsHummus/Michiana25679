@@ -44,6 +44,7 @@ public class HangTest extends LinearOpMode {
     @Override
     public void runOpMode() {
         telemetry.addData("Status", "Initializing...");
+
         telemetry.update();
 
         try {

@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
-import android.graphics.Color;
-
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
@@ -9,7 +7,6 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums.DetectedColor;
 import org.firstinspires.ftc.teamcode.helpers.hardware.MotorControl;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.ActionOpMode;
@@ -17,15 +14,19 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.MotorActions;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
-@TeleOp(name = "Advanced Teleop V2 Blue", group = "Examples")
-public class TeleopBlue extends ActionOpMode {
+@TeleOp(name = "Spec Tele", group = "Examples")
+public class specimenteleop extends ActionOpMode {
     private Follower follower;
     private final Pose startPose = new Pose(0, 0, 0);
     private MotorControl motorControl;
     private MotorActions motorActions;
+    private boolean specSensorTriggered = false;
+
 
     private DetectedColor allianceColor = DetectedColor.BLUE;
     private boolean autoOuttake = true;
+
+    private boolean bangbangmode = false;
 
     // Edge-detect flags
     private boolean startPressed = false;
@@ -68,14 +69,6 @@ public class TeleopBlue extends ActionOpMode {
         }
 
 
-        // Toggle auto-outtake
-        if (gamepad1.start && !startPressed) {
-            autoOuttake = !autoOuttake;
-            startPressed = true;
-        } else if (!gamepad1.start) {
-            startPressed = false;
-        }
-
         // Toggle alliance color
         if (gamepad1.x && !xPressed) {
             allianceColor = (allianceColor == DetectedColor.RED)
@@ -88,8 +81,20 @@ public class TeleopBlue extends ActionOpMode {
 
         // RIGHT BUMPER: always extend sample
         if (gamepad1.right_bumper && !rightBumperPressed) {
+            if(bangbangmode){
+            run(
+                    new SequentialAction(
+                            new ParallelAction(
+                                    motorActions.specimenExtend(300),
+                                    motorActions.depositSpecimen()),
+                            new SleepAction(0.3),
+                            motorActions.intakeSpecimen()
+
+                    ));
+            rightBumperPressed = true;}
+            else {
                 run(motorActions.specimenExtend(300));
-            rightBumperPressed = true;
+            }
         } else if (!gamepad1.right_bumper) {
             rightBumperPressed = false;
         }
@@ -97,20 +102,19 @@ public class TeleopBlue extends ActionOpMode {
         // LEFT BUMPER: grab & optional auto-outtake
         if (gamepad1.left_bumper && !leftBumperPressed) {
             run(motorActions.spin.eat());
-            if (autoOuttake) {
-                double extPos = motorControl.extendo.motor.getCurrentPosition();
+            if (bangbangmode) {
                 run(new SequentialAction(
                         new ParallelAction(
-                                motorActions.outtakeTransfer(),
+                                //motorActions.outtakeTransfer(),
                                 motorActions.grabUntilSpecimen(allianceColor)
                         ),
-                        motorActions.intakeTransfer(),
-                        motorActions.outtakeSample(780)
+                        motorActions.extendo.waitUntilFinished(),
+                        motorActions.spitSamplettele()
                 ));
             } else {
                 run(new SequentialAction(
                         new ParallelAction(
-                                motorActions.outtakeTransfer(),
+                                //motorActions.outtakeTransfer(),
                                 motorActions.grabUntilSpecimen(allianceColor)
                         ),
                         motorActions.intakeTransfer()
@@ -130,14 +134,18 @@ public class TeleopBlue extends ActionOpMode {
         if (correctColor) {
             // RIGHT TRIGGER: outtake sample
             if (gamepad1.right_trigger > 0 && !rightTriggerPressed) {
-                run(motorActions.outtakeSample());
+                run(motorActions.outtakeSpecimen());
                 rightTriggerPressed = true;
             } else if (gamepad1.right_trigger == 0) {
                 rightTriggerPressed = false;
             }
             // LEFT TRIGGER: outtake transfer
             if (gamepad1.left_trigger > 0 && !leftTriggerPressed) {
-                run(motorActions.outtakeTransfer());
+                run(new SequentialAction(motorActions.spin.poop(),
+                                motorActions.spin.waitUntilEmpty(motorControl),
+                                motorActions.lift.transfer())
+                        );
+
                 leftTriggerPressed = true;
             } else if (gamepad1.left_trigger == 0) {
                 leftTriggerPressed = false;
@@ -145,7 +153,7 @@ public class TeleopBlue extends ActionOpMode {
         } else {
             // WRONG COLOR: move extendo
             if (gamepad1.right_trigger > 0) {
-                int target = Math.min(motorControl.extendo.motor.getCurrentPosition() + 100, 600);
+                int target = Math.min(motorControl.extendo.motor.getCurrentPosition() + 100, 750);
                 run(new ParallelAction(
                         motorActions.extendo.set(target),
                         motorActions.extendo.waitUntilFinished()
@@ -164,10 +172,8 @@ public class TeleopBlue extends ActionOpMode {
         if (gamepad1.dpad_down && !dpadDownPressed) {
             if (!spinActive) {
                 run(new SequentialAction(
-                        motorActions.specimenExtend(200),
-                        (color == allianceColor || color == DetectedColor.YELLOW)
-                                ? motorActions.spin.poop()
-                                : motorActions.spin.slowpoop()
+                        motorActions.specimenExtend(650),
+                        motorActions.spin.poop()
                 ));
                 spinActive = true;
             } else {
@@ -191,12 +197,11 @@ public class TeleopBlue extends ActionOpMode {
         }
 
 
-        if (gamepad1.square && !squarePressed)  {
-            run(motorActions.spitSample());
-            motorControl.spin.setPower(-1);
-            squarePressed = true;
+        if (gamepad1.square && !startPressed) {
+            bangbangmode = !bangbangmode;
+            startPressed = true;
         } else if (!gamepad1.square) {
-            squarePressed = false;
+            startPressed = false;
         }
 
         // Specimen controls
@@ -205,7 +210,7 @@ public class TeleopBlue extends ActionOpMode {
         } else if (gamepad1.b) {
             run(motorActions.outtakeSpecimen());
         } else if (gamepad1.y) {
-            run(motorActions.depositSpecimen());
+            run(motorActions.specgone());
         }
 
         // Hang controls
@@ -223,6 +228,16 @@ public class TeleopBlue extends ActionOpMode {
             dpadRightPressed = false;
         }
 
+        double specDist = motorControl.getSpecSensorDistanceCm();
+
+        if (bangbangmode && specDist < 4 && !specSensorTriggered && motorControl.lift.closeEnough(0,15)) {
+            run(motorActions.outtakeSpecimen());
+            specSensorTriggered = true;  // mark as triggered
+        } else if (specDist >= 3.0) {
+            specSensorTriggered = false; // reset when sensor clears
+        } 
+
+
         double rotation = 1;
         if (motorControl.extendo.motor.getCurrentPosition() > 50) {
             rotation = 0.5;
@@ -239,11 +254,14 @@ public class TeleopBlue extends ActionOpMode {
 
 
         // Telemetry
+        telemetry.addData("SpecSensorDist", specDist);
+        telemetry.addData("SpecSensorTriggered", specSensorTriggered);
         telemetry.addData("X", follower.getPose().getX());
         telemetry.addData("Y", follower.getPose().getY());
         telemetry.addData("Heading", Math.toDegrees(follower.getPose().getHeading()));
         telemetry.addData("Alliance", allianceColor);
         telemetry.addData("AutoOuttake", autoOuttake);
+        telemetry.addData("bangbang", bangbangmode);
         telemetry.addData("Detected", color);
         telemetry.addData("ExtendoPos", motorControl.extendo.motor.getCurrentPosition());
         telemetry.addData("ExtendoVel", motorControl.extendo.motor.getVelocity());

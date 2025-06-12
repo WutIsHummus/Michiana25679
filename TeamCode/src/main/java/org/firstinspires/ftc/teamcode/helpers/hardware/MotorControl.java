@@ -41,6 +41,8 @@ public class MotorControl {
     public final Servo outtakeLinkage, intakeArmR, intakeArmL;
     public final Servo hangr, hangl;
 
+    public final RevColorSensorV3 specsensor;
+
 
     private float lastNormalizedRed = 0;
     private float lastNormalizedGreen = 0;
@@ -79,6 +81,7 @@ public class MotorControl {
         spin = hardwareMap.get(DcMotorEx.class, "spin");
         spin.setDirection(DcMotorSimple.Direction.REVERSE);
         colorSensor = hardwareMap.get(RevColorSensorV3.class, "color");
+        specsensor = hardwareMap.get(RevColorSensorV3.class, "specsensor");
 
 
         outtakeClaw.setPosition(0.11);
@@ -91,6 +94,11 @@ public class MotorControl {
 
     private double getDistanceCm() {
         DistanceSensor d = (DistanceSensor) colorSensor;
+        return d.getDistance(DistanceUnit.CM);
+    }
+
+    public double getSpecSensorDistanceCm() {
+        DistanceSensor d = (DistanceSensor) specsensor;
         return d.getDistance(DistanceUnit.CM);
     }
 
@@ -241,7 +249,7 @@ public class MotorControl {
 
     public static class Lift extends ControlledDevice {
         public CachingDcMotorEx motor2;
-        public static final double p = -0.025, i = 0, d = -0.00025;
+        public static final double p = -0.02, i = 0, d = -0.0003;
         // public static final double GRAVITY_FEEDFORWARD = 0; // Not used in current update
 
         public Lift(HardwareMap hardwareMap) {
