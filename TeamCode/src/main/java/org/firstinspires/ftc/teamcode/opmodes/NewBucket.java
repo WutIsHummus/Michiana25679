@@ -513,7 +513,13 @@ public class NewBucket extends PathChainAutoOpMode {
         telemetry.addData("Turning", isTurning());
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.addData("Detected Color", motorControl.getDetectedColor());
-        telemetry.addData("Limelight Avg", limelight.getAveragePose());
+        MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+        if (dr != null) {
+            telemetry.addData("Limelight Dist", String.format("%.1f", dr.distanceInches));
+            telemetry.addData("Limelight Yaw", String.format("%.1f", dr.yawDegrees));
+        } else {
+            telemetry.addLine("Limelight: no target");
+        }
         telemetry.update();
     }
 }
