@@ -299,8 +299,13 @@ public class samplenew extends PathChainAutoOpMode {
                 .addWaitAction(0, new SequentialAction(
                         limelight.collectSamplesAction(),
                         telemetryPacket -> {
-                            latestVisionPose = limelight.getAveragePose();
-                            latestVisionAngle = Math.min(15, Math.max(-limelight.getAverageAngle(), -15));
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            if (dr != null) {
+                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                double yawRad = Math.toRadians(dr.yawDegrees);
+                                double direct = dr.distanceInches / Math.cos(yawRad);
+                                latestVisionPose = new Vector2d(direct * Math.sin(yawRad), direct * Math.cos(yawRad));
+                            }
                             scan1Done = true;
                             return false;
                         }
@@ -326,8 +331,13 @@ public class samplenew extends PathChainAutoOpMode {
                 .addWaitAction(0, new SequentialAction(
                         limelight.collectSamplesAction(),
                         telemetryPacket -> {
-                            latestVisionPose = limelight.getAveragePose();
-                            latestVisionAngle = Math.min(15, Math.max(-limelight.getAverageAngle(), -15));
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            if (dr != null) {
+                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                double yawRad = Math.toRadians(dr.yawDegrees);
+                                double direct = dr.distanceInches / Math.cos(yawRad);
+                                latestVisionPose = new Vector2d(direct * Math.sin(yawRad), direct * Math.cos(yawRad));
+                            }
                             scan2Done = true;
                             return false;
                         }
@@ -353,8 +363,13 @@ public class samplenew extends PathChainAutoOpMode {
                 .addWaitAction(0, new SequentialAction(
                         limelight.collectSamplesAction(),
                         telemetryPacket -> {
-                            latestVisionPose = limelight.getAveragePose();
-                            latestVisionAngle = Math.min(15, Math.max(-limelight.getAverageAngle(), -15));
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            if (dr != null) {
+                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                double yawRad = Math.toRadians(dr.yawDegrees);
+                                double direct = dr.distanceInches / Math.cos(yawRad);
+                                latestVisionPose = new Vector2d(direct * Math.sin(yawRad), direct * Math.cos(yawRad));
+                            }
                             scan3Done = true;
                             return false;
                         }
