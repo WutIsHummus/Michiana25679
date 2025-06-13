@@ -70,7 +70,6 @@ public class SpecimenAuto extends PathChainAutoOpMode {
 
     // --- Vision turn related fields ---
     private TurnTask visionTurn1, visionTurn2;
-    private Vector2d latestVisionPose = new Vector2d(0, 0);
     private double latestVisionAngle = 0;
     private double lastDistance = 0;
 
@@ -273,8 +272,7 @@ public class SpecimenAuto extends PathChainAutoOpMode {
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
-                                double direct = dr.distanceInches / Math.cos(yawRad);
-                                latestVisionPose = new Vector2d(direct * Math.sin(yawRad), direct * Math.cos(yawRad));
+                                lastDistance = dr.distanceInches / Math.cos(yawRad);
                             }
                             scan1Done = true; return false;
                         }
@@ -466,16 +464,14 @@ public class SpecimenAuto extends PathChainAutoOpMode {
     protected void startTurn(TurnTask task) {
         if (task == visionTurn1 || task == visionTurn2) {
 
-            double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
-            lastDistance = inches;
 
             if (lastDistance==0) return;
 
             if (lastDistance != 0) {
                 task.addWaitAction(0, new SequentialAction(
-                        motorActions.sampleExtend(Math.min(inches * 32.25, 800)),
+                        motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
                         motorActions.extendo.waitUntilFinished(),
-                        motorActions.extendo.set(Math.min((inches + 3) * 32.25, 800)),
+                        motorActions.extendo.set(Math.min((lastDistance + 3) * 32.25, 800)),
                         motorActions.spin.eat(),
                         motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl)
                 ));
@@ -544,7 +540,6 @@ public class SpecimenAuto extends PathChainAutoOpMode {
         telemetry.addData("extendoReset",motorControl.extendo.resetting);
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.addData("Angle", latestVisionAngle);
-        telemetry.addData("Pose", latestVisionPose);
         telemetry.addData("Distance", lastDistance);
         telemetry.update();
     }

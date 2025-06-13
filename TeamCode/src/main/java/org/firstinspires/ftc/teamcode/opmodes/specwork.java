@@ -39,7 +39,7 @@ public class specwork extends PathChainAutoOpMode {
 
     // -------- Poses --------
     private final Pose startPose = new Pose(9, 67, Math.toRadians(0));
-    private final Pose preloadPose = new Pose(42, 70, Math.toRadians(0));
+    private final Pose preloadPose = new Pose(42, 72.5, Math.toRadians(0));
     private final Pose scorePose = new Pose(41,64, Math.toRadians(0));
     private final Pose scorePose1 = new Pose(41, 64, Math.toRadians(0));
     private final Pose scorePose2 = new Pose(41, 64, Math.toRadians(0));
@@ -68,7 +68,6 @@ public class specwork extends PathChainAutoOpMode {
 
     // --- Vision turn related fields ---
     private TurnTask visionTurn1, visionTurn2;
-    private Vector2d latestVisionPose = new Vector2d(0, 0);
     private double latestVisionAngle = 0;
     private double lastDistance = 0;
     private boolean thirdgrabbed = false;
@@ -103,10 +102,9 @@ public class specwork extends PathChainAutoOpMode {
                         new Point(startPose),
                         new Point(preloadPose)))
                 .setLinearHeadingInterpolation(startPose.getHeading(), preloadPose.getHeading())
-                .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
+                .addParametricCallback(0, () -> run(motorActions.outtakespecvision()))
                 .addParametricCallback(0, () -> run(motorActions.safeServos()))
-                .setZeroPowerAccelerationMultiplier(3)
-                .addParametricCallback(0.98, () -> run(new SequentialAction(motorActions.depositSpecimen())))
+                .setZeroPowerAccelerationMultiplier(4)
                 .addParametricCallback(0.2, () -> run(motorActions.specimenExtend(0)))
                 .build();
 
@@ -294,18 +292,53 @@ public class specwork extends PathChainAutoOpMode {
         tasks.clear();
 
         // Preload task.
-        addPath(scorePreload, 0);
+        addPath(scorePreload, 0)
+                .addWaitAction(0,new ParallelAction(motorActions.claw.open(), motorActions.outArm.pretransfer(), motorActions.linkage.retracted()))
+                .addWaitAction(1, new SequentialAction(
+                        telemetryPacket -> {
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            if (dr != null) {
+                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                double yawRad = Math.toRadians(dr.yawDegrees);
+                                lastDistance = dr.distanceInches / Math.cos(yawRad);
+                                scan1Done = true;
+                                return false;
+                            }
+                             return true;
+                        }
+                ))
+                .setMaxWaitTime(4)
+                .setWaitCondition(()->scan1Done);;
+
+        visionTurn1 = addRelativeTurnDegrees(0, true, 3).addWaitAction(2.5, motorActions.intakeTransfer());
 
         // Vision-based turn before first vision deposit
 
-        addPath(vision1deposit, 0.2).addWaitAction(0,motorActions.outtakeSpecimen());
-
+        addPath(vision1deposit, 0.2).addWaitAction(0,motorActions.outtakespecvision())
+                .addWaitAction(0, new SequentialAction(
+                        telemetryPacket -> {
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            if (dr != null) {
+                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                double yawRad = Math.toRadians(dr.yawDegrees);
+                                lastDistance = dr.distanceInches / Math.cos(yawRad);
+                                scan2Done = true;
+                                return false;
+                            }
+                            return true;
+                        }
+                ))
+                .addWaitAction(0.2,motorActions.claw.open())
+                .setMaxWaitTime(4)
+                .setWaitCondition(()->scan2Done);;
 
         addPath(vision2intake, 1).addWaitAction(0,
                 new SequentialAction(
-                        motorActions.depositSpecimen(),
                         motorActions.lift.specimen()
                 ));
+
+        visionTurn2 = addRelativeTurnDegrees(0, true, 0);
+
 
         // Vision-based turn before second vision deposit
 
@@ -471,18 +504,17 @@ public class specwork extends PathChainAutoOpMode {
         if (task == visionTurn1 || task == visionTurn2) {
 
 
-            double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
-            lastDistance = inches;
 
             if (lastDistance==0) return;
 
             if (lastDistance != 0) {
-                task.addWaitAction(0, new SequentialAction(
-                        motorActions.sampleExtend(Math.min(inches * 32.25, 800)),
-                        motorActions.extendo.waitUntilFinished(),
-                        motorActions.extendo.set(Math.min((inches + 3) * 32.25, 800)),
-                        motorActions.spin.eat(),
-                        motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl)
+                task.addWaitAction(0, new ParallelAction(
+                       new SequentialAction(
+                               motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
+                               motorActions.extendo.waitUntilFinished(),
+                               motorActions.spin.eat(),
+                               motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl)
+                       )
                 ));
             }
 
@@ -510,7 +542,9 @@ public class specwork extends PathChainAutoOpMode {
 
         PathChain turnPath = follower.pathBuilder()
                 .addPath(new BezierPoint(new Point(new Pose(currentX, currentY, currentHeadingRadians))))
+                .setPathEndHeadingConstraint(0.001)
                 .setConstantHeadingInterpolation(targetHeadingRadians)
+                .setZeroPowerAccelerationMultiplier(10)
                 .build();
 
         follower.followPath(turnPath, true);
@@ -525,7 +559,7 @@ public class specwork extends PathChainAutoOpMode {
         currentTaskIndex = 0;
         taskPhase = 0;
         pathTimer.resetTimer();
-        run(motorActions.outtakeSpecimen());
+        run(motorActions.outtakespecvision());
     }
 
     @Override
@@ -549,7 +583,6 @@ public class specwork extends PathChainAutoOpMode {
         telemetry.addData("extendoReset",motorControl.extendo.resetting);
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.addData("Angle", latestVisionAngle);
-        telemetry.addData("Pose", latestVisionPose);
         telemetry.addData("Distance", lastDistance);
         telemetry.update();
     }

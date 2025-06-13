@@ -389,7 +389,7 @@ public class MotorActions {
                 lift.vision(),
                 new SequentialAction(
                         new SleepAction(0.2),
-                        outArm.specimenDeposit(),
+                        outArm.vision(),
                         linkage.extended()
                 )
                 //intakeTransfer()
@@ -501,7 +501,7 @@ public class MotorActions {
         public Action set(double pos) { return t -> { mc.lift.setTargetPosition(pos); return false; }; }
         public Action transfer()      { return set(0); }
         public Action specimen()      { return set(345); }
-        public Action vision()      { return set(450); }
+        public Action vision()      { return set(410); }
         public Action sample()      { return set(800); }
 
         public Action findZero() {
@@ -563,7 +563,7 @@ public class MotorActions {
     public class OuttakeArm {
         private static final double SPEC_INTAKE   = 0.05;
         private static final double SPEC_DEPOSIT  = 0.82;
-        private static final double VISION_DEPOSIT  = 0.72;
+        private static final double VISION_DEPOSIT  = 0.86;
         private static final double FLIP          = 0.17;
         private static final double SAMPLE_SCORE  = 0.35;
         private static final double PRE_TRANSFER  = 0.7;
@@ -778,9 +778,9 @@ public class MotorActions {
                             if ((colorSeen == Enums.DetectedColor.BLACK
                                     || colorSeen == Enums.DetectedColor.UNKNOWN)) {
                                 // Compute how long we've been seeing nothing
-                                if (!didExtend[0] && (now - searchStartTime[0] >= 1000L)) {
+                                if (!didExtend[0] && (now - searchStartTime[0] >= 100L)) {
                                     // Time’s up: extend the extendo once
-                                    MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 50).run(t);
+                                    MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 100).run(t);
                                     MotorActions.this.inArm.sampleExtended().run(t);
                                     MotorActions.this.inPivot.sampleExtended().run(t);
                                     MotorActions.this.inArm.sampleGrab().run(t);

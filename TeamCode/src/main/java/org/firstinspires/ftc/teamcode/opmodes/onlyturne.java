@@ -339,7 +339,6 @@ public class onlyturne extends PathChainAutoOpMode {
         // Vision + parkChain1
         addPath(parkChain1, 0)
                 .addWaitAction(0, new SequentialAction(
-                        limelight.collectSamplesAction(),
                         telemetryPacket -> {
                             MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
                             if (dr != null) {
@@ -371,7 +370,6 @@ public class onlyturne extends PathChainAutoOpMode {
 // Vision + parkChain2
         addPath(parkChain2, 0)
                 .addWaitAction(0, new SequentialAction(
-                        limelight.collectSamplesAction(),
                         telemetryPacket -> {
                             MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
                             if (dr != null) {
@@ -403,7 +401,6 @@ public class onlyturne extends PathChainAutoOpMode {
 // Vision + parkChain3
         addPath(parkChain3, 0)
                 .addWaitAction(0, new SequentialAction(
-                        limelight.collectSamplesAction(),
                         telemetryPacket -> {
                             MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
                             if (dr != null) {
@@ -435,7 +432,6 @@ public class onlyturne extends PathChainAutoOpMode {
 // Vision + parkChain4
         addPath(parkChain4, 0)
                 .addWaitAction(0, new SequentialAction(
-                        limelight.collectSamplesAction(),
                         telemetryPacket -> {
                             MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
                             if (dr != null) {

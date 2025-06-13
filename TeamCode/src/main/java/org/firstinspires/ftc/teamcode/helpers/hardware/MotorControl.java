@@ -29,6 +29,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
@@ -283,6 +285,7 @@ public class MotorControl {
             resetting = true;
         }
 
+
         public void update() {
             if (resetting) {
                 if (Math.abs(motor.getVelocity()) < 5) { // Assuming primary motor velocity indicates stop
@@ -316,16 +319,18 @@ public class MotorControl {
         private final Limelight3A limelight;
         private final Telemetry telemetry;
 
-        // --- Calibration constants (adjust as needed) ---
-        private static final double CAMERA_HEIGHT_M   = 0.61;
-        private static final double CAMERA_PITCH_DEG  = 29.0;
-        private static final double IMAGE_WIDTH_PX    = 2592.0;
-        private static final double IMAGE_HEIGHT_PX   = 1944.0;
-        private static final double VERTICAL_FOV_DEG  = 42.0;
-        private static final double FOCAL_LENGTH_PX   = (IMAGE_HEIGHT_PX / 2.0)
+        private static final double CAMERA_HEIGHT_M = 0.61;
+        private static final double CAMERA_PITCH_DEG = 29.0;
+        private static final double IMAGE_WIDTH_PX = 2592.0;
+        private static final double IMAGE_HEIGHT_PX = 1944.0;
+        private static final double VERTICAL_FOV_DEG = 42.0;
+        private static final double FOCAL_LENGTH_PX = (IMAGE_HEIGHT_PX / 2.0)
                 / Math.tan(Math.toRadians(VERTICAL_FOV_DEG / 2.0));
 
         private String primaryClass = "blue";
+
+        private final List<DetectionResult> cachedDetections = new ArrayList<>();
+        private int currentSampleIndex = 0;
 
         public Limelight(HardwareMap hardwareMap, Telemetry telemetry) {
             this.telemetry = telemetry;
@@ -342,59 +347,70 @@ public class MotorControl {
             limelight.stop();
         }
 
-        /**
-         * Computes distance & yaw for every primary-class detection,
-         * then returns the one whose yaw is closest to 0° and distance closest to 24".
-         */
         public DetectionResult getDistance() {
             LLResult result = limelight.getLatestResult();
             if (result == null || result.getDetectorResults() == null
                     || result.getDetectorResults().isEmpty()) {
                 telemetry.addLine("No detections found.");
+                cachedDetections.clear();
                 return null;
             }
 
-            // Filter only primary-class targets
             List<LLResultTypes.DetectorResult> primaries = result.getDetectorResults().stream()
                     .filter(d -> d.getClassName().equalsIgnoreCase(primaryClass))
                     .collect(Collectors.toList());
+
             if (primaries.isEmpty()) {
                 telemetry.addLine("Primary class not detected.");
+                cachedDetections.clear();
                 return null;
             }
 
-            DetectionResult best = null;
-            double bestCost = Double.MAX_VALUE;
-
+            cachedDetections.clear();
             for (LLResultTypes.DetectorResult det : primaries) {
                 double[] box = getBoundingBox(det.getTargetCorners());
                 double bottomX = box[0] + box[2] * 0.5;
                 double bottomY = box[1] + box[3];
 
-                double dx = bottomX - (IMAGE_WIDTH_PX  / 2.0);
+                double dx = bottomX - (IMAGE_WIDTH_PX / 2.0);
                 double dy = bottomY - (IMAGE_HEIGHT_PX / 2.0);
 
-                double yawRad    = Math.atan(dx / FOCAL_LENGTH_PX);
-                double pitchRad  = Math.atan(dy / FOCAL_LENGTH_PX);
+                double yawRad = Math.atan(dx / FOCAL_LENGTH_PX);
+                double pitchRad = Math.atan(dy / FOCAL_LENGTH_PX);
                 double totalPitch = Math.toRadians(CAMERA_PITCH_DEG) + pitchRad;
 
-                double distM  = CAMERA_HEIGHT_M / Math.tan(totalPitch);
-                double distIn = distM * 39.3701;
+                double distM = CAMERA_HEIGHT_M / Math.tan(totalPitch);
+                double distIn = distM * 39.3701 - 11;
                 double yawDeg = Math.toDegrees(yawRad) + 2;
 
-                // cost combines yaw closeness and distance closeness to 24"
-                double cost = Math.abs(yawDeg) + Math.abs(distIn - 24.0);
-                if (cost < bestCost) {
-                    bestCost = cost;
-                    best = new DetectionResult(distIn, yawDeg);
-                }
+                double cost = Math.abs(Math.abs(yawDeg) - 4);
+                cachedDetections.add(new DetectionResult(distIn, yawDeg, cost));
             }
 
-            if (best != null) {
+            cachedDetections.sort(Comparator.comparingDouble(d -> d.cost));
+            currentSampleIndex = 0;
+
+            if (!cachedDetections.isEmpty()) {
+                DetectionResult best = cachedDetections.get(0);
                 telemetry.addData("Best Dist (in)", String.format("%.1f", best.distanceInches));
-                telemetry.addData("Best Yaw (°)",   String.format("%.1f", best.yawDegrees));
+                telemetry.addData("Best Yaw (°)", String.format("%.1f", best.yawDegrees));
+                return best;
             }
-            return best;
+
+            return null;
+        }
+
+        public DetectionResult getNextSample() {
+            currentSampleIndex++;
+            if (currentSampleIndex >= cachedDetections.size()) {
+                telemetry.addLine("No more samples available.");
+                return null;
+            }
+
+            DetectionResult next = cachedDetections.get(currentSampleIndex);
+            telemetry.addData("Next Dist (in)", String.format("%.1f", next.distanceInches));
+            telemetry.addData("Next Yaw (°)", String.format("%.1f", next.yawDegrees));
+            return next;
         }
 
         private double[] getBoundingBox(List<List<Double>> corners) {
@@ -406,15 +422,31 @@ public class MotorControl {
                 minY = Math.min(minY, p.get(1));
                 maxY = Math.max(maxY, p.get(1));
             }
-            return new double[]{ minX, minY, maxX - minX, maxY - minY };
+            return new double[]{minX, minY, maxX - minX, maxY - minY};
         }
 
         public static class DetectionResult {
             public final double distanceInches;
             public final double yawDegrees;
-            public DetectionResult(double distanceInches, double yawDegrees) {
+            public final double cost;
+
+            public DetectionResult(double distanceInches, double yawDegrees, double cost) {
                 this.distanceInches = distanceInches;
-                this.yawDegrees     = yawDegrees;
+                this.yawDegrees = yawDegrees;
+                this.cost = cost;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (!(o instanceof DetectionResult)) return false;
+                DetectionResult other = (DetectionResult) o;
+                return Math.abs(this.distanceInches - other.distanceInches) < 0.5 &&
+                        Math.abs(this.yawDegrees - other.yawDegrees) < 0.5;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash((int)(distanceInches * 2), (int)(yawDegrees * 2));
             }
         }
     }
