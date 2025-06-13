@@ -295,7 +295,9 @@ public class MotorActions {
                 outArm.pretransfer(),
                 lift.transfer(),
                 claw.transfer(),
-                led.green()
+                led.green(),
+                lift.waitUntilFinished(0,400),
+                lift.findZero()
 
         );
     }

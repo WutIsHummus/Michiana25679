@@ -230,7 +230,7 @@ public class samplenew extends PathChainAutoOpMode {
 
         tasks.add(preloadTask);
 
-        addTurnToDegrees(350, 0)
+        addTurnToDegrees(0, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.spin.eat(),
                         motorActions.extendo.set(600),
@@ -252,8 +252,8 @@ public class samplenew extends PathChainAutoOpMode {
 
         addTurnToDegrees(340, 0)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.outtakeSampleAuto(),
-                        motorActions.extendo.set(400),
+                       new ParallelAction( motorActions.outtakeSampleAuto(),
+                               motorActions.extendo.set(400)),
                         telemetryPacket -> {
                             depodone1 = true; return false;
                         }
@@ -396,6 +396,10 @@ public class samplenew extends PathChainAutoOpMode {
     // -------- Override dummy follower methods --------
     @Override
     protected boolean isPathActive() {
+        BaseTask current = tasks.get(currentTaskIndex);
+        if (current instanceof TurnTask){
+            return isTurning();
+        }
         return follower.isBusy();
     }
 
@@ -414,7 +418,6 @@ public class samplenew extends PathChainAutoOpMode {
 
         if (Math.abs(headingError) < HEADING_TOLERANCE) {
             isActivelyTurningInternalFlag = false;
-            follower.breakFollowing();
             return false;
         }
 
