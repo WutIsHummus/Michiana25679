@@ -584,7 +584,7 @@ public class MotorActions {
     public class IntakeArm {
         private static final double TRANSFER          = 0.24;
         private static final double SPEC_EXTENDED     = 0.48;
-        private static final double SPEC_GRAB         = 0.57;
+        private static final double SPEC_GRAB         = 0.59;
         private static final double SAMPLE_EXTENDED   = 0.42;
         private static final double SAMPLE_GRAB       = 0.55;
         private static final double SAMPLE_SPIT       = 0.22;
