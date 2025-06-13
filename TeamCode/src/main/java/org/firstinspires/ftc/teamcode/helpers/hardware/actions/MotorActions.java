@@ -118,7 +118,7 @@ public class MotorActions {
                 inArm.transfer(),
                 outArm.transfer(),
                 extendo.retracted(),
-                extendo.waitUntilFinished(0, 50),
+                extendo.waitUntilFinished(0, 15),
                 extendo.findZero(),
                 led.green()
         );
@@ -353,6 +353,7 @@ public class MotorActions {
                 inPivot.specimenGrab(),
                 spin.eat(),
                 extendo.waitUntilFinished(),
+                new SleepAction(0.1),
                 led.green(),
                 intakeTransfer(),
                 extendo.waitUntilFinished(),
@@ -584,7 +585,7 @@ public class MotorActions {
     public class IntakeArm {
         private static final double TRANSFER          = 0.24;
         private static final double SPEC_EXTENDED     = 0.48;
-        private static final double SPEC_GRAB         = 0.59;
+        private static final double SPEC_GRAB         = 0.58;
         private static final double SAMPLE_EXTENDED   = 0.42;
         private static final double SAMPLE_GRAB       = 0.55;
         private static final double SAMPLE_SPIT       = 0.22;
@@ -601,7 +602,7 @@ public class MotorActions {
     public class IntakePivot {
         private static final double TRANSFER         = 0.33;
         private static final double SPEC_EXTENDED    = 0.20;
-        private static final double SPEC_GRAB        = 0.19;
+        private static final double SPEC_GRAB        = 0.18;
         private static final double SAMPLE_EXTENDED  = 0.00;
         private static final double SAMPLE_GRAB      = 0.10;
         private static final double SAMPLE_SPIT      = 0.85;

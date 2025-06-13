@@ -239,6 +239,7 @@ public class samplenew extends PathChainAutoOpMode {
                         motorActions.inPivot.specimenGrab(),
                         motorActions.spin.eat(),
                         motorActions.extendo.waitUntilFinished(),
+                        new SleepAction(0.1),
                         telemetryPacket -> {
                             eatdone1 = true; return false;
                         },
@@ -270,6 +271,7 @@ public class samplenew extends PathChainAutoOpMode {
                         motorActions.inArm.specimenGrab(),
                         motorActions.inPivot.specimenGrab(),
                         motorActions.extendo.waitUntilFinished(),
+                        new SleepAction(0.1),
                         telemetryPacket -> {
                             eatdone2 = true; return false;
                         },

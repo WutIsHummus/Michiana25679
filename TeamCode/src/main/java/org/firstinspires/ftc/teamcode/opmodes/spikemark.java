@@ -332,7 +332,7 @@ public class spikemark extends PathChainAutoOpMode {
                 .setWaitCondition(() -> spitDone1)
         ;
 
-        addTurnToDegrees(-15, 0)
+        addTurnToDegrees(-17, 0)
                 .addWaitAction(()->!spitDone1, motorActions.extendo.set(0))
                 .addWaitAction(0.05, new SequentialAction(
                         motorActions.spin.waitUntilEmpty(motorControl),
