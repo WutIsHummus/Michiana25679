@@ -280,6 +280,12 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
         return task;
     }
 
+    public TurnTask addTurnToDegrees(double targetAngleDegrees, double waitTimeAfterTurn, double initialAngleDegrees) {
+        TurnTask task = new TurnTask(targetAngleDegrees, true, waitTimeAfterTurn,initialAngleDegrees); // true for degrees
+        tasks.add(task);
+        return task;
+    }
+
     public TurnTask addTurnToDegrees(double targetAngleDegrees, double waitTimeAfterTurn) {
         TurnTask task = new TurnTask(targetAngleDegrees, true, waitTimeAfterTurn); // true for degrees
         tasks.add(task);
@@ -375,6 +381,7 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
         public boolean isRelative; // Is the turn relative to current heading or absolute field heading?
         public boolean isLeft;     // If relative, specifies direction (meaningful for some turn implementations)
         public boolean initiated = false; // True once startTurn() has been called
+        public double initialAngleDegrees;
 
         // Constructor for absolute turns
         public TurnTask(double angle, boolean useDegrees, double waitTime) {
@@ -383,6 +390,15 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
             this.useDegrees = useDegrees;
             this.isRelative = false;
             this.isLeft = false; // Not applicable for absolute turns typically
+        }
+
+        public TurnTask(double angle, boolean useDegrees, double waitTime, double initialAngleDegrees) {
+            super(waitTime);
+            this.angle = angle;
+            this.useDegrees = useDegrees;
+            this.isRelative = false;
+            this.isLeft = false; // Not applicable for absolute turns typically
+            this.initialAngleDegrees = initialAngleDegrees;
         }
 
         // Constructor for relative turns
