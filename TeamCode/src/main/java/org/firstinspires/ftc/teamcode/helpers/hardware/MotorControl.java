@@ -136,34 +136,19 @@ public class MotorControl {
 
         Enums.DetectedColor detected = Enums.DetectedColor.UNKNOWN;
 
-        // Red thresholds:
-        //   1.0  < D*Rnorm < 1.3
-        //   0.9  < D*Gnorm < 1.7
-        //   0.676< D*Bnorm < 1.45
-        if (scaledR > 0.97  &&
-                scaledG > 0.9  && scaledG < 1.4 &&
-                scaledB < 1.2) {
+        if (scaledR > 0.8  &&
+                scaledG < 0.99  &&
+                scaledB < 0.7) {
             detected = Enums.DetectedColor.RED;
         }
-        // Yellow thresholds:
-        //   0.8  < D*Rnorm < 1.25
-        //   1.2  < D*Gnorm < 1.9
-        //   0.4  < D*Bnorm < 1.2
-        else if (scaledR < 0.97 &&
-                scaledG > 1.2 && scaledG < 1.6  &&
-                scaledB > 0.4  && scaledB < 1.2) {
+        else if (scaledR < 0.78 &&
+                scaledG > 0.9 &&
+                scaledB < 0.5) {
             detected = Enums.DetectedColor.YELLOW;
         }
-        // Blue thresholds:
-        //   0.5  < D*Rnorm < 1.0
-        //   0.95 < D*Gnorm < 1.9
-        //   1.45 < D*Bnorm < 2.0
-        else if (scaledR > 0.5   && scaledR < 1.05  &&
-                scaledG > 0.95  && scaledG < 1.94  &&
-                scaledB > 1.43 ) {
+        else if (scaledB > 1.15 ) {
             detected = Enums.DetectedColor.BLUE;
         }
-
         if (distanceCm > 6){
             detected = Enums.DetectedColor.UNKNOWN;
         }
@@ -326,28 +311,47 @@ public class MotorControl {
         private static final double VERTICAL_FOV_DEG = 42.0;
         private static final double FOCAL_LENGTH_PX = (IMAGE_HEIGHT_PX / 2.0)
                 / Math.tan(Math.toRadians(VERTICAL_FOV_DEG / 2.0));
+        public double offset = 4;
+        private boolean upsideDown = true;
 
-        private String primaryClass = "blue";
+        private List<String> targetClasses = new ArrayList<>(List.of("blue"));
+
 
         private final List<DetectionResult> cachedDetections = new ArrayList<>();
         private int currentSampleIndex = 0;
+
+        public Limelight(HardwareMap hardwareMap, Telemetry telemetry,double offset) {
+            this.telemetry = telemetry;
+            this.limelight = hardwareMap.get(Limelight3A.class, "limelight");
+            this.limelight.start();
+            this.offset = offset;
+            telemetry.addData("Limelight", "Initialized and polling started.");
+        }
 
         public Limelight(HardwareMap hardwareMap, Telemetry telemetry) {
             this.telemetry = telemetry;
             this.limelight = hardwareMap.get(Limelight3A.class, "limelight");
             this.limelight.start();
+            limelight.setPollRateHz(250);
             telemetry.addData("Limelight", "Initialized and polling started.");
         }
 
-        public void setPrimaryClass(String cls) {
-            this.primaryClass = cls.toLowerCase();
+        public void setUpsideDown(boolean upsideDown) {
+            this.upsideDown = upsideDown;
+        }
+
+        public void setTargetClasses(String... classes) {
+            targetClasses.clear();
+            for (String cls : classes) {
+                targetClasses.add(cls.toLowerCase());
+            }
         }
 
         public void stop() {
             limelight.stop();
         }
 
-        public DetectionResult getDistance() {
+        public DetectionResult getDistance(double distanceCost) {
             LLResult result = limelight.getLatestResult();
             if (result == null || result.getDetectorResults() == null
                     || result.getDetectorResults().isEmpty()) {
@@ -356,34 +360,39 @@ public class MotorControl {
                 return null;
             }
 
-            List<LLResultTypes.DetectorResult> primaries = result.getDetectorResults().stream()
-                    .filter(d -> d.getClassName().equalsIgnoreCase(primaryClass))
+            List<LLResultTypes.DetectorResult> matches = result.getDetectorResults().stream()
+                    .filter(d -> targetClasses.stream()
+                            .anyMatch(tc -> tc.equalsIgnoreCase(d.getClassName())))
                     .collect(Collectors.toList());
 
-            if (primaries.isEmpty()) {
+            if (matches.isEmpty()) {
                 telemetry.addLine("Primary class not detected.");
                 cachedDetections.clear();
                 return null;
             }
 
             cachedDetections.clear();
-            for (LLResultTypes.DetectorResult det : primaries) {
+            for (LLResultTypes.DetectorResult det : matches) {
                 double[] box = getBoundingBox(det.getTargetCorners());
                 double bottomX = box[0] + box[2] * 0.5;
                 double bottomY = box[1] + box[3];
 
-                double dx = bottomX - (IMAGE_WIDTH_PX / 2.0);
-                double dy = bottomY - (IMAGE_HEIGHT_PX / 2.0);
+                double rawDx = bottomX - (IMAGE_WIDTH_PX  / 2.0);
+                double rawDy = bottomY - (IMAGE_HEIGHT_PX / 2.0);
+
+                // if upsideDown, flip both axes
+                double dx = upsideDown ? -rawDx : rawDx;
+                double dy = upsideDown ? -rawDy : rawDy;
 
                 double yawRad = Math.atan(dx / FOCAL_LENGTH_PX);
                 double pitchRad = Math.atan(dy / FOCAL_LENGTH_PX);
                 double totalPitch = Math.toRadians(CAMERA_PITCH_DEG) + pitchRad;
 
                 double distM = CAMERA_HEIGHT_M / Math.tan(totalPitch);
-                double distIn = distM * 39.3701 - 11;
+                double distIn = distM * 39.3701 - 12;
                 double yawDeg = Math.toDegrees(yawRad) + 2;
 
-                double cost = Math.abs(Math.abs(yawDeg) - 4);
+                double cost = Math.abs(Math.abs(yawDeg) - offset) + distM * distanceCost;
                 cachedDetections.add(new DetectionResult(distIn, yawDeg, cost));
             }
 

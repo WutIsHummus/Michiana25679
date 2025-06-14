@@ -85,6 +85,7 @@ public class MotorActions {
                 led.white(),
                 ptolLatch.unlock(),
                 ptorLatch.unlock(),
+                hang.down(),
                 sweeper.retracted(),
                 outArm.middle(),
                 claw.close(),
@@ -119,6 +120,20 @@ public class MotorActions {
                 outArm.transfer(),
                 extendo.retracted(),
                 extendo.waitUntilFinished(0, 15),
+                extendo.findZero(),
+                led.green()
+        );
+    }
+
+    public Action intakeTransferAuto(){
+        return new SequentialAction(
+                led.yellow(),
+                inPivot.transfer(),
+                claw.transfer(),
+                inArm.transfer(),
+                outArm.transfer(),
+                extendo.retracted(),
+                extendo.waitUntilFinished(0, 40),
                 extendo.findZero(),
                 led.green()
         );
@@ -285,10 +300,10 @@ public class MotorActions {
                         inArm.specimenExtended(),
                         inPivot.specimenExtended()
                 ),
-                linkage.extended(),
+                linkage.transfer(),
                 lift.waitUntilFinished(800,60),
-                outArm.sampleScore(),
-                new SleepAction(0.2),
+                outArm.sampleScoreAuto(),
+                new SleepAction(0.1),
                 claw.open(),
                 new SleepAction(0.1),
                 linkage.transfer(),
@@ -540,7 +555,7 @@ public class MotorActions {
 
     // ---------------------- Outtake Linkage -----------------------------
     public class OuttakeLinkage {
-        private static final double RETRACTED = 0.49;
+        private static final double RETRACTED = 0.51;
         private static final double EXTENDED  = 0.98;
         private static final double TRANSFER  = 0.71;
         private Action set(double p) { return t -> { mc.outtakeLinkage.setPosition(p); return false; }; }
@@ -569,6 +584,7 @@ public class MotorActions {
         private static final double VISION_DEPOSIT  = 0.86;
         private static final double FLIP          = 0.17;
         private static final double SAMPLE_SCORE  = 0.35;
+        private static final double SAMPLE_SCORE_AUTO  = 0.29;
         private static final double PRE_TRANSFER  = 0.7;
         private static final double MIDDLE        = 0.50;
         private static final double TRANSFER      = 1.00;
@@ -577,6 +593,7 @@ public class MotorActions {
         public Action specimenDeposit() { return set(SPEC_DEPOSIT); }
         public Action flip()            { return set(FLIP);         }
         public Action sampleScore()     { return set(SAMPLE_SCORE);  }
+        public Action sampleScoreAuto()     { return set(SAMPLE_SCORE_AUTO);  }
         public Action middle()          { return set(MIDDLE);        }
         public Action transfer()        { return set(TRANSFER);      }
         public Action pretransfer()        { return set(PRE_TRANSFER);}
@@ -589,7 +606,7 @@ public class MotorActions {
         private static final double SPEC_EXTENDED     = 0.48;
         private static final double SPEC_GRAB         = 0.58;
         private static final double SAMPLE_EXTENDED   = 0.42;
-        private static final double SAMPLE_GRAB       = 0.55;
+        private static final double SAMPLE_GRAB       = 0.572;
         private static final double SAMPLE_SPIT       = 0.22;
         private Action set(double p){ return t -> { mc.intakeArmR.setPosition(p); mc.intakeArmL.setPosition(p); return false; }; }
         public Action transfer()        { return set(TRANSFER);        }
@@ -606,7 +623,7 @@ public class MotorActions {
         private static final double SPEC_EXTENDED    = 0.20;
         private static final double SPEC_GRAB        = 0.18;
         private static final double SAMPLE_EXTENDED  = 0.00;
-        private static final double SAMPLE_GRAB      = 0.10;
+        private static final double SAMPLE_GRAB      = 0.1;
         private static final double SAMPLE_SPIT      = 0.85;
         private Action set(double p){ return t -> { mc.intakePivot.setPosition(p); return false; }; }
         public Action transfer()        { return set(TRANSFER);        }

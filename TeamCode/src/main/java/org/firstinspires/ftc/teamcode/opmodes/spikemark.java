@@ -297,7 +297,7 @@ public class spikemark extends PathChainAutoOpMode {
                 .addWaitAction(0,new ParallelAction(motorActions.claw.open(), motorActions.outArm.pretransfer(), motorActions.linkage.retracted()))
                 .addWaitAction(1, new SequentialAction(
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(1);
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
@@ -464,7 +464,7 @@ public class spikemark extends PathChainAutoOpMode {
 
         limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
 
-        limelight.setPrimaryClass("red");
+        limelight.setTargetClasses("red");
 
         // Build the paths and tasks.
         buildPathChains();

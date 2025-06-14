@@ -296,7 +296,7 @@ public class specwork extends PathChainAutoOpMode {
                 .addWaitAction(0,new ParallelAction(motorActions.claw.open(), motorActions.outArm.pretransfer(), motorActions.linkage.retracted()))
                 .addWaitAction(1, new SequentialAction(
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(0);
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
@@ -317,7 +317,7 @@ public class specwork extends PathChainAutoOpMode {
         addPath(vision1deposit, 0.2).addWaitAction(0,motorActions.outtakespecvision())
                 .addWaitAction(0, new SequentialAction(
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(0);
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
@@ -361,7 +361,7 @@ public class specwork extends PathChainAutoOpMode {
                 .setWaitCondition(() -> spitDone1)
         ;
 
-        addTurnToDegrees(-15, 0)
+        addTurnToDegrees(-17, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.spin.waitUntilEmpty(motorControl),
                         motorActions.extendo.set(660),
@@ -434,7 +434,12 @@ public class specwork extends PathChainAutoOpMode {
     // -------- Override dummy follower methods --------
     @Override
     protected boolean isPathActive() {
-        return follower.isBusy();
+        BaseTask current = tasks.get(currentTaskIndex);
+        if (current instanceof TurnTask) {
+            return isTurning();
+        }
+        PathChainTask p = (PathChainTask) current;
+        return p.initiated && follower.isBusy();
     }
 
     @Override
@@ -452,7 +457,6 @@ public class specwork extends PathChainAutoOpMode {
 
         if (Math.abs(headingError) < HEADING_TOLERANCE) {
             isActivelyTurningInternalFlag = false;
-            follower.breakFollowing();
             return false;
         }
 
@@ -490,9 +494,9 @@ public class specwork extends PathChainAutoOpMode {
 
 
 
-        limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
+        limelight     = new MotorControl.Limelight(hardwareMap, telemetry,4);
 
-        limelight.setPrimaryClass("red");
+        limelight.setTargetClasses("red");
 
         // Build the paths and tasks.
         buildPathChains();
@@ -513,7 +517,11 @@ public class specwork extends PathChainAutoOpMode {
                                motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
                                motorActions.extendo.waitUntilFinished(),
                                motorActions.spin.eat(),
-                               motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl)
+                               motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl),
+                               telemetryPacket -> {
+                                   lastDistance=0;
+                                   return false;
+                               }
                        )
                 ));
             }

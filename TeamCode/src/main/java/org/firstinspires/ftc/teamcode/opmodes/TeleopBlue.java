@@ -88,7 +88,7 @@ public class TeleopBlue extends ActionOpMode {
 
         // RIGHT BUMPER: always extend sample
         if (gamepad1.right_bumper && !rightBumperPressed) {
-                run(motorActions.specimenExtend(300));
+                run(motorActions.sampleExtend(300));
             rightBumperPressed = true;
         } else if (!gamepad1.right_bumper) {
             rightBumperPressed = false;
@@ -102,7 +102,7 @@ public class TeleopBlue extends ActionOpMode {
                 run(new SequentialAction(
                         new ParallelAction(
                                 motorActions.outtakeTransfer(),
-                                motorActions.grabUntilSpecimen(allianceColor)
+                                motorActions.grabUntilSample(allianceColor)
                         ),
                         motorActions.intakeTransfer(),
                         motorActions.outtakeSample(780)
@@ -111,7 +111,7 @@ public class TeleopBlue extends ActionOpMode {
                 run(new SequentialAction(
                         new ParallelAction(
                                 motorActions.outtakeTransfer(),
-                                motorActions.grabUntilSpecimen(allianceColor)
+                                motorActions.grabUntilSample(allianceColor)
                         ),
                         motorActions.intakeTransfer()
                 ));
@@ -164,7 +164,7 @@ public class TeleopBlue extends ActionOpMode {
         if (gamepad1.dpad_down && !dpadDownPressed) {
             if (!spinActive) {
                 run(new SequentialAction(
-                        motorActions.specimenExtend(200),
+                        motorActions.sampleExtend(200),
                         (color == allianceColor || color == DetectedColor.YELLOW)
                                 ? motorActions.spin.poop()
                                 : motorActions.spin.slowpoop()

@@ -340,7 +340,7 @@ public class onlyturne extends PathChainAutoOpMode {
         addPath(parkChain1, 0)
                 .addWaitAction(0, new SequentialAction(
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(1);
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
@@ -371,7 +371,7 @@ public class onlyturne extends PathChainAutoOpMode {
         addPath(parkChain2, 0)
                 .addWaitAction(0, new SequentialAction(
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(1);
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
@@ -402,7 +402,7 @@ public class onlyturne extends PathChainAutoOpMode {
         addPath(parkChain3, 0)
                 .addWaitAction(0, new SequentialAction(
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(1);
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
@@ -433,7 +433,7 @@ public class onlyturne extends PathChainAutoOpMode {
         addPath(parkChain4, 0)
                 .addWaitAction(0, new SequentialAction(
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(1);
                             if (dr != null) {
                                 latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
@@ -525,7 +525,7 @@ public class onlyturne extends PathChainAutoOpMode {
 
         limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
 
-        limelight.setPrimaryClass("red");
+        limelight.setTargetClasses("red");
 
         // Build the paths and tasks.
         buildPathChains();

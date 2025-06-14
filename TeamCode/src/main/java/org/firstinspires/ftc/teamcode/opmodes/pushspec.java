@@ -290,7 +290,7 @@ public class pushspec extends PathChainAutoOpMode {
 
         limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
 
-        limelight.setPrimaryClass("red");
+        limelight.setTargetClasses("red");
 
         // Build the paths and tasks.
         buildPathChains();

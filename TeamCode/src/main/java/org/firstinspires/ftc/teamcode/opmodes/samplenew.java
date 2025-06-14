@@ -23,11 +23,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * SpecimenAuto is an autonomous OpMode that uses a series of PathChainTasks.
- * It extends PathChainAutoOpMode so that you only need to override buildPathChains() and buildTaskList(),
- * plus the dummy path-follower methods.
- */
+
 @Autonomous(name = "4+ sample!!")
 public class samplenew extends PathChainAutoOpMode {
 
@@ -41,14 +37,14 @@ public class samplenew extends PathChainAutoOpMode {
     private final Pose startPose   = new Pose(9, 111, Math.toRadians(270));
     private final Pose scorePose   = new Pose(18, 130, Math.toRadians(340));
 
-    private final Pose subscorepose   = new Pose(18, 126, Math.toRadians(315));
+    private final Pose subscorepose   = new Pose(24, 132, Math.toRadians(340));
     private final Pose thirdgrab = new Pose(18.5, 130, Math.toRadians(25));
 
     // Park poses
-    private final Pose parkPose        = new Pose(62, 95, Math.toRadians(270));
+    private final Pose parkPose        = new Pose(62, 93, Math.toRadians(270));
 
     private final Pose subintakepose        = new Pose(62, 97, Math.toRadians(270));
-    private final Pose parkControlPose = new Pose(70, 120, Math.toRadians(270));
+    private final Pose parkControlPose = new Pose(53, 120, Math.toRadians(270));
     private MotorControl.Limelight limelight;
 
     private boolean scan1Done, scan2Done = false;
@@ -60,7 +56,6 @@ public class samplenew extends PathChainAutoOpMode {
     // --- Vision turn related fields ---
     private TurnTask visionTurn1, visionTurn2, visionTurn3;
 
-    private Vector2d latestVisionPose = new Vector2d(0, 0);
     private double latestVisionAngle = 0;
     private double lastDistance = 0;
 
@@ -79,6 +74,8 @@ public class samplenew extends PathChainAutoOpMode {
 
     private PathChain subscore1, subscore2, subscore3;
     private PathChain parkChain1, parkChain2, parkChain3, thirdgrabpath;
+
+    private PathChain parkToControl, controlToSubintake;
 
 
     private boolean visionStarted     = false;
@@ -103,105 +100,117 @@ public class samplenew extends PathChainAutoOpMode {
         thirdgrabpath = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(scorePose), new Point(thirdgrab)))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), thirdgrab.getHeading())
-                .addParametricCallback(0.5, () -> run(motorActions.extendo.set(100)))
+                .addParametricCallback(0.9, () -> run(motorActions.extendo.set(100)))
                 .build();
 
-        // ============ Park path ============
-        // ============ Four Park Chains ============
-        parkChain1 = follower.pathBuilder()
+        // buildPathChains(): split your park chain in two
+        parkToControl = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(scorePose),
                         new Point(parkControlPose),
                         new Point(parkPose)
                 ))
-                .addPath(new BezierCurve(
-                        new Point(parkPose),
-                        new Point(subintakepose)
-                ))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), subintakepose.getHeading())
-                .addParametricCallback(0, () -> run(motorActions.outtakeTransfer()))
+                .addParametricCallback(0.9, () -> run(motorActions.lift.vision()))
+                .addParametricCallback(0.9,   () -> run(motorActions.sweeper.extended()))
                 .addParametricCallback(0.5, () -> run(new ParallelAction(
                         motorActions.inArm.sampleExtended(),
                         motorActions.inPivot.sampleExtended()
                 )))
-                .addParametricCallback(0, () -> run(motorActions.sweeper.extended()))
-                .addParametricCallback(0.9, () -> run(motorActions.lift.vision()))
+                .build();
+
+        controlToSubintake = follower.pathBuilder()
+                .addPath(new BezierLine(new Point(parkPose),new Point(subintakepose)))
+                .setConstantHeadingInterpolation(subintakepose.getHeading())
+                .setZeroPowerAccelerationMultiplier(2)
                 .addParametricCallback(1, () -> run(motorActions.sweeper.retracted()))
                 .build();
+
+
 
         parkChain2 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(scorePose),
                         new Point(parkControlPose),
-                        new Point(parkPose)
-                ))
-                .addPath(new BezierCurve(
-                        new Point(parkPose),
                         new Point(subintakepose)
-                ))                .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
-                .addParametricCallback(0, () -> run(motorActions.outtakeTransfer()))
+                ))
+                .setLinearHeadingInterpolation(scorePose.getHeading(),subintakepose.getHeading())
+                .addParametricCallback(0.9, () -> run(motorActions.lift.vision()))
+                .addParametricCallback(0.2, () -> run(motorActions.outtakeTransfer()))
+                .addParametricCallback(0, () -> run(motorActions.extendo.retracted()))
                 .addParametricCallback(0.5, () -> run(new ParallelAction(
                         motorActions.inArm.sampleExtended(),
                         motorActions.inPivot.sampleExtended()
                 )))
-                .addParametricCallback(0.9, () -> run(motorActions.lift.vision()))
-                .addParametricCallback(0, () -> run(motorActions.sweeper.extended()))
-                .addParametricCallback(1, () -> run(motorActions.sweeper.retracted()))
-                .addParametricCallback(0, () -> run(motorActions.extendo.retracted()))
                 .build();
+
 
         parkChain3 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(scorePose),
                         new Point(parkControlPose),
-                        new Point(parkPose)
-                ))
-                .addPath(new BezierCurve(
-                        new Point(parkPose),
                         new Point(subintakepose)
-                ))                .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
-                .addParametricCallback(0, () -> run(motorActions.outtakeTransfer()))
-                .addParametricCallback(0.5, () -> run(new ParallelAction(
-                        motorActions.inArm.sampleExtended(),
-                        motorActions.inPivot.sampleExtended()
-                )))
+                ))
+                .setLinearHeadingInterpolation(scorePose.getHeading(),subintakepose.getHeading())
                 .addParametricCallback(0.9, () -> run(motorActions.lift.vision()))
-                .addParametricCallback(0.5, () -> run(motorActions.sweeper.extended()))
+                .addParametricCallback(0.2, () -> run(motorActions.outtakeTransfer()))
                 .addParametricCallback(0, () -> run(motorActions.extendo.retracted()))
-                .addParametricCallback(1, () -> run(motorActions.sweeper.retracted()))
+                .addParametricCallback(0, () -> run(new SequentialAction(
+                        motorActions.intakeTransfer(),
+                        motorActions.outtakeSampleAuto2(),
+                        motorActions.extendo.set(150)
+                )))
                 .build();
 
 
 
         subscore1 = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(parkPose), new Point(parkControlPose), new Point(subscorepose)))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
-                .addParametricCallback(0.5, () -> run(new ParallelAction(
-                        motorActions.intakeTransfer(),
-                        motorActions.outtakeSampleAuto2(),
-                        motorActions.extendo.extended()
+                .setTangentHeadingInterpolation()
+                .setReversed(true)
+                .addParametricCallback(0, () -> run(new SequentialAction(
+                        motorActions.intakeTransferAuto(),
+                        new ParallelAction(
+                                motorActions.outtakeSampleAuto2(),
+                                new SequentialAction(
+                                        new SleepAction(0.4),
+                                        motorActions.extendo.set(150)
+                                )
+                        )
                 )))
                 .addParametricCallback(1, () -> run(motorActions.claw.open()))
                 .build();
 
         subscore2 = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(parkPose), new Point(parkControlPose), new Point(subscorepose)))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
-                .addParametricCallback(0.5, () -> run(new ParallelAction(
-                        motorActions.intakeTransfer(),
-                        motorActions.outtakeSampleAuto2(),
-                        motorActions.extendo.extended()
+                .setTangentHeadingInterpolation()
+                .setReversed(true)
+                .addParametricCallback(0, () -> run(new SequentialAction(
+                        motorActions.intakeTransferAuto(),
+                        new ParallelAction(
+                                motorActions.outtakeSampleAuto2(),
+                                new SequentialAction(
+                                        new SleepAction(0.4),
+                                        motorActions.extendo.set(150)
+                                )
+                        )
                 )))
                 .addParametricCallback(1, () -> run(motorActions.claw.open()))
                 .build();
 
         subscore3 = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(parkPose), new Point(parkControlPose), new Point(subscorepose)))
-                .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
-                .addParametricCallback(0.5, () -> run(new ParallelAction(
-                        motorActions.intakeTransfer(),
-                        motorActions.outtakeSampleAuto2(),
-                        motorActions.extendo.extended()
+                .setTangentHeadingInterpolation()
+                .setReversed(true)
+                .addParametricCallback(0, () -> run(new SequentialAction(
+                        motorActions.intakeTransferAuto(),
+                        new ParallelAction(
+                                motorActions.outtakeSampleAuto2(),
+                                new SequentialAction(
+                                        new SleepAction(0.4),
+                                        motorActions.extendo.set(150)
+                                )
+                        )
                 )))
                 .addParametricCallback(1, () -> run(motorActions.claw.open()))
                 .build();
@@ -230,7 +239,7 @@ public class samplenew extends PathChainAutoOpMode {
 
         tasks.add(preloadTask);
 
-        addTurnToDegrees(0, 0)
+        addTurnToDegrees(-2, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.spin.eat(),
                         motorActions.extendo.set(600),
@@ -252,8 +261,7 @@ public class samplenew extends PathChainAutoOpMode {
 
         addTurnToDegrees(340, 0)
                 .addWaitAction(0, new SequentialAction(
-                       new ParallelAction( motorActions.outtakeSampleAuto(),
-                               motorActions.extendo.set(400)),
+                        motorActions.outtakeSampleAuto(),
                         telemetryPacket -> {
                             depodone1 = true; return false;
                         }
@@ -281,11 +289,10 @@ public class samplenew extends PathChainAutoOpMode {
                 .setMaxWaitTime(1)
                 .setWaitCondition(() -> eatdone2);
 
-        addTurnToDegrees(315, 0)
+        addTurnToDegrees(340, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.outtakeSampleAuto(),
                         motorActions.lift.waitUntilFinished(),
-                        new SleepAction(0.5),
                         telemetryPacket -> {
                             depodone2 = true; return false;
                         }
@@ -295,113 +302,128 @@ public class samplenew extends PathChainAutoOpMode {
                 .setWaitCondition(() -> depodone2)
         ;
 
+        addPath(parkToControl,  0);
 
         // Vision + parkChain1
-        addPath(parkChain1, 0)
-                .addWaitAction(0, new SequentialAction(
+        addPath(controlToSubintake, 0)
+                .addWaitAction(0.5, new SequentialAction(
+                        motorActions.lift.waitUntilFinished(),
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(3);
                             if (dr != null) {
-                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                latestVisionAngle = Math.min(60, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
-                                double direct = dr.distanceInches / Math.cos(yawRad);
-                                latestVisionPose = new Vector2d(direct * Math.sin(yawRad), direct * Math.cos(yawRad));
+                                lastDistance = dr.distanceInches / Math.cos(yawRad);
+                                scan1Done = true;
+                                return false;
                             }
-                            scan1Done = true;
-                            return false;
+                            return true;
                         }
                 ))
-                .setMaxWaitTime(6)
+                .setMaxWaitTime(5)
                 .setWaitCondition(() -> scan1Done);
-        visionTurn1 = addRelativeTurnDegrees(0, true, 3)
+
+        visionTurn1 = addRelativeTurnDegrees(0, true, 0)
+                .setWaitCondition(()->!motorControl.isEmpty())
+                .setMaxWaitTime(2)
                 .addWaitAction(2.5, motorActions.intakeTransfer());
 
         addPath(subscore1, 0.2)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.outtakeSpecimen(),
+                        motorActions.outtakeTransfer(),
                         telemetryPacket -> {
                             subscoreDone1 = true;
                             return false;
                         }
                 ))
-                .setMaxWaitTime(3)
+                .setMaxWaitTime(0.2)
                 .setWaitCondition(() -> subscoreDone1);
 
 // Vision + parkChain2
         addPath(parkChain2, 0)
-                .addWaitAction(0, new SequentialAction(
+                .addWaitAction(0.5, new SequentialAction(
+                        motorActions.lift.waitUntilFinished(),
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(3);
                             if (dr != null) {
-                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                latestVisionAngle = Math.min(60, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
-                                double direct = dr.distanceInches / Math.cos(yawRad);
-                                latestVisionPose = new Vector2d(direct * Math.sin(yawRad), direct * Math.cos(yawRad));
+                                lastDistance = dr.distanceInches / Math.cos(yawRad);
+                                scan2Done = true;
+                                return false;
                             }
-                            scan2Done = true;
-                            return false;
+                            return true;
                         }
                 ))
-                .setMaxWaitTime(6)
+                .setMaxWaitTime(5)
                 .setWaitCondition(() -> scan2Done);
-        visionTurn2 = addRelativeTurnDegrees(0, true, 3)
+
+
+        visionTurn2 = addRelativeTurnDegrees(0, true, 0)
+                .setWaitCondition(()->!motorControl.isEmpty())
+                .setMaxWaitTime(3)
                 .addWaitAction(2.5, motorActions.intakeTransfer());
 
         addPath(subscore2, 0.2)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.outtakeSpecimen(),
+                        motorActions.outtakeTransfer(),
                         telemetryPacket -> {
                             subscoreDone2 = true;
                             return false;
                         }
                 ))
-                .setMaxWaitTime(3)
+                .setMaxWaitTime(0.2)
                 .setWaitCondition(() -> subscoreDone2);
 
 // Vision + parkChain3
         addPath(parkChain3, 0)
-                .addWaitAction(0, new SequentialAction(
+                .addWaitAction(0.5, new SequentialAction(
+                            motorActions.lift.waitUntilFinished(),
                         telemetryPacket -> {
-                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+                            MotorControl.Limelight.DetectionResult dr = limelight.getDistance(3);
                             if (dr != null) {
-                                latestVisionAngle = Math.min(15, Math.max(-dr.yawDegrees, -15));
+                                latestVisionAngle = Math.min(60, Math.max(-dr.yawDegrees, -15));
                                 double yawRad = Math.toRadians(dr.yawDegrees);
-                                double direct = dr.distanceInches / Math.cos(yawRad);
-                                latestVisionPose = new Vector2d(direct * Math.sin(yawRad), direct * Math.cos(yawRad));
+                                lastDistance = dr.distanceInches / Math.cos(yawRad);
+                                scan3Done = true;
+                                return false;
                             }
-                            scan3Done = true;
-                            return false;
+                            return true;
                         }
                 ))
-                .setMaxWaitTime(6)
+                .setMaxWaitTime(5)
                 .setWaitCondition(() -> scan3Done);
-        visionTurn3 = addRelativeTurnDegrees(0, true, 3)
+
+        visionTurn3 = addRelativeTurnDegrees(0, true, 0)
+                .setWaitCondition(()->!motorControl.isEmpty())
+                .setMaxWaitTime(3)
                 .addWaitAction(2.5, motorActions.intakeTransfer());
 
         addPath(subscore3, 0.2)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.outtakeSpecimen(),
+                        motorActions.outtakeTransfer(),
                         telemetryPacket -> {
                             subscoreDone3 = true;
                             return false;
                         }
                 ))
-                .setMaxWaitTime(3)
+                .setMaxWaitTime(1)
                 .setWaitCondition(() -> subscoreDone3);
 
 
     }
-    
 
-    // -------- Override dummy follower methods --------
+
     @Override
     protected boolean isPathActive() {
         BaseTask current = tasks.get(currentTaskIndex);
-        if (current instanceof TurnTask){
+        if (current instanceof TurnTask) {
             return isTurning();
         }
-        return follower.isBusy();
+        PathChainTask p = (PathChainTask) current;
+        return p.initiated && follower.isBusy();
     }
+
 
     @Override
     protected boolean isTurning() {
@@ -457,7 +479,7 @@ public class samplenew extends PathChainAutoOpMode {
 
         limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
 
-        limelight.setPrimaryClass("red");
+        limelight.setTargetClasses("yellow", "red");
 
         // Build the paths and tasks.
         buildPathChains();
@@ -466,21 +488,25 @@ public class samplenew extends PathChainAutoOpMode {
 
     @Override
     protected void startTurn(TurnTask task) {
-        if (task == visionTurn1 || task == visionTurn2) {
+        if (task == visionTurn1 || task == visionTurn2 || task == visionTurn3) {
 
 
-            double inches = Math.hypot(latestVisionPose.x, latestVisionPose.y);
-            lastDistance = inches;
 
             if (lastDistance==0) return;
 
             if (lastDistance != 0) {
-                task.addWaitAction(0, new SequentialAction(
-                        motorActions.sampleExtend(Math.min(inches * 32.25, 800)),
-                        motorActions.extendo.waitUntilFinished(),
-                        motorActions.extendo.set(Math.min((inches + 3) * 32.25, 800)),
-                        motorActions.spin.eat(),
-                        motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl)
+                task.addWaitAction(0, new ParallelAction(
+                        motorActions.outtakeTransfer(),
+                        new SequentialAction(
+                                motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
+                                motorActions.extendo.waitUntilFinished(),
+                                motorActions.spin.eat(),
+                                motorActions.spin.eatUntilStrict(Enums.DetectedColor.YELLOW, motorControl),
+                                telemetryPacket -> {
+                                    lastDistance=0;
+                                    return false;
+                                }
+                        )
                 ));
             }
 
@@ -508,13 +534,16 @@ public class samplenew extends PathChainAutoOpMode {
 
         PathChain turnPath = follower.pathBuilder()
                 .addPath(new BezierPoint(new Point(new Pose(currentX, currentY, currentHeadingRadians))))
+                .setPathEndHeadingConstraint(0.001)
                 .setConstantHeadingInterpolation(targetHeadingRadians)
+                .setZeroPowerAccelerationMultiplier(10)
                 .build();
 
         follower.followPath(turnPath, true);
 
         isActivelyTurningInternalFlag = true;
     }
+
 
 
     @Override
@@ -534,6 +563,7 @@ public class samplenew extends PathChainAutoOpMode {
 
 
         telemetry.addData("Task Index", currentTaskIndex + "/" + tasks.size());
+        telemetry.addData("Task Name", tasks.get(currentTaskIndex).getClass().getSimpleName());
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
         telemetry.addData("T Value", follower.getCurrentTValue());
         telemetry.addData("Wait Timer", pathTimer.getElapsedTimeSeconds());
@@ -546,8 +576,9 @@ public class samplenew extends PathChainAutoOpMode {
         telemetry.addData("extendoReset",motorControl.extendo.resetting);
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.addData("Angle", latestVisionAngle);
-        telemetry.addData("Pose", latestVisionPose);
         telemetry.addData("Distance", lastDistance);
+
+        telemetry.addData("LLDistance", limelight.getDistance(3));
         telemetry.update();
     }
 }

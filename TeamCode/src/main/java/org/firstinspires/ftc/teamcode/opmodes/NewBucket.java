@@ -342,8 +342,8 @@ public class NewBucket extends PathChainAutoOpMode {
 
     protected PathChain computeDynamicPath() {
         Pose cur = follower.getPose();
-        double rawYaw = limelight.getDistance() != null
-                ? limelight.getDistance().yawDegrees
+        double rawYaw = limelight.getDistance(1) != null
+                ? limelight.getDistance(1).yawDegrees
                 : 0.0;
         double xShift = rawYaw * 1.5;
         Pose target = new Pose(
@@ -418,7 +418,7 @@ public class NewBucket extends PathChainAutoOpMode {
         telemetry.addData("Turning", isTurning());
         telemetry.addData("Running Actions", runningActions.size());
         telemetry.addData("Detected Color", motorControl.getDetectedColor());
-        MotorControl.Limelight.DetectionResult dr = limelight.getDistance();
+        MotorControl.Limelight.DetectionResult dr = limelight.getDistance(1);
         if (dr != null) {
             telemetry.addData("Limelight Dist", String.format("%.1f", dr.distanceInches));
             telemetry.addData("Limelight Yaw", String.format("%.1f", dr.yawDegrees));

@@ -37,33 +37,20 @@ public class ColorSensorThresholdOpMode extends OpMode {
 
         Enums.DetectedColor detected = Enums.DetectedColor.UNKNOWN;
 
-        // Red thresholds:
-        //   1.0  < D*Rnorm < 1.3
-        //   0.9  < D*Gnorm < 1.7
-        //   0.676< D*Bnorm < 1.45
-        if (scaledR > 0.97  &&
-                scaledG > 0.9  && scaledG < 1.4 &&
-             scaledB < 1.2) {
+        if (scaledR > 0.8  &&
+                scaledG < 0.99  &&
+                scaledB < 0.7) {
             detected = Enums.DetectedColor.RED;
         }
-        // Yellow thresholds:
-        //   0.8  < D*Rnorm < 1.25
-        //   1.2  < D*Gnorm < 1.9
-        //   0.4  < D*Bnorm < 1.2
-        else if (scaledR < 0.97 &&
-                  scaledG > 1.2 && scaledG < 1.6  &&
-                scaledB > 0.4  && scaledB < 1.2) {
+        else if (scaledR < 0.78 &&
+                scaledG > 0.9 &&
+                scaledB < 0.5) {
             detected = Enums.DetectedColor.YELLOW;
         }
-        // Blue thresholds:
-        //   0.5  < D*Rnorm < 1.0
-        //   0.95 < D*Gnorm < 1.9
-        //   1.45 < D*Bnorm < 2.0
-        else if (scaledR > 0.5   && scaledR < 1.05  &&
-                scaledG > 0.95  && scaledG < 1.94  &&
-                scaledB > 1.43 ) {
+        else if (scaledB > 1.15 ) {
             detected = Enums.DetectedColor.BLUE;
         }
+
 
         if (distanceCm > 6){
             detected = Enums.DetectedColor.UNKNOWN;

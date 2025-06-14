@@ -267,7 +267,7 @@ public class BucketAuto extends PathChainAutoOpMode {
         super.init();
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
-        limelight     = new MotorControl.Limelight(hardwareMap, telemetry);
+        limelight     = new MotorControl.Limelight(hardwareMap, telemetry, 1);
         follower      = new Follower(hardwareMap, FConstants.class, LConstants.class);
         follower.setStartingPose(startPose);
 
