@@ -36,13 +36,13 @@ public class specmanual extends PathChainAutoOpMode {
     private final Pose startPose    = new Pose(9,  67,   Math.toRadians(0));
     private final Pose preloadPose  = new Pose(42, 72.5, Math.toRadians(0));
     private final Pose preloadCopy  = new Pose(36, 72.5, Math.toRadians(0));
-    private final Pose scorePose    = new Pose(41, 64,   Math.toRadians(0));
-    private final Pose scorePose1   = new Pose(41, 64,   Math.toRadians(0));
-    private final Pose scorePose2   = new Pose(41, 64,   Math.toRadians(0));
-    private final Pose scorePose3   = new Pose(41, 64,   Math.toRadians(0));
-    private final Pose scorePose4   = new Pose(41, 64,   Math.toRadians(0));
+    private final Pose scorePose    = new Pose(40, 64,   Math.toRadians(0));
+    private final Pose scorePose1   = new Pose(40, 64,   Math.toRadians(0));
+    private final Pose scorePose2   = new Pose(40, 64,   Math.toRadians(0));
+    private final Pose scorePose3   = new Pose(40, 64,   Math.toRadians(0));
+    private final Pose scorePose4   = new Pose(40, 64,   Math.toRadians(0));
     private final Pose prescore     = new Pose(31, 64,   Math.toRadians(25));
-    private final Pose thirdgrab    = new Pose(25, 18,   Math.toRadians(330));
+    private final Pose thirdgrab    = new Pose(25, 18,   Math.toRadians(335));
     private final Pose pickup1Pose  = new Pose(20, 25,   Math.toRadians(0));
     private final Pose prepickup    = new Pose(20, 40,   Math.toRadians(25));
     private final Pose intake       = new Pose(11, 40,   Math.toRadians(0));
@@ -199,7 +199,7 @@ public class specmanual extends PathChainAutoOpMode {
         vision1deposit = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(preloadPose), new Point(prepickup), new Point(intake)))
                 .addParametricCallback(0.2, () -> run(new SequentialAction(
-                        motorActions.spitSample(),
+                        motorActions.spitSamplettele(),
                         motorActions.spin.waitUntilEmpty(motorControl),
                         motorActions.lift.transfer())))
                 .addParametricCallback(0.85, () -> run(motorActions.spin.poop()))
@@ -219,7 +219,7 @@ public class specmanual extends PathChainAutoOpMode {
         vision2deposit = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(scorePose), new Point(pickup1Pose)))
                 .addParametricCallback(0,    () -> run(motorActions.spin.stop()))
-                .addParametricCallback(0,    () -> run(motorActions.spitSample()))
+                .addParametricCallback(0,    () -> run(motorActions.spitSamplettele()))
                 .addParametricCallback(0.85, () -> run(motorActions.spin.poop()))
                 .addParametricCallback(1,    () -> run(motorActions.extendo.extended()))
                 .setZeroPowerAccelerationMultiplier(2)
@@ -347,8 +347,8 @@ public class specmanual extends PathChainAutoOpMode {
                 ));
 
         // 2) First manual turn
-        visionTurn1 = addRelativeTurnDegrees(0, true, 3)
-                .addWaitAction(2.5, motorActions.intakeTransfer());
+        visionTurn1 = addRelativeTurnDegrees(0, true, 1)
+                .addWaitAction(1, motorActions.intakeTransfer());
 
         // 3) First vision deposit
         addPath(vision1deposit, 0.2)
@@ -360,15 +360,16 @@ public class specmanual extends PathChainAutoOpMode {
                 .addWaitAction(0, motorActions.lift.specimen());
 
         // 5) Second manual turn
-        visionTurn2 = addRelativeTurnDegrees(0, true, 3)
-                .addWaitAction(2.5, motorActions.intakeTransfer());
+        visionTurn2 = addRelativeTurnDegrees(0, true, 1)
+                .addWaitAction(1, motorActions.intakeTransfer());
 
         // 6) Second vision deposit
         addPath(vision2deposit, 0)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.extendo.set(640),
-                        new SleepAction(0.05),
-                        motorActions.grabUntilSpecimen(),
+                        new ParallelAction(motorActions.inArm.specimenGrab(),
+                                motorActions.inPivot.specimenGrab(),
+                                motorActions.spin.eat(),
+                                motorActions.extendo.set(640)),
                         motorActions.spitSample(),
                         motorActions.extendo.retracted(),
                         motorActions.extendo.waitUntilFinished(),
@@ -381,12 +382,14 @@ public class specmanual extends PathChainAutoOpMode {
                 .setWaitCondition(() -> spitDone1);
 
         // 7) Additional scoring
-        addTurnToDegrees(-17, 0)
+        addTurnToDegrees(-14, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.spin.waitUntilEmpty(motorControl),
                         motorActions.extendo.set(660),
                         new SleepAction(0.05),
-                        motorActions.grabUntilSpecimen(),
+                        motorActions.inArm.specimenGrab(),
+                        motorActions.inPivot.specimenGrab(),
+                        motorActions.spin.eat(),
                         motorActions.spitSample(),
                         motorActions.extendo.retracted(),
                         motorActions.extendo.waitUntilFinished(),

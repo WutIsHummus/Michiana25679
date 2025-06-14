@@ -6,19 +6,16 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
-// Assuming you might have separate lift motors
-// import com.qualcomm.robotcore.hardware.DcMotorEx;
 
-@TeleOp(name = "Hang Mechanism Test")
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
+
+@TeleOp(name = "Hang Mechanism Test with Current")
 public class HangTest extends LinearOpMode {
 
-    // --- Hardware Declarations ---
-    // Hang Motors (assuming two, adjust as needed)
     private DcMotorEx motorFrontLeft;
     private DcMotorEx motorFrontRight;
     private DcMotorEx motorBackLeft;
     private DcMotorEx motorBackRight;
-
     private DcMotorEx liftMotorLeft;
     private DcMotorEx liftMotorRight;
     private Servo ptor, ptol;
@@ -28,23 +25,20 @@ public class HangTest extends LinearOpMode {
     private final double PTOR_UNLOCKED_POSITION = 0.6;
     private final double PTOR_LOCKED_POSITION = 0.45;
 
-    private final double HANG_MOTOR_SPEED_DOWN = -1.0; // Max speed for hang down (reverse)
+    private final double HANG_MOTOR_SPEED_DOWN = -1.0;
+    private final double LIFT_ASSIST_POWER_UP = 0.48;
+    private final double LIFT_ASSIST_POWER_DOWN = -0.48;
 
-
-    // Lift Motor Assist Power
-    private final double LIFT_ASSIST_POWER_UP = 0.48;   // Power for lift motors when hang goes UP
-    private final double LIFT_ASSIST_POWER_DOWN = -0.48;  // Power for lift motors when hang goes DOWN
-
-    // --- State Variables ---
-    private boolean ptoLocked = false; // Start with PTO locked
+    private boolean ptoLocked = false;
     private boolean gamepad1XPreviouslyPressed = false;
     private double currentHangMotorPower = 0.0;
     private double currentLiftAssistPower = 0.0;
 
+    public static double CURRENT_THRESHOLD_AMPS = 5.0;
+
     @Override
     public void runOpMode() {
         telemetry.addData("Status", "Initializing...");
-
         telemetry.update();
 
         try {
@@ -59,16 +53,13 @@ public class HangTest extends LinearOpMode {
             ptol = hardwareMap.get(Servo.class, "ptol");
             ptor = hardwareMap.get(Servo.class, "ptor");
 
+            motorFrontLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+            motorFrontRight.setDirection(DcMotorSimple.Direction.FORWARD);
+            motorBackLeft.setDirection(DcMotorSimple.Direction.REVERSE);
+            motorBackRight.setDirection(DcMotorSimple.Direction.FORWARD);
 
-
-            motorFrontLeft.setDirection(DcMotorEx.Direction.REVERSE);
-            motorFrontRight.setDirection(DcMotorEx.Direction.FORWARD);
-            motorBackLeft.setDirection(DcMotorEx.Direction.REVERSE);
-            motorBackRight.setDirection(DcMotorEx.Direction.FORWARD);
-
-            liftMotorLeft.setDirection(DcMotorEx.Direction.FORWARD);
-            liftMotorRight.setDirection(DcMotorEx.Direction.REVERSE);
-
+            liftMotorLeft.setDirection(DcMotorSimple.Direction.FORWARD);
+            liftMotorRight.setDirection(DcMotorSimple.Direction.REVERSE);
 
             motorFrontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             motorFrontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -77,24 +68,17 @@ public class HangTest extends LinearOpMode {
             liftMotorLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             liftMotorRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-
             ptol.setPosition(PTOL_UNLOCKED_POSITION);
             ptor.setPosition(PTOR_UNLOCKED_POSITION);
             ptoLocked = false;
 
             telemetry.addData("Status", "Initialized");
-            telemetry.addLine("Controls:");
-            telemetry.addLine(" G1.X: Toggle PTO Lock/Unlock");
-            telemetry.addLine(" G1.Dpad Up: Hang Up (+ Lift Assist Up)");
-            telemetry.addLine(" G1.Dpad Down: Hang Down (+ Lift Assist Down)");
-            telemetry.addLine("Release Dpad: Stop Hang & Lift Assist");
             telemetry.update();
 
         } catch (Exception e) {
             telemetry.addData("Status", "Error Initializing Hardware");
             telemetry.addData("Error", e.getMessage());
             telemetry.update();
-            // Prevent the OpMode from running if hardware fails to init
             while (!isStopRequested() && opModeIsActive()) {
                 idle();
             }
@@ -102,15 +86,13 @@ public class HangTest extends LinearOpMode {
         }
 
         waitForStart();
-
         if (isStopRequested()) return;
 
         while (opModeIsActive()) {
 
-            // --- PTO Lock/Unlock Control (Gamepad 1 X button) ---`
             boolean gamepad1XCurrentlyPressed = gamepad1.x;
             if (gamepad1XCurrentlyPressed && !gamepad1XPreviouslyPressed) {
-                ptoLocked = !ptoLocked; // Toggle the state
+                ptoLocked = !ptoLocked;
                 if (ptoLocked) {
                     ptor.setPosition(PTOR_LOCKED_POSITION);
                     ptol.setPosition(PTOL_LOCKED_POSITION);
@@ -121,19 +103,16 @@ public class HangTest extends LinearOpMode {
             }
             gamepad1XPreviouslyPressed = gamepad1XCurrentlyPressed;
 
-            // --- Hang and Lift Assist Control (Gamepad 1 Dpad Up/Down) ---
             currentHangMotorPower = 0.0;
             currentLiftAssistPower = 0.0;
 
             if (gamepad1.dpad_up) {
-                // Hang UP
                 currentLiftAssistPower = LIFT_ASSIST_POWER_UP;
             } else if (gamepad1.dpad_down) {
                 currentHangMotorPower = HANG_MOTOR_SPEED_DOWN;
                 currentLiftAssistPower = LIFT_ASSIST_POWER_DOWN;
             }
 
-            // Apply power to motors
             motorFrontLeft.setPower(currentHangMotorPower);
             motorFrontRight.setPower(currentHangMotorPower);
             motorBackLeft.setPower(currentHangMotorPower);
@@ -142,21 +121,35 @@ public class HangTest extends LinearOpMode {
             liftMotorLeft.setPower(currentLiftAssistPower);
             liftMotorRight.setPower(currentLiftAssistPower);
 
-
-            // --- Telemetry Update ---
             telemetry.addData("PTO State", ptoLocked ? "LOCKED" : "UNLOCKED");
-            telemetry.addData("PTO Right Servo Position", String.format("%.2f", ptor.getPosition()));
-            telemetry.addData("PTO Left Servo Position", String.format("%.2f", ptol.getPosition()));
+            telemetry.addData("Hang Power", currentHangMotorPower);
+            telemetry.addData("Lift Power", currentLiftAssistPower);
             telemetry.addLine();
-            telemetry.addData("Hang Dpad Up", gamepad1.dpad_up);
-            telemetry.addData("Hang Dpad Down", gamepad1.dpad_down);
-            telemetry.addData("Hang Motor Power", String.format("%.2f", currentHangMotorPower));
+
+            addMotorCurrentTelemetry("FL", motorFrontLeft);
+            addMotorCurrentTelemetry("FR", motorFrontRight);
+            addMotorCurrentTelemetry("BL", motorBackLeft);
+            addMotorCurrentTelemetry("BR", motorBackRight);
+            addMotorCurrentTelemetry("LiftL", liftMotorLeft);
+            addMotorCurrentTelemetry("LiftR", liftMotorRight);
+
             telemetry.addLine();
-            telemetry.addData("Lift Assist Power", String.format("%.2f", currentLiftAssistPower));
+            telemetry.addData("Current Threshold", String.format("%.2f A", CURRENT_THRESHOLD_AMPS));
             telemetry.update();
 
-            // Small delay to prevent loop from running too fast
             sleep(20);
+        }
+    }
+
+    private void addMotorCurrentTelemetry(String label, DcMotorEx motor) {
+        double current = motor.getCurrent(CurrentUnit.AMPS);
+        boolean isOverCurrent = current > CURRENT_THRESHOLD_AMPS;
+
+        telemetry.addLine(String.format("Motor %s:", label));
+        telemetry.addData("  Current", String.format("%.2f A", current));
+        telemetry.addData("  Over Threshold?", isOverCurrent);
+        if (isOverCurrent) {
+            telemetry.addLine("  !! OVERCURRENT WARNING !!");
         }
     }
 }
