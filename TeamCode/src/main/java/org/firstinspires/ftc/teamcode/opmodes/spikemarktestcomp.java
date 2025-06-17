@@ -105,6 +105,7 @@ public class spikemarktestcomp extends PathChainAutoOpMode {
         follower     = new Follower(hardwareMap, FConstants.class, LConstants.class);
         follower.setStartingPose(startPose);
 
+
         // Prompt user to set manual inputs
         telemetry.addLine("← stick = angle, → stick = distance");
         telemetry.addLine("Press Ⓐ → set DEPOSIT 1");
