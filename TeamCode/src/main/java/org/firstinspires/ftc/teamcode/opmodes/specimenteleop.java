@@ -60,7 +60,7 @@ public class specimenteleop extends ActionOpMode {
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
 
-        headingController = new PIDController(2.2, 0.0, 0.1);
+        headingController = new PIDController(1, 0.0, 0.1);
     }
 
     @Override
@@ -251,7 +251,7 @@ public class specimenteleop extends ActionOpMode {
             rotation = 0.5;
         }
 
-        double drive  = -gamepad1.right_stick_y;
+        double drive  = gamepad1.right_stick_y;
         double strafe =  gamepad1.right_stick_x;
         double turn;
 
