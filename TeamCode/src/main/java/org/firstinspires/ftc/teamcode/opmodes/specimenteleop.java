@@ -60,7 +60,7 @@ public class specimenteleop extends ActionOpMode {
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
 
-        headingController = new PIDController(1, 0.0, 0.1);
+        headingController = new PIDController(0.1, 0.0, 0.1);
     }
 
     @Override
@@ -243,7 +243,9 @@ public class specimenteleop extends ActionOpMode {
             specSensorTriggered = true;  // mark as triggered
         } else if (specDist >= 3.0) {
             specSensorTriggered = false; // reset when sensor clears
-        } 
+        }
+
+
 
 
         double rotation = 1;
@@ -251,8 +253,8 @@ public class specimenteleop extends ActionOpMode {
             rotation = 0.5;
         }
 
-        double drive  = gamepad1.right_stick_x;
-        double strafe =  gamepad1.right_stick_y;
+        double drive  = -gamepad1.right_stick_y;
+        double strafe =  -gamepad1.right_stick_x;
         double turn;
 
         if (gamepad2.a && !startPressed) {
@@ -271,7 +273,7 @@ public class specimenteleop extends ActionOpMode {
             double error   = AngleUtils.normalizeRadians(targetHeading - current);
             turn = headingController.calculate(error);
         } else {
-            turn = gamepad1.left_stick_x * rotation;
+            turn = -gamepad1.left_stick_x * rotation;
         }
 
         follower.setTeleOpMovementVectors(drive, strafe, turn);

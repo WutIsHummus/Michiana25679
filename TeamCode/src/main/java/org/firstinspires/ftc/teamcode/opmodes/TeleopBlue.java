@@ -223,6 +223,10 @@ public class TeleopBlue extends ActionOpMode {
             dpadRightPressed = false;
         }
 
+        if (motorControl.lift.motor.getCurrentPosition() > 500 && gamepad1.left_bumper ) {
+            run(motorActions.claw.partialClose());
+        }
+
         double rotation = 1;
         if (motorControl.extendo.motor.getCurrentPosition() > 50) {
             rotation = 0.5;
