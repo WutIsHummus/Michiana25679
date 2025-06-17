@@ -45,7 +45,7 @@ public class specmanualblue extends PathChainAutoOpMode {
     private final Pose pickup1Pose  = new Pose(20, 25,   Math.toRadians(0));
     private final Pose prepickup    = new Pose(20, 40,   Math.toRadians(25));
     private final Pose intake       = new Pose(11, 40,   Math.toRadians(0));
-    private final Pose intakeDown       = new Pose(11, 20,   Math.toRadians(0));
+    private final Pose intakeDown       = new Pose(11, 24,   Math.toRadians(0));
     private final Pose parkPose     = new Pose(11, 22,   Math.toRadians(90));
 
     // -------- Manual “vision” inputs --------
@@ -342,7 +342,7 @@ public class specmanualblue extends PathChainAutoOpMode {
         tasks.clear();
 
         // 1) Preload
-        addPath(scorePreload, 0.2)
+        addPath(scorePreload, 0)
                 .addWaitAction(0, new ParallelAction(
                         motorActions.claw.open(),
                         motorActions.outArm.pretransfer(),
@@ -355,11 +355,11 @@ public class specmanualblue extends PathChainAutoOpMode {
                 .setMaxWaitTime(2);
 
         // 3) First vision deposit
-        addPath(vision1deposit, 0.2)
+        addPath(vision1deposit, 0.1)
                 .addWaitAction(0,   motorActions.outtakespecvision());
 
         // 4) Intake after deposit
-        addPath(vision2intake, 0.2)
+        addPath(vision2intake, 0)
                 .addWaitAction(0, new ParallelAction(
                         motorActions.claw.open(),
                         motorActions.outArm.pretransfer(),
@@ -379,15 +379,11 @@ public class specmanualblue extends PathChainAutoOpMode {
                         new SleepAction(0.05),
                         motorActions.extendo.set(640),
                         motorActions.spin.eat(),
-                        motorActions.extendo.waitUntilFinished(640,100),
-                        motorActions.extendo.retracted(),
-                        motorActions.spitSample(),
-                        new SleepAction(0.1),
-                        motorActions.spin.poop(),
+                        motorActions.extendo.waitUntilFinished(640),
+                        motorActions.spitSampleautofast(),
                         telemetryPacket -> {
                             spitDone1 = true; return false;
-                        },
-                        motorActions.extendo.waitUntilFinished()
+                        }
                 ))
                 .setMaxWaitTime(1.5)
                 .setWaitCondition(() -> spitDone1);
@@ -395,17 +391,15 @@ public class specmanualblue extends PathChainAutoOpMode {
         // 7) Additional scoring
         addTurnToDegrees(-21, 0)
                 .addWaitAction(0, new SequentialAction(
+                        motorActions.spin.waitUntilEmpty(motorControl),
                         motorActions.inArm.specimenGrab(),
                         motorActions.inPivot.specimenGrab(),
                         new SleepAction(0.05),
                         motorActions.extendo.set(640),
                         motorActions.spin.eat(),
                         motorActions.extendo.waitUntilFinished(),
-                        motorActions.extendo.retracted(),
-                        motorActions.spitSample(),
-                        new SleepAction(0.1),
-                        motorActions.spin.poop(),
-                        new SleepAction(0.1),
+                        new SleepAction(0.05),
+                        motorActions.spitSampleautofast(),
                         telemetryPacket -> {
                             spitDone2 = true; return false;
                         },
