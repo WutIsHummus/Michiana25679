@@ -16,7 +16,7 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
 
     public double targetHeadingRadians; // Used by specific TurnTask implementations presumably
     protected boolean isActivelyTurningInternalFlag = false; // Used by specific TurnTask implementations presumably
-    public static double HEADING_TOLERANCE = Math.toRadians(1.0); // Used by specific TurnTask implementations presumably
+    public static double HEADING_TOLERANCE = Math.toRadians(2); // Used by specific TurnTask implementations presumably
 
     protected List<BaseTask> tasks = new ArrayList<>();
     protected int currentTaskIndex = 0;

@@ -204,7 +204,7 @@ public class MotorControl {
 
         public void findZero() {
             motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            motor.setPower(-0.7);
+            motor.setPower(-0.9);
             resetting = true;
         }
 

@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.helpers.hardware.actions;
 import androidx.annotation.NonNull;
 
 import com.acmerobotics.roadrunner.Action;
+import com.acmerobotics.roadrunner.InstantAction;
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
@@ -311,7 +312,7 @@ public class MotorActions {
                 lift.transfer(),
                 claw.transfer(),
                 led.green(),
-                lift.waitUntilFinished(0,400),
+                lift.waitUntilFinished(0, 150),
                 lift.findZero()
 
         );
@@ -332,7 +333,7 @@ public class MotorActions {
                         inArm.specimenExtended(),
                         inPivot.specimenExtended()
                 ),
-                linkage.extended(),
+                linkage.transfer(),
                 lift.waitUntilFinished(800),
                 outArm.sampleScore()
 
@@ -346,7 +347,7 @@ public class MotorActions {
                 led.yellow(),
                 claw.open(),
                 outArm.specimenIntake(),
-                linkage.retracted(),
+                linkage.specimen(),
                 lift.transfer(),
                 lift.waitUntilFinished(),
                 lift.findZero(),
@@ -555,21 +556,23 @@ public class MotorActions {
 
     // ---------------------- Outtake Linkage -----------------------------
     public class OuttakeLinkage {
-        private static final double RETRACTED = 0.51;
+        private static final double RETRACTED = 0.49;
+        private static final double SPECIMEN = 0.56;
         private static final double EXTENDED  = 0.98;
         private static final double TRANSFER  = 0.71;
         private Action set(double p) { return t -> { mc.outtakeLinkage.setPosition(p); return false; }; }
         public Action retracted() { return set(RETRACTED); }
         public Action extended()  { return set(EXTENDED);  }
         public Action transfer()  { return set(TRANSFER);  }
+        public Action specimen()  { return set(SPECIMEN);  }
     }
 
     // ------------------------ Outtake Claw ------------------------------
     public class OuttakeClaw {
-        private static final double OPEN   = 0.35;
-        private static final double TRANS  = 0.30;
-        private static final double PART   = 0.17;
-        private static final double CLOSED = 0.11;
+        private static final double OPEN   = 0.32;
+        private static final double TRANS  = 0.27;
+        private static final double PART   = 0.14;
+        private static final double CLOSED = 0.08;
         private Action set(double p){ return t -> { mc.outtakeClaw.setPosition(p); return false; }; }
         public Action open()          { return set(OPEN);   }
         public Action transfer()      { return set(TRANS);  }
@@ -847,12 +850,238 @@ public class MotorActions {
             };
         }
 
+        public Action eatUntilStrictSpecimen(Enums.DetectedColor allianceColor, MotorControl mc) {
+            final boolean[] started = { false };
+            final int[] state = { 0 };
+            final long[]    searchStartTime = { 0L };
+            final boolean[] didExtend       = { false };
+            // states: 0 = SEARCHING, 1 = REJECTING, 2 = REGRABBING
+
+            return new Action() {
+                // Record the time when we began rejecting (if you want a timed delay, but here we rely on isEmpty())
+                @Override
+                public boolean run(@NonNull TelemetryPacket t) {
+                    Enums.DetectedColor colorSeen = mc.getDetectedColor();
+                    long now = System.currentTimeMillis();
+                    switch (state[0]) {
+                        // ───── SEARCHING ─────
+                        case 0:
+                            if (!started[0]) {
+                                started[0] = true;
+                                MotorActions.this.inArm.specimenGrab().run(t);
+                                MotorActions.this.inPivot.specimenGrab().run(t);
+                                mc.spin.setPower(1.0); // start spinning forward
+
+                                searchStartTime[0] = now;
+                                didExtend[0]       = false;
+                            }
+
+                            // If we see the exact correct alliance color, we stop and finish.
+                            if (colorSeen == allianceColor) {
+                                mc.spin.setPower(0.0);
+                                return false; // action complete
+                            }
+
+                            // If we see something that is neither BLACK nor UNKNOWN nor the allianceColor,
+                            // that is “wrong.” Transition to REJECTING.
+                            if ((colorSeen == Enums.DetectedColor.RED
+                                    || colorSeen == Enums.DetectedColor.BLUE
+                                    || colorSeen == Enums.DetectedColor.YELLOW)
+                                    && colorSeen != allianceColor) {
+                                // Move intake arms to “extended” before spitting
+                                MotorActions.this.inArm.specimenExtended().run(t);
+                                MotorActions.this.inPivot.specimenExtended().run(t);
+
+                                searchStartTime[0] = now;
+                                didExtend[0]       = false;
+
+
+                                // Reverse the spinner to eject
+                                mc.spin.setPower(-1.0);
+
+                                state[0] = 1; // go to REJECTING
+                                return true;
+                            }
+
+                            if ((colorSeen == Enums.DetectedColor.BLACK
+                                    || colorSeen == Enums.DetectedColor.UNKNOWN)) {
+                                // Compute how long we've been seeing nothing
+                                if (!didExtend[0] && (now - searchStartTime[0] >= 100L)) {
+                                    // Time’s up: extend the extendo once
+                                    MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 100).run(t);
+                                    MotorActions.this.inArm.specimenExtended().run(t);
+                                    MotorActions.this.inPivot.specimenExtended().run(t);
+                                    MotorActions.this.inArm.specimenGrab().run(t);
+                                    MotorActions.this.inPivot.specimenGrab().run(t);
+
+                                    didExtend[0] = true;
+                                }
+                                // Stay in SEARCHING even while waiting—do not change any other state.
+                                return true;
+                            }
+
+                            // (If we get here, colorSeen was OK to ignore, but that’s already handled above.)
+                            return true;
+
+                        // keep looping
+
+                        // ───── REJECTING (spit out wrong color) ─────
+                        case 1:
+                            // Once the spinner is empty, we know the “wrong” sample is out.
+                            if (mc.isEmpty()) {
+                                // Retract arms back to “grab” position
+                                MotorActions.this.inArm.specimenGrab().run(t);
+                                MotorActions.this.inPivot.specimenGrab().run(t);
+
+                                MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 50).run(t);
+
+                                // Now resume searching forward again
+                                mc.spin.setPower(1.0);
+                                searchStartTime[0] = now;
+                                didExtend[0]       = false;
+
+                                state[0] = 0;      // back to SEARCHING
+
+                                // Leave 'started[0]' as true so we don't re‐start the spinner
+                            }
+                            return true; // keep looping until mc.isEmpty()
+
+                        default:
+                            // Should never reach here, but if so, stop the motor
+                            mc.spin.setPower(0.0);
+                            return false;
+                    }
+                }
+            };
+        }
+
+        public Action eatUntilStrictSpecimen(Enums.DetectedColor allianceColor,Enums.DetectedColor secondColor, MotorControl mc) {
+            final boolean[] started = { false };
+            final int[] state = { 0 };
+            final long[]    searchStartTime = { 0L };
+            final boolean[] didExtend       = { false };
+            // states: 0 = SEARCHING, 1 = REJECTING, 2 = REGRABBING
+
+            return new Action() {
+                // Record the time when we began rejecting (if you want a timed delay, but here we rely on isEmpty())
+                @Override
+                public boolean run(@NonNull TelemetryPacket t) {
+                    Enums.DetectedColor colorSeen = mc.getDetectedColor();
+                    long now = System.currentTimeMillis();
+                    switch (state[0]) {
+                        // ───── SEARCHING ─────
+                        case 0:
+                            if (!started[0]) {
+                                started[0] = true;
+                                MotorActions.this.inArm.specimenGrab().run(t);
+                                MotorActions.this.inPivot.specimenGrab().run(t);
+                                mc.spin.setPower(1.0); // start spinning forward
+
+                                searchStartTime[0] = now;
+                                didExtend[0]       = false;
+                            }
+
+                            // If we see the exact correct alliance color, we stop and finish.
+                            if (colorSeen == allianceColor || colorSeen == secondColor) {
+                                mc.spin.setPower(0.0);
+                                return false; // action complete
+                            }
+
+                            // If we see something that is neither BLACK nor UNKNOWN nor the allianceColor,
+                            // that is “wrong.” Transition to REJECTING.
+                            if ((colorSeen == Enums.DetectedColor.RED
+                                    || colorSeen == Enums.DetectedColor.BLUE
+                                    || colorSeen == Enums.DetectedColor.YELLOW)
+                                    && colorSeen != allianceColor && colorSeen != secondColor) {
+                                // Move intake arms to “extended” before spitting
+                                MotorActions.this.inArm.specimenExtended().run(t);
+                                MotorActions.this.inPivot.specimenExtended().run(t);
+
+                                searchStartTime[0] = now;
+                                didExtend[0]       = false;
+
+
+                                // Reverse the spinner to eject
+                                mc.spin.setPower(-1.0);
+
+                                state[0] = 1; // go to REJECTING
+                                return true;
+                            }
+
+                            if ((colorSeen == Enums.DetectedColor.BLACK
+                                    || colorSeen == Enums.DetectedColor.UNKNOWN)) {
+                                // Compute how long we've been seeing nothing
+                                if (!didExtend[0] && (now - searchStartTime[0] >= 100L)) {
+                                    // Time’s up: extend the extendo once
+                                    MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 100).run(t);
+                                    MotorActions.this.inArm.specimenExtended().run(t);
+                                    MotorActions.this.inPivot.specimenExtended().run(t);
+                                    MotorActions.this.inArm.specimenGrab().run(t);
+                                    MotorActions.this.inPivot.specimenGrab().run(t);
+
+                                    didExtend[0] = true;
+                                }
+                                // Stay in SEARCHING even while waiting—do not change any other state.
+                                return true;
+                            }
+
+                            // (If we get here, colorSeen was OK to ignore, but that’s already handled above.)
+                            return true;
+
+                        // keep looping
+
+                        // ───── REJECTING (spit out wrong color) ─────
+                        case 1:
+                            // Once the spinner is empty, we know the “wrong” sample is out.
+                            if (mc.isEmpty()) {
+                                // Retract arms back to “grab” position
+                                MotorActions.this.inArm.specimenGrab().run(t);
+                                MotorActions.this.inPivot.specimenGrab().run(t);
+
+                                MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 50).run(t);
+
+                                // Now resume searching forward again
+                                mc.spin.setPower(1.0);
+                                searchStartTime[0] = now;
+                                didExtend[0]       = false;
+
+                                state[0] = 0;      // back to SEARCHING
+
+                                // Leave 'started[0]' as true so we don't re‐start the spinner
+                            }
+                            return true; // keep looping until mc.isEmpty()
+
+                        default:
+                            // Should never reach here, but if so, stop the motor
+                            mc.spin.setPower(0.0);
+                            return false;
+                    }
+                }
+            };
+        }
+
         public Action eatUntilNotEmpty(MotorControl motorControl) {
             final boolean[] started = {false};
             return telemetryPacket -> {
                 if (!started[0]) {
                     started[0] = true;
                     motorControl.spin.setPower(1);  // start spinning forward
+                }
+                // once isEmpty() returns false, stop and finish the action
+                if (!motorControl.isEmpty()) {
+                    motorControl.spin.setPower(0);
+                    return false;
+                }
+                return true; // keep spinning if still empty
+            };
+        }
+
+        public Action spitUntilNotEmpty(MotorControl motorControl) {
+            final boolean[] started = {false};
+            return telemetryPacket -> {
+                if (!started[0]) {
+                    started[0] = true;
+                    motorControl.spin.setPower(-1);  // start spinning forward
                 }
                 // once isEmpty() returns false, stop and finish the action
                 if (!motorControl.isEmpty()) {

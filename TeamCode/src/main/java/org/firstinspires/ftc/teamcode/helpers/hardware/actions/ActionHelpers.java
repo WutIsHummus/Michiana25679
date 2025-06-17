@@ -32,6 +32,8 @@ public class ActionHelpers {
 
     }
 
+
+
     public static class TimeoutAction implements Action {
         private final Action action;
         private final double timeout;
@@ -57,6 +59,58 @@ public class ActionHelpers {
         @Override
         public void preview(@NonNull Canvas canvas) {
             action.preview(canvas);
+        }
+    }
+
+    public static class ConditionalAction implements Action {
+        private final BooleanSupplier condition;
+        private final Action inner;
+
+        public ConditionalAction(@NonNull BooleanSupplier condition, @NonNull Action inner) {
+            this.condition = condition;
+            this.inner     = inner;
+        }
+
+        @Override
+        public boolean run(@NonNull TelemetryPacket t) {
+            // If condition false, skip inner and treat as finished
+            if (!condition.getAsBoolean()) {
+                return true;
+            }
+            // Otherwise run the inner action
+            return inner.run(t);
+        }
+
+        @Override
+        public void preview(@NonNull Canvas canvas) {
+            // Only preview if the condition would be true
+            if (condition.getAsBoolean()) {
+                inner.preview(canvas);
+            }
+        }
+    }
+
+    public static class BackgroundThenAction implements Action {
+        private final Action background;
+        private final Action main;
+
+        public BackgroundThenAction(@NonNull Action background, @NonNull Action main) {
+            this.background = background;
+            this.main       = main;
+        }
+
+        @Override
+        public boolean run(@NonNull TelemetryPacket t) {
+            // always tick the background action (but we don't care when it finishes)
+            background.run(t);
+            // return the main action’s finished state
+            return main.run(t);
+        }
+
+        @Override
+        public void preview(@NonNull Canvas canvas) {
+            // only preview the main action
+            main.preview(canvas);
         }
     }
 

@@ -15,17 +15,15 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import org.firstinspires.ftc.teamcode.helpers.data.AngleUtils;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums;
 import org.firstinspires.ftc.teamcode.helpers.hardware.MotorControl;
-import org.firstinspires.ftc.teamcode.helpers.hardware.actions.ActionHelpers;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.MotorActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
-import java.util.Timer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Autonomous(name = "Specmanual")
-public class specmanual extends PathChainAutoOpMode {
+@Autonomous(name = "Specmanual blue")
+public class specmanualblue extends PathChainAutoOpMode {
 
     // -------- Hardware & Helper Fields --------
     private Follower follower;
@@ -505,15 +503,15 @@ public class specmanual extends PathChainAutoOpMode {
                             motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
                             motorActions.extendo.waitUntilFinished(Math.min(lastDistance * 32.25, 800), 300),
                             motorActions.spin.eat(),
-                            motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl),
+                            motorActions.spin.eatUntilStrict(Enums.DetectedColor.BLUE, motorControl),
                             telemetryPacket -> {
                                 lastDistance = 0;
                                 return false;
                             },
                             motorActions.spitSamplettele())
             ))
-                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.RED, motorActions.extendo.set(0))
-                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.BLUE, motorActions.spin.poop())
+                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.BLUE, motorActions.extendo.set(0))
+                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.RED, motorActions.spin.poop())
             ;
             task.angle      = Math.abs(latestVisionAngle);
             task.isLeft     = (latestVisionAngle > 0);

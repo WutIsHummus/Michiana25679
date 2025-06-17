@@ -6,7 +6,6 @@ import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.pedropathing.pathgen.BezierCurve;
-import com.pedropathing.pathgen.BezierLine;
 import com.pedropathing.pathgen.BezierPoint;
 import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.Point;
@@ -23,8 +22,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-@Autonomous(name = "Samplemanual Red")
-public class samplemanual extends PathChainAutoOpMode {
+@Autonomous(name = "Samplemanual blue")
+public class samplemanualblue extends PathChainAutoOpMode {
 
     // -------- Hardware & Helper Fields --------
     private Follower follower;
@@ -511,7 +510,7 @@ public class samplemanual extends PathChainAutoOpMode {
                                 motorActions.spin.eat(),
                                 motorActions.inArm.sampleGrab(),
                                 motorActions.inPivot.sampleGrab(),
-                                motorActions.spin.eatUntilStrictSpecimen(Enums.DetectedColor.YELLOW,Enums.DetectedColor.RED, motorControl),
+                                motorActions.spin.eatUntilStrictSpecimen(Enums.DetectedColor.YELLOW,Enums.DetectedColor.BLUE, motorControl),
                                 telemetryPacket -> {
                                     lastDistance=0;
                                     return false;

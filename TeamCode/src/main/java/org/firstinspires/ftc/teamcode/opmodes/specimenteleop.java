@@ -3,10 +3,13 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
+import com.arcrobotics.ftclib.controller.PIDController;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.PIDCoefficients;
 
+import org.firstinspires.ftc.teamcode.helpers.data.AngleUtils;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums.DetectedColor;
 import org.firstinspires.ftc.teamcode.helpers.hardware.MotorControl;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.ActionOpMode;
@@ -40,8 +43,11 @@ public class specimenteleop extends ActionOpMode {
     private boolean squarePressed = false;
     private boolean dpadLeftPressed = false;
     private boolean dpadRightPressed = false;
-
+    private boolean headingLock = false;
     private boolean ranInit = false;
+
+    private PIDController headingController;
+    private double targetHeading = 0;
 
     // Track spinning
     private boolean spinActive = false;
@@ -53,6 +59,8 @@ public class specimenteleop extends ActionOpMode {
 
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
+
+        headingController = new PIDController(2.2, 0.0, 0.1);
     }
 
     @Override
@@ -197,11 +205,11 @@ public class specimenteleop extends ActionOpMode {
         }
 
 
-        if (gamepad1.square && !startPressed) {
+        if (gamepad1.square && !squarePressed) {
             bangbangmode = !bangbangmode;
-            startPressed = true;
+            squarePressed = true;
         } else if (!gamepad1.square) {
-            startPressed = false;
+            squarePressed = false;
         }
 
         // Specimen controls
@@ -242,12 +250,34 @@ public class specimenteleop extends ActionOpMode {
         if (motorControl.extendo.motor.getCurrentPosition() > 50) {
             rotation = 0.5;
         }
-        follower.setTeleOpMovementVectors(
-                -gamepad1.right_stick_y,
-                -gamepad1.right_stick_x,
-                -gamepad1.left_stick_x * rotation,
-                true
-        );
+
+        double drive  = -gamepad1.right_stick_y;
+        double strafe =  gamepad1.right_stick_x;
+        double turn;
+
+        if (gamepad2.a && !startPressed) {
+            headingLock = !headingLock;
+            if (headingLock) {
+                targetHeading     = follower.getPose().getHeading();
+                headingController.reset();
+            }
+            startPressed = true;
+        } else if (!gamepad2.a) {
+            startPressed = false;
+        }
+
+        if (headingLock) {
+            double current = follower.getPose().getHeading();
+            double error   = AngleUtils.normalizeRadians(targetHeading - current);
+            turn = headingController.calculate(error);
+        } else {
+            turn = gamepad1.left_stick_x * rotation;
+        }
+
+        follower.setTeleOpMovementVectors(drive, strafe, turn);
+
+
+
         follower.update();
         super.loop();
         motorControl.update();
