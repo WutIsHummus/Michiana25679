@@ -59,7 +59,7 @@ public class turninplacetest extends PathChainAutoOpMode {
 
     private boolean scan1Done, scan2Done = false;
 
-    private boolean spitDone1, spitDone2, spitDone3 = false;
+    private boolean spitDone1, spitDone2, spitDone3, eatdone1, eatdone2, eatdone3 = false;
 
     // --- Vision turn related fields ---
     private TurnTask visionTurn1, visionTurn2;
@@ -136,7 +136,7 @@ public class turninplacetest extends PathChainAutoOpMode {
                         new Point(scorePose),
                         new Point(turninplacepose)))
                 .addParametricCallback(0, () -> run(motorActions.spin.stop()))
-                .addParametricCallback(0, () -> run(motorActions.spitSample()))
+                .addParametricCallback(0.5, () -> run(motorActions.specgrabpositions()))
                 .addParametricCallback(0.5, () -> run(new ParallelAction(
                         motorActions.extendo.set(180))))
                 .addParametricCallback(0.90, () -> run(motorActions.spin.poop()))
@@ -272,94 +272,85 @@ public class turninplacetest extends PathChainAutoOpMode {
         // Preload task.
         addPath(scorePreload, 0);
 
-        // Vision-based turn before first vision deposit
-
-        addPath(vision1deposit, 0.2).addWaitAction(0,motorActions.outtakeSpecimen());
-
-
-
-
-        addPath(vision2intake, 1).addWaitAction(0,
-                new SequentialAction(
-                        motorActions.depositSpecimen(),
-                        motorActions.lift.specimen()
-                ));
-
-        // Vision-based turn before second vision deposit
-
-        addPath(vision2deposit, 0);
+        addPath(vision2deposit, 0.1);
 
         addTurnToDegrees(320, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.extendo.set(358),
-                        motorActions.grabUntilSpecimen(),
+                        motorActions.specgrabpositions(),
+                        motorActions.spin.eat(),
+                        motorActions.extendo.waitUntilFinished(),
                         telemetryPacket -> {
-                            spitDone1 = true; return false;
+                            eatdone1 = true; return false;
                         }
                 ))
-                .setMaxWaitTime(1.5)
-                .setWaitCondition(() -> spitDone1)
+                .setMaxWaitTime(0.3)
+                .setWaitCondition(() -> eatdone1)
         ;
 
         addTurnToDegrees(240, 0)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.extendo.set(358),
-                        motorActions.grabUntilSpecimen(),
+                        motorActions.spin.poop(),
+                        new SleepAction(0.1),
                         telemetryPacket -> {
                             spitDone1 = true; return false;
                         }
                 ))
-                .setMaxWaitTime(1.5)
+                .setMaxWaitTime(0.3)
                 .setWaitCondition(() -> spitDone2)
         ;
 
         addTurnToDegrees(310, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.extendo.set(480),
-                        motorActions.grabUntilSpecimen(),
+                        motorActions.specgrabpositions(),
+                        motorActions.spin.eat(),
+                        motorActions.extendo.waitUntilFinished(),
                         telemetryPacket -> {
-                            spitDone2 = true; return false;
+                            eatdone2 = true; return false;
                         }
                 ))
-                .setMaxWaitTime(1.5)
-                .setWaitCondition(() -> spitDone2)
+                .setMaxWaitTime(0.3)
+                .setWaitCondition(() -> eatdone2)
         ;
 
         addTurnToDegrees(240, 0)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.extendo.set(480),
-                        motorActions.grabUntilSpecimen(),
+                        motorActions.spin.poop(),
+                        new SleepAction(0.1),
                         telemetryPacket -> {
                             spitDone2 = true; return false;
                         }
                 ))
-                .setMaxWaitTime(1.5)
+                .setMaxWaitTime(0.3)
                 .setWaitCondition(() -> spitDone2)
         ;
 
         addTurnToDegrees(300, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.extendo.set(730),
-                        motorActions.grabUntilSpecimen(),
-                        motorActions.extendo.set(600),
+                        motorActions.specgrabpositions(),
+                        motorActions.spin.eat(),
+                        motorActions.extendo.waitUntilFinished(),
                         telemetryPacket -> {
-                            spitDone2 = true; return false;
-                        }
+                            eatdone1 = true; return false;
+                        },
+                        motorActions.extendo.set(700)
                 ))
-                .setMaxWaitTime(1.5)
+                .setMaxWaitTime(0.3)
                 .setWaitCondition(() -> spitDone2)
         ;
 
         addTurnToDegrees(240, 0)
                 .addWaitAction(0, new SequentialAction(
-                        motorActions.extendo.set(600),
-                        motorActions.grabUntilSpecimen(),
+                        motorActions.spin.poop(),
+                        new SleepAction(0.1),
                         telemetryPacket -> {
-                            spitDone2 = true; return false;
+                            eatdone3 = true; return false;
                         }
                 ))
-                .setMaxWaitTime(1.5)
-                .setWaitCondition(() -> spitDone2)
+                .setMaxWaitTime(0.3)
+                .setWaitCondition(() -> spitDone3)
         ;
 
 

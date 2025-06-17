@@ -428,17 +428,33 @@ public class MotorActions {
     }
 
 
+
     public Action spitSample(){
         return new SequentialAction(
-          led.red(),
-          inArm.sampleSpit(),
-          inPivot.sampleSpit(),
+                led.red(),
+                inArm.sampleSpit(),
+                inPivot.sampleSpit(),
                 lift.set(100),
                 claw.open(),
                 outArm.specimenIntake(),
                 linkage.retracted(),
                 extendo.retracted(),
                 extendo.waitUntilFinished(),
+                extendo.findZero()
+        );
+    }
+    public Action spitSampleautofast(){
+        return new SequentialAction(
+                led.red(),
+                inArm.sampleSpit(),
+                inPivot.sampleSpit(),
+                lift.set(100),
+                claw.open(),
+                outArm.specimenIntake(),
+                linkage.retracted(),
+                extendo.retracted(),
+                extendo.waitUntilFinished(),
+                spin.poop(),
                 extendo.findZero()
         );
     }

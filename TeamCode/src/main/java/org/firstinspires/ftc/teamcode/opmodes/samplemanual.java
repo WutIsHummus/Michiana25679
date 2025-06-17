@@ -275,7 +275,7 @@ public class samplemanual extends PathChainAutoOpMode {
         addPath(thirdgrabpath,0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.spin.eat(),
-                        new SleepAction(0.05),
+                        //new SleepAction(0.05),
                         motorActions.extendo.set(660),
                         motorActions.inArm.specimenGrab(),
                         motorActions.inPivot.specimenGrab(),

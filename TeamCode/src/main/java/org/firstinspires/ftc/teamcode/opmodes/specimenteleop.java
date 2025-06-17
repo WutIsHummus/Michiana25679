@@ -60,7 +60,7 @@ public class specimenteleop extends ActionOpMode {
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
 
-        headingController = new PIDController(0.1, 0.0, 0.1);
+        headingController = new PIDController(0.05, 0.0, 0.0005);
     }
 
     @Override
@@ -294,6 +294,7 @@ public class specimenteleop extends ActionOpMode {
         telemetry.addData("Alliance", allianceColor);
         telemetry.addData("AutoOuttake", autoOuttake);
         telemetry.addData("bangbang", bangbangmode);
+        telemetry.addData("headinglock", headingLock);
         telemetry.addData("Detected", color);
         telemetry.addData("ExtendoPos", motorControl.extendo.motor.getCurrentPosition());
         telemetry.addData("ExtendoVel", motorControl.extendo.motor.getVelocity());
