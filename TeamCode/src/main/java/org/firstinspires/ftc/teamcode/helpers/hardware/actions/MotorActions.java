@@ -489,7 +489,33 @@ public class MotorActions {
                 return false;
             }; }
 
-        public Action retracted() { return set(0); }
+        public Action retracted() {
+            return new Action() {
+                private long startTime = -1;
+                private boolean retried   = false;
+
+                @Override
+                public boolean run(@NonNull TelemetryPacket t) {
+                    if (startTime < 0) {
+                        startTime = System.currentTimeMillis();
+                        mc.extendo.setTargetPosition(0);
+                    }
+
+                    if (mc.extendo.closeEnough()) {
+                        return false;
+                    }
+
+                    if (!retried && System.currentTimeMillis() - startTime > 3000) {
+                        retried = true;
+                        int curr = mc.extendo.motor.getCurrentPosition();
+                        mc.extendo.setTargetPosition(curr + 100);
+                        startTime = System.currentTimeMillis();
+                    }
+
+                    return true;
+                }
+            };
+        }
         public Action extended()  { return set(600); }
 
         public Action waitUntilFinished() {

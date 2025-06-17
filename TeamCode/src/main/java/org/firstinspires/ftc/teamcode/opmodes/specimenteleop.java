@@ -251,8 +251,8 @@ public class specimenteleop extends ActionOpMode {
             rotation = 0.5;
         }
 
-        double drive  = gamepad1.right_stick_y;
-        double strafe =  gamepad1.right_stick_x;
+        double drive  = gamepad1.right_stick_x;
+        double strafe =  gamepad1.right_stick_y;
         double turn;
 
         if (gamepad2.a && !startPressed) {
