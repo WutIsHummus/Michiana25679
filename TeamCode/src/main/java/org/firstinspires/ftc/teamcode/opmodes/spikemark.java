@@ -11,6 +11,7 @@ import com.pedropathing.pathgen.BezierPoint;
 import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.Point;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 
 import org.firstinspires.ftc.teamcode.helpers.data.AngleUtils;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums;
@@ -27,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * It extends PathChainAutoOpMode so that you only need to override buildPathChains() and buildTaskList(),
  * plus the dummy path-follower methods.
  */
+@Disabled
 @Autonomous(name = "Spikemark")
 public class spikemark extends PathChainAutoOpMode {
 

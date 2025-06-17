@@ -6,6 +6,7 @@ import com.acmerobotics.roadrunner.SleepAction;
 import com.arcrobotics.ftclib.controller.PIDController;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.helpers.data.Enums.DetectedColor;
@@ -15,6 +16,8 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.MotorActions;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
+
+@Disabled
 @TeleOp(name = "headinglocktest", group = "Examples")
 public class headinglocktest extends ActionOpMode {
     private Follower follower;

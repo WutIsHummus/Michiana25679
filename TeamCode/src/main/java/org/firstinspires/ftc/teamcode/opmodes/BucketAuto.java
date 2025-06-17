@@ -20,6 +20,7 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMo
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
+@Disabled
 @Autonomous(name = "Bucket Sample")
 public class BucketAuto extends PathChainAutoOpMode {
 
