@@ -22,8 +22,8 @@ import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@Autonomous(name = "Specmanual blue")
-public class specmanualblue extends PathChainAutoOpMode {
+@Autonomous(name = "spikemarktestcomp")
+public class spikemarktestcomp extends PathChainAutoOpMode {
 
     // -------- Hardware & Helper Fields --------
     private Follower follower;
@@ -45,7 +45,7 @@ public class specmanualblue extends PathChainAutoOpMode {
     private final Pose pickup1Pose  = new Pose(20, 25,   Math.toRadians(0));
     private final Pose prepickup    = new Pose(20, 40,   Math.toRadians(25));
     private final Pose intake       = new Pose(11, 40,   Math.toRadians(0));
-    private final Pose intakeDown       = new Pose(11, 24,   Math.toRadians(0));
+    private final Pose intakeDown       = new Pose(11, 20,   Math.toRadians(0));
     private final Pose parkPose     = new Pose(11, 22,   Math.toRadians(90));
 
     // -------- Manual “vision” inputs --------
@@ -104,6 +104,7 @@ public class specmanualblue extends PathChainAutoOpMode {
         motorActions = new MotorActions(motorControl);
         follower     = new Follower(hardwareMap, FConstants.class, LConstants.class);
         follower.setStartingPose(startPose);
+
 
         // Prompt user to set manual inputs
         telemetry.addLine("← stick = angle, → stick = distance");
@@ -342,34 +343,12 @@ public class specmanualblue extends PathChainAutoOpMode {
         tasks.clear();
 
         // 1) Preload
-        addPath(scorePreload, 0)
+        addPath(scorePreload, 0.2)
                 .addWaitAction(0, new ParallelAction(
                         motorActions.claw.open(),
                         motorActions.outArm.pretransfer(),
                         motorActions.linkage.retracted()
                 ));
-
-        // 2) First manual turn
-        visionTurn1 = addRelativeTurnDegrees(0, true, 0)
-                .setWaitCondition(()->!motorControl.isEmpty())
-                .setMaxWaitTime(2);
-
-        // 3) First vision deposit
-        addPath(vision1deposit, 0.1)
-                .addWaitAction(0,   motorActions.outtakespecvision());
-
-        // 4) Intake after deposit
-        addPath(vision2intake, 0)
-                .addWaitAction(0, new ParallelAction(
-                        motorActions.claw.open(),
-                        motorActions.outArm.pretransfer(),
-                        motorActions.linkage.retracted()
-                ));
-
-        // 5) Second manual turn
-        visionTurn2 = addTurnToDegrees(0, 0)
-                .setWaitCondition(()->!motorControl.isEmpty())
-                .setMaxWaitTime(2);
 
         // 6) Second vision deposit
         addPath(vision2deposit, 0)
@@ -497,15 +476,15 @@ public class specmanualblue extends PathChainAutoOpMode {
                             motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
                             motorActions.extendo.waitUntilFinished(Math.min(lastDistance * 32.25, 800), 300),
                             motorActions.spin.eat(),
-                            motorActions.spin.eatUntilStrict(Enums.DetectedColor.BLUE, motorControl),
+                            motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl),
                             telemetryPacket -> {
                                 lastDistance = 0;
                                 return false;
                             },
                             motorActions.spitSamplettele())
             ))
-                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.BLUE, motorActions.extendo.set(0))
-                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.RED, motorActions.spin.poop())
+                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.RED, motorActions.extendo.set(0))
+                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.BLUE, motorActions.spin.poop())
             ;
             task.angle      = Math.abs(latestVisionAngle);
             task.isLeft     = (latestVisionAngle > 0);

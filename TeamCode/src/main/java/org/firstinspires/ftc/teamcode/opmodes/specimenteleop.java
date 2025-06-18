@@ -295,6 +295,7 @@ public class specimenteleop extends ActionOpMode {
         telemetry.addData("Alliance", allianceColor);
         telemetry.addData("AutoOuttake", autoOuttake);
         telemetry.addData("bangbang", bangbangmode);
+        telemetry.addData("headinglock", headingLock);
         telemetry.addData("Detected", color);
         telemetry.addData("ExtendoPos", motorControl.extendo.motor.getCurrentPosition());
         telemetry.addData("ExtendoVel", motorControl.extendo.motor.getVelocity());
