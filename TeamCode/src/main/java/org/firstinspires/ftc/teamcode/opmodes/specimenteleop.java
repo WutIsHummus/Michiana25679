@@ -7,7 +7,6 @@ import com.arcrobotics.ftclib.controller.PIDController;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.PIDCoefficients;
 
 import org.firstinspires.ftc.teamcode.helpers.data.AngleUtils;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums.DetectedColor;
@@ -253,14 +252,10 @@ public class specimenteleop extends ActionOpMode {
             rotation = 0.5;
         }
 
-        double drive  = -gamepad1.right_stick_y;
-        double strafe =  -gamepad1.right_stick_x;
-        double turn;
-
         if (gamepad2.a && !startPressed) {
             headingLock = !headingLock;
             if (headingLock) {
-                targetHeading     = follower.getPose().getHeading();
+                targetHeading = AngleUtils.normalizeRadians(follower.getPose().getHeading());
                 headingController.setSetPoint(targetHeading);
                 headingController.reset();
             }
@@ -269,10 +264,12 @@ public class specimenteleop extends ActionOpMode {
             startPressed = false;
         }
 
+        double drive  = -gamepad1.right_stick_y;
+        double strafe = -gamepad1.right_stick_x;
+        double turn;
         if (headingLock) {
-            double current = follower.getPose().getHeading();
-            double error   = AngleUtils.normalizeRadians(targetHeading - current);
-            turn = headingController.calculate(error);
+            double current = AngleUtils.normalizeRadians(follower.getPose().getHeading());
+            turn = headingController.calculate(current);
         } else {
             turn = -gamepad1.left_stick_x * rotation;
         }
