@@ -182,15 +182,28 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
     }
 
     private void handleTurnTask(TurnTask turnTask) {
-        if (!turnTask.initiated) {
-            if (isTurning() || isPathActive()) return; // Wait for previous turn/path
-            startTurn(turnTask); // Implemented by subclass, starts the turn
-            resetTimersAndActionsForTask(turnTask); // Resets timers and prepares for this task's own wait phase
+        if (!turnTask.initiated || isPathActive()) {
+            if (isTurning() || isPathActive()) return;
+            startTurn(turnTask);
+            turnTask.initiated = true;
+            resetTimersAndActionsForTask(turnTask);
+
+            actionTimer.resetTimer();
         } else {
             // Turn has been initiated, check if it's still active
+
+            if (actionTimer.getElapsedTimeSeconds() > turnTask.turnTimeout) {
+                // mark this task as timed out so transition logic can clean up waitActions
+                turnTask.timedOut = true;
+                advanceToNextTask();
+                return;
+            }
+
             if (!isTurning()) { // Turn completed
                 transitionToWaitPhaseOrAdvance(turnTask); // Move to waiting phase or next task
             }
+
+
             // If turn is still active, do nothing, let it run.
         }
     }
@@ -382,6 +395,7 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
         public boolean isLeft;     // If relative, specifies direction (meaningful for some turn implementations)
         public boolean initiated = false; // True once startTurn() has been called
         public double initialAngleDegrees;
+        public double turnTimeout = 1.0;
 
         // Constructor for absolute turns
         public TurnTask(double angle, boolean useDegrees, double waitTime) {

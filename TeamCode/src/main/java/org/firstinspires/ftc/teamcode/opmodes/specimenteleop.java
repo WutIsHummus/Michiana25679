@@ -60,7 +60,7 @@ public class specimenteleop extends ActionOpMode {
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
 
-        headingController = new PIDController(0.1, 0.0, 0.1);
+        headingController = new PIDController(0.05, 0.0, 0.0005);
     }
 
     @Override
@@ -261,6 +261,7 @@ public class specimenteleop extends ActionOpMode {
             headingLock = !headingLock;
             if (headingLock) {
                 targetHeading     = follower.getPose().getHeading();
+                headingController.setSetPoint(targetHeading);
                 headingController.reset();
             }
             startPressed = true;
