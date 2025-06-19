@@ -3,9 +3,10 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
-import com.arcrobotics.ftclib.controller.PIDController;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
+import com.pedropathing.util.CustomPIDFCoefficients;
+import com.pedropathing.util.PIDFController;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.helpers.data.AngleUtils;
@@ -45,7 +46,7 @@ public class specimenteleop extends ActionOpMode {
     private boolean headingLock = false;
     private boolean ranInit = false;
 
-    private PIDController headingController;
+    private PIDFController headingController;
     private double targetHeading = 0;
 
     // Track spinning
@@ -59,7 +60,7 @@ public class specimenteleop extends ActionOpMode {
         motorControl = new MotorControl(hardwareMap);
         motorActions = new MotorActions(motorControl);
 
-        headingController = new PIDController(0.05, 0.0, 0.0005);
+        headingController = new PIDFController(new CustomPIDFCoefficients(2.6, 0, 0, 0));
     }
 
     @Override
@@ -247,17 +248,12 @@ public class specimenteleop extends ActionOpMode {
 
 
 
-        double rotation = 1;
-        if (motorControl.extendo.motor.getCurrentPosition() > 50) {
-            rotation = 0.5;
-        }
-
         if (gamepad2.a && !startPressed) {
             headingLock = !headingLock;
             if (headingLock) {
+                // latch the setpoint
                 targetHeading = AngleUtils.normalizeRadians(follower.getPose().getHeading());
-                headingController.setSetPoint(targetHeading);
-                headingController.reset();
+                headingController.reset();   // clear I/D state
             }
             startPressed = true;
         } else if (!gamepad2.a) {
@@ -266,13 +262,18 @@ public class specimenteleop extends ActionOpMode {
 
         double drive  = -gamepad1.right_stick_y;
         double strafe = -gamepad1.right_stick_x;
+        double rotation = motorControl.extendo.motor.getCurrentPosition() > 50 ? 0.5 : 1.0;
         double turn;
+
         if (headingLock) {
             double current = AngleUtils.normalizeRadians(follower.getPose().getHeading());
-            turn = headingController.calculate(current);
+            double error = AngleUtils.shortestAngleDifference(current, targetHeading);
+            headingController.updateError(error);
+            turn = headingController.runPIDF();
         } else {
             turn = -gamepad1.left_stick_x * rotation;
         }
+
 
         follower.setTeleOpMovementVectors(drive, strafe, turn);
 
