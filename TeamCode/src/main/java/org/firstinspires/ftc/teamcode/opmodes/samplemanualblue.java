@@ -109,13 +109,13 @@ public class samplemanualblue extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .addParametricCallback(0,   () -> run(motorActions.safeServos()))
                 .addParametricCallback(0, () -> run(motorActions.outtakeSampleAuto()))
-                .setZeroPowerAccelerationMultiplier(3)
+                .setZeroPowerAccelerationMultiplier(2)
                 .build();
 
         thirdgrabpath = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(scorePose), new Point(thirdgrab)))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), thirdgrab.getHeading())
-                .addParametricCallback(0.9, () -> run(motorActions.extendo.set(100)))
+                .addParametricCallback(0, () -> run(motorActions.extendo.set(300)))
                 .build();
 
         // buildPathChains(): split your park chain in two
@@ -129,6 +129,7 @@ public class samplemanualblue extends PathChainAutoOpMode {
                 .addParametricCallback(0.5, () -> run(new ParallelAction(
                         motorActions.inArm.sampleExtended(),
                         motorActions.inPivot.sampleExtended()
+                        //motorActions.extendo.set(100)
                 )))
                 .build();
 
@@ -248,6 +249,7 @@ public class samplemanualblue extends PathChainAutoOpMode {
                         motorActions.inArm.specimenGrab(),
                         motorActions.inPivot.specimenGrab(),
                         motorActions.spin.eat(),
+                        motorActions.lift.findZero(),
                         motorActions.extendo.waitUntilFinished(),
                         telemetryPacket -> {
                             eatdone1 = true; return false;
@@ -278,6 +280,7 @@ public class samplemanualblue extends PathChainAutoOpMode {
                         motorActions.extendo.set(660),
                         motorActions.inArm.specimenGrab(),
                         motorActions.inPivot.specimenGrab(),
+                        motorActions.lift.findZero(),
                         motorActions.extendo.waitUntilFinished(),
                         telemetryPacket -> {
                             eatdone2 = true; return false;
@@ -291,7 +294,7 @@ public class samplemanualblue extends PathChainAutoOpMode {
         addTurnToDegrees(330, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.outtakeSampleAuto(),
-                        motorActions.lift.waitUntilFinished(),
+                        //motorActions.lift.waitUntilFinished(),
                         telemetryPacket -> {
                             depodone2 = true; return false;
                         }

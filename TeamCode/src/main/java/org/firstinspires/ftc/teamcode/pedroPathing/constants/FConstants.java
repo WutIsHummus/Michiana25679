@@ -44,7 +44,7 @@ public class FConstants {
         FollowerConstants.headingPIDFCoefficients.setCoefficients(3.1,0,0.25,0);
 
         FollowerConstants.useSecondaryHeadingPID = true;
-        FollowerConstants.secondaryHeadingPIDFCoefficients.setCoefficients(2.6,0,0,0);
+        FollowerConstants.secondaryHeadingPIDFCoefficients.setCoefficients(2.6,0,0.05,0);
 
         FollowerConstants.drivePIDFCoefficients.setCoefficients(0.4 ,0.001,0.02,0.6,0);
         FollowerConstants.drivePIDFFeedForward = 0.02;

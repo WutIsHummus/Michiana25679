@@ -311,9 +311,9 @@ public class MotorActions {
                 outArm.pretransfer(),
                 lift.transfer(),
                 claw.transfer(),
-                led.green(),
-                lift.waitUntilFinished(0, 150),
-                lift.findZero()
+                led.green()
+
+
 
         );
     }
@@ -453,9 +453,9 @@ public class MotorActions {
                 outArm.specimenIntake(),
                 linkage.retracted(),
                 extendo.retracted(),
-                extendo.waitUntilFinished(),
-                spin.poop(),
-                extendo.findZero()
+                extendo.waitUntilFinished(0,60),
+                spin.poop()
+                //extendo.findZero()
         );
     }
     public Action spitSamplettele(){
@@ -468,11 +468,18 @@ public class MotorActions {
                 outArm.specimenIntake(),
                 linkage.retracted(),
                 extendo.retracted(),
-                extendo.waitUntilFinished(),
+                extendo.waitUntilFinished(0,40),
                 inArm.sampleSpit(),
                 extendo.findZero()
         );
     }
+    public Action resetToZero() {
+        return new SequentialAction(
+                lift.waitUntilFinished(0, 200),
+                lift.findZero()
+        );
+    }
+
 
     public class Led {
         private Action set(double p) {
@@ -599,7 +606,7 @@ public class MotorActions {
     // ---------------------- Outtake Linkage -----------------------------
     public class OuttakeLinkage {
         private static final double RETRACTED = 0.49;
-        private static final double SPECIMEN = 0.56;
+        private static final double SPECIMEN = 0.49;
         private static final double EXTENDED  = 0.98;
         private static final double TRANSFER  = 0.71;
         private Action set(double p) { return t -> { mc.outtakeLinkage.setPosition(p); return false; }; }

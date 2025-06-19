@@ -110,7 +110,7 @@ public class samplemanual extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .addParametricCallback(0,   () -> run(motorActions.safeServos()))
                 .addParametricCallback(0, () -> run(motorActions.outtakeSampleAuto()))
-                .setZeroPowerAccelerationMultiplier(3)
+                .setZeroPowerAccelerationMultiplier(2)
                 .build();
 
         thirdgrabpath = follower.pathBuilder()
@@ -249,6 +249,7 @@ public class samplemanual extends PathChainAutoOpMode {
                         motorActions.inArm.specimenGrab(),
                         motorActions.inPivot.specimenGrab(),
                         motorActions.spin.eat(),
+                        motorActions.lift.findZero(),
                         motorActions.extendo.waitUntilFinished(),
                         telemetryPacket -> {
                             eatdone1 = true; return false;
@@ -275,10 +276,11 @@ public class samplemanual extends PathChainAutoOpMode {
         addPath(thirdgrabpath,0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.spin.eat(),
-                        //new SleepAction(0.05),
+                        new SleepAction(0.05),
                         motorActions.extendo.set(660),
                         motorActions.inArm.specimenGrab(),
                         motorActions.inPivot.specimenGrab(),
+                        motorActions.lift.findZero(),
                         motorActions.extendo.waitUntilFinished(),
                         telemetryPacket -> {
                             eatdone2 = true; return false;
@@ -292,7 +294,7 @@ public class samplemanual extends PathChainAutoOpMode {
         addTurnToDegrees(330, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.outtakeSampleAuto(),
-                        motorActions.lift.waitUntilFinished(),
+                        //motorActions.lift.waitUntilFinished(),
                         telemetryPacket -> {
                             depodone2 = true; return false;
                         }

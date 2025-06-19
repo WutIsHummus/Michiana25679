@@ -221,7 +221,7 @@ public class specmanualblue extends PathChainAutoOpMode {
         // 4) “Vision” deposit at pickup1
         vision2deposit = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(scorePose), new Point(preloadCopy), new Point(pickup1Pose)))
-                .addParametricCallback(0, ()->run(motorActions.extendo.set(0)))
+                .addParametricCallback(0, () -> run(motorActions.extendo.set(0)))
                 .addParametricCallback(0,    () -> run(motorActions.spin.stop()))
                 .addParametricCallback(0,    () -> run(motorActions.spitSamplettele()))
                 .addParametricCallback(0.7, () -> run(motorActions.spin.poop()))
@@ -233,7 +233,7 @@ public class specmanualblue extends PathChainAutoOpMode {
         // 5) Third grab drive
         thirdgrabdrive = follower.pathBuilder()
                 .addPath(new BezierLine(new Point(pickup1Pose), new Point(thirdgrab)))
-                .addTemporalCallback(0,()->run(motorActions.extendo.set(600)))
+                .addParametricCallback(0,()->run(motorActions.extendo.set(600)))
                 .addParametricCallback(0, () -> run(new ParallelAction(
                         motorActions.grabUntilSpecimen())))
                 .setConstantHeadingInterpolation(thirdgrab.getHeading())
@@ -403,7 +403,8 @@ public class specmanualblue extends PathChainAutoOpMode {
                         telemetryPacket -> {
                             spitDone2 = true; return false;
                         },
-                        motorActions.extendo.waitUntilFinished()
+                        motorActions.extendo.waitUntilFinished(),
+                        motorActions.inPivot.specimenExtended()
                 ))
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> spitDone2);

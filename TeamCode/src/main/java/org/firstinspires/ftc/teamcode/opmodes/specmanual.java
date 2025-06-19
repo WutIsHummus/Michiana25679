@@ -235,7 +235,7 @@ public class specmanual extends PathChainAutoOpMode {
         // 5) Third grab drive
         thirdgrabdrive = follower.pathBuilder()
                 .addPath(new BezierLine(new Point(pickup1Pose), new Point(thirdgrab)))
-                .addTemporalCallback(0,()->run(motorActions.extendo.set(600)))
+                .addParametricCallback(0,()->run(motorActions.extendo.set(600)))
                 .addParametricCallback(0, () -> run(new ParallelAction(
                         motorActions.grabUntilSpecimen())))
                 .setConstantHeadingInterpolation(thirdgrab.getHeading())
@@ -405,7 +405,8 @@ public class specmanual extends PathChainAutoOpMode {
                         telemetryPacket -> {
                             spitDone2 = true; return false;
                         },
-                        motorActions.extendo.waitUntilFinished()
+                        motorActions.extendo.waitUntilFinished(),
+                        motorActions.inPivot.specimenExtended()
                 ))
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> spitDone2);

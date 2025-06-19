@@ -96,27 +96,33 @@ public class TeleopBlue extends ActionOpMode {
 
         // LEFT BUMPER: grab & optional auto-outtake
         if (gamepad1.left_bumper && !leftBumperPressed) {
-            run(motorActions.spin.eat());
-            if (autoOuttake) {
-                double extPos = motorControl.extendo.motor.getCurrentPosition();
-                run(new SequentialAction(
-                        new ParallelAction(
-                                motorActions.outtakeTransfer(),
-                                motorActions.grabUntilSample(allianceColor)
-                        ),
-                        motorActions.intakeTransfer(),
-                        motorActions.outtakeSample(780)
-                ));
+            if (motorControl.lift.motor.getCurrentPosition() > 500) {
+                run(motorActions.claw.partialClose());
             } else {
-                run(new SequentialAction(
-                        new ParallelAction(
-                                motorActions.outtakeTransfer(),
-                                motorActions.grabUntilSample(allianceColor)
-                        ),
-                        motorActions.intakeTransfer()
-                ));
+
+                run(motorActions.spin.eat());
+                if (autoOuttake) {
+                    double extPos = motorControl.extendo.motor.getCurrentPosition();
+                    run(new SequentialAction(
+                            new ParallelAction(
+                                    motorActions.outtakeTransfer(),
+                                    motorActions.grabUntilSample(allianceColor)
+                            ),
+                            motorActions.intakeTransfer(),
+                            motorActions.outtakeSample(780)
+                    ));
+                } else {
+                    run(new SequentialAction(
+                            new ParallelAction(
+                                    motorActions.outtakeTransfer(),
+                                    motorActions.grabUntilSample(allianceColor)
+                            ),
+                            motorActions.intakeTransfer()
+                    ));
             }
             leftBumperPressed = true;
+        }
+
         } else if (!gamepad1.left_bumper) {
             leftBumperPressed = false;
         }
@@ -223,9 +229,7 @@ public class TeleopBlue extends ActionOpMode {
             dpadRightPressed = false;
         }
 
-        if (motorControl.lift.motor.getCurrentPosition() > 500 && gamepad1.left_bumper ) {
-            run(motorActions.claw.partialClose());
-        }
+
 
         double rotation = 1;
         if (motorControl.extendo.motor.getCurrentPosition() > 50) {

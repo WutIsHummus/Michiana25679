@@ -230,7 +230,12 @@ public class samplemanualcomptest extends PathChainAutoOpMode {
                 .addWaitAction(0, motorActions.extendo.set(300))
                 .addWaitAction(0, new SequentialAction(
                         motorActions.hang.down(),
-                        motorActions.cycle(),
+                        new ParallelAction(
+                                motorActions.resetToZero(),
+                                motorActions.cycle()
+                                ),
+
+
                         telemetryPacket -> {
                             firstcycle = true; return false;
                         }
@@ -239,7 +244,6 @@ public class samplemanualcomptest extends PathChainAutoOpMode {
                 .setWaitCondition(() -> firstcycle);
 
         tasks.add(preloadTask);
-
         addTurnToDegrees(-2, 0)
                 .addWaitAction(0, new SequentialAction(
                         motorActions.spin.eat(),
