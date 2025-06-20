@@ -251,6 +251,7 @@ public class specmanualblue extends PathChainAutoOpMode {
                 .setConstantHeadingInterpolation(intake.getHeading())
                 .addParametricCallback(0,   () -> run(motorActions.spitSample()))
                 .addParametricCallback(0,   () -> run(motorActions.intakeSpecimen()))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .addParametricCallback(1,   () -> run(motorActions.claw.close()))
                 .build();
 
@@ -269,6 +270,7 @@ public class specmanualblue extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(scorePose), new Point(prepickup), new Point(intake)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setReversed(true)
                 .setZeroPowerAccelerationMultiplier(7)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
@@ -287,6 +289,7 @@ public class specmanualblue extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(scorePose), new Point(prepickup), new Point(intake)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setReversed(true)
                 .setZeroPowerAccelerationMultiplier(7)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
@@ -305,6 +308,7 @@ public class specmanualblue extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(scorePose), new Point(prepickup), new Point(intake)))
                 .setConstantHeadingInterpolation(scorePose1.getHeading())
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setZeroPowerAccelerationMultiplier(7)
                 .setReversed(true)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
@@ -324,6 +328,7 @@ public class specmanualblue extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .setZeroPowerAccelerationMultiplier(7)
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setReversed(true)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
                 .build();
@@ -340,6 +345,7 @@ public class specmanualblue extends PathChainAutoOpMode {
         parkChain = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(scorePose4), new Point(parkPose)))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setZeroPowerAccelerationMultiplier(6)
                 .build();
     }
@@ -503,13 +509,13 @@ public class specmanualblue extends PathChainAutoOpMode {
 
         if ((task == visionTurn1 || task == visionTurn2) && lastDistance > 0) {
             task.addWaitAction(0, new SequentialAction(
-                    motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
-                    motorActions.extendo.waitUntilFinished(Math.min(lastDistance * 32.25, 800), 50),
+                    motorActions.specimenExtend(Math.min(lastDistance -1 * 32.25, 800)),
+                    motorActions.extendo.waitUntilFinished(Math.min(lastDistance -1* 32.25, 800), 50),
                             motorActions.spin.eat(),
-                    motorActions.inArm.sampleGrab(),
-                    motorActions.inPivot.sampleGrab(),
+                    motorActions.inArm.specimenGrab(),
+                    motorActions.inPivot.specimenGrab(),
                     new SleepAction(0.05),
-                            motorActions.extendo.set(Math.min(lastDistance * 32.25 + 75, 800)),
+                            motorActions.extendo.set(Math.min(lastDistance * 32.25 + 25, 800)),
                     telemetryPacket -> {
                         lastDistance = 0;
                         return false;
