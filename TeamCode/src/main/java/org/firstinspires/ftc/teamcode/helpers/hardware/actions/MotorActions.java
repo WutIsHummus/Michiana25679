@@ -120,7 +120,7 @@ public class MotorActions {
                 inArm.transfer(),
                 outArm.transfer(),
                 extendo.retracted(),
-                extendo.waitUntilFinished(0, 15),
+                extendo.waitUntilFinished(0, 30),
                 extendo.findZero(),
                 led.green()
         );
@@ -248,6 +248,8 @@ public class MotorActions {
                         inArm.specimenExtended(),
                         inPivot.specimenExtended()
                 ),
+                new SleepAction(0.2),
+                spin.slowpoop(),
                 lift.waitUntilFinished(),
                 outArm.sampleScore(),
                 led.green()
@@ -350,7 +352,6 @@ public class MotorActions {
                 linkage.specimen(),
                 lift.transfer(),
                 lift.waitUntilFinished(),
-                lift.findZero(),
                 led.green()
 
         );
@@ -438,7 +439,7 @@ public class MotorActions {
                 claw.open(),
                 outArm.specimenIntake(),
                 linkage.retracted(),
-                extendo.retracted(),
+                extendo.set(0),
                 extendo.waitUntilFinished(),
                 extendo.findZero()
         );
@@ -452,7 +453,7 @@ public class MotorActions {
                 claw.open(),
                 outArm.specimenIntake(),
                 linkage.retracted(),
-                extendo.retracted(),
+                extendo.set(0),
                 extendo.waitUntilFinished(0,60),
                 spin.poop()
                 //extendo.findZero()
@@ -467,7 +468,7 @@ public class MotorActions {
                 claw.open(),
                 outArm.specimenIntake(),
                 linkage.retracted(),
-                extendo.retracted(),
+                extendo.set(0),
                 extendo.waitUntilFinished(0,40),
                 inArm.sampleSpit(),
                 extendo.findZero()
@@ -521,7 +522,7 @@ public class MotorActions {
                 public boolean run(@NonNull TelemetryPacket t) {
                     if (startTime < 0) {
                         startTime = System.currentTimeMillis();
-                        mc.extendo.setTargetPosition(0);
+                        mc.extendo.setTargetPosition(10);
                     }
 
                     if (mc.extendo.closeEnough()) {
@@ -850,7 +851,7 @@ public class MotorActions {
                             if ((colorSeen == Enums.DetectedColor.BLACK
                                     || colorSeen == Enums.DetectedColor.UNKNOWN)) {
                                 // Compute how long we've been seeing nothing
-                                if (!didExtend[0] && (now - searchStartTime[0] >= 100L)) {
+                                if (!didExtend[0] && (now - searchStartTime[0] >= 500L)) {
                                     // Time’s up: extend the extendo once
                                     MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 100).run(t);
                                     MotorActions.this.inArm.sampleExtended().run(t);
@@ -955,7 +956,7 @@ public class MotorActions {
                             if ((colorSeen == Enums.DetectedColor.BLACK
                                     || colorSeen == Enums.DetectedColor.UNKNOWN)) {
                                 // Compute how long we've been seeing nothing
-                                if (!didExtend[0] && (now - searchStartTime[0] >= 100L)) {
+                                if (!didExtend[0] && (now - searchStartTime[0] >= 200L)) {
                                     // Time’s up: extend the extendo once
                                     MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 100).run(t);
                                     MotorActions.this.inArm.specimenExtended().run(t);
@@ -982,7 +983,7 @@ public class MotorActions {
                                 MotorActions.this.inArm.specimenGrab().run(t);
                                 MotorActions.this.inPivot.specimenGrab().run(t);
 
-                                MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 50).run(t);
+                                MotorActions.this.extendo.set(motorControl.extendo.getTargetPosition() + 100).run(t);
 
                                 // Now resume searching forward again
                                 mc.spin.setPower(1.0);

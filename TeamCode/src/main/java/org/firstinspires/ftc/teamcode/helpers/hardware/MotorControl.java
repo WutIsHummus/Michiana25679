@@ -159,7 +159,7 @@ public class MotorControl {
 
 
     public abstract static class ControlledDevice {
-        public CachingDcMotorEx motor;
+        public DcMotorEx motor;
         public boolean resetting = false;
         double targetPosition;
 
@@ -189,7 +189,7 @@ public class MotorControl {
 
         public Extendo(HardwareMap hardwareMap) {
             extendoController = new PIDController(p, i, d);
-            motor = new CachingDcMotorEx(hardwareMap.get(DcMotorEx.class, "extendo"), 0.05);
+            motor =  hardwareMap.get(DcMotorEx.class, "extendo");
             motor.setDirection(DcMotorSimple.Direction.REVERSE);
             motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         }
@@ -222,7 +222,7 @@ public class MotorControl {
         }
 
         public boolean closeEnough() {
-            return Math.abs(motor.getCurrentPosition() - targetPosition) < 20;
+            return Math.abs(motor.getCurrentPosition() - targetPosition) < 30;
         }
 
         public boolean closeEnough(double target) {

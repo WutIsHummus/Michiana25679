@@ -45,7 +45,7 @@ public class specmanual extends PathChainAutoOpMode {
     private final Pose prescore     = new Pose(28, 64,   Math.toRadians(25));
     private final Pose thirdgrab    = new Pose(23, 22,   Math.toRadians(325));
     private final Pose pickup1Pose  = new Pose(20, 25,   Math.toRadians(0));
-    private final Pose prepickup    = new Pose(20, 40,   Math.toRadians(25));
+    private final Pose prepickup    = new Pose(22, 40,   Math.toRadians(25));
     private final Pose intake       = new Pose(11, 40,   Math.toRadians(0));
     private final Pose intakeDown       = new Pose(11, 24,   Math.toRadians(0));
     private final Pose parkPose     = new Pose(11, 22,   Math.toRadians(90));
@@ -94,7 +94,7 @@ public class specmanual extends PathChainAutoOpMode {
     private PathChain scorePreload, parkChain;
     private PathChain intake1, intake2, intake3, intake4, intake5;
     private PathChain score1, score2, score3, score4, score5;
-    private PathChain vision1deposit, vision2intake, vision2deposit, thirdgrabdrive;
+    private PathChain vision1deposit, vision2intake, vision2deposit, firsgrabdrive, secgrabdrive, thirdgrabdrive;
 
     @Override
     public void init() {
@@ -248,6 +248,7 @@ public class specmanual extends PathChainAutoOpMode {
                 .addParametricCallback(0.9, () -> motorControl.spin.setPower(-1))
                 .addParametricCallback(0,   () -> run(motorActions.spitSample()))
                 .addParametricCallback(0,   () -> run(motorActions.intakeSpecimen()))
+                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
                 .build();
 
         // 7) Score1
@@ -255,7 +256,6 @@ public class specmanual extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(intake), new Point(prescore), new Point(scorePose1)))
                 .setTangentHeadingInterpolation()
                 .setZeroPowerAccelerationMultiplier(7)
-                .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0, () -> motorControl.spin.setPower(0))
                 .build();
 
@@ -266,6 +266,7 @@ public class specmanual extends PathChainAutoOpMode {
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .setReversed(true)
                 .setZeroPowerAccelerationMultiplier(7)
+                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
                 .build();
 
@@ -284,6 +285,7 @@ public class specmanual extends PathChainAutoOpMode {
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .setReversed(true)
                 .setZeroPowerAccelerationMultiplier(7)
+                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
                 .build();
 
@@ -300,6 +302,7 @@ public class specmanual extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(scorePose), new Point(prepickup), new Point(intake)))
                 .setConstantHeadingInterpolation(scorePose1.getHeading())
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
+                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
                 .setZeroPowerAccelerationMultiplier(7)
                 .setReversed(true)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
@@ -319,6 +322,7 @@ public class specmanual extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .setZeroPowerAccelerationMultiplier(7)
+                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
                 .setReversed(true)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
                 .build();
@@ -402,11 +406,11 @@ public class specmanual extends PathChainAutoOpMode {
                         motorActions.extendo.waitUntilFinished(),
                         new SleepAction(0.05),
                         motorActions.spitSampleautofast(),
+                        new SleepAction(0.05),
+                        motorActions.inPivot.specimenExtended(),
                         telemetryPacket -> {
                             spitDone2 = true; return false;
-                        },
-                        motorActions.extendo.waitUntilFinished(),
-                        motorActions.inPivot.specimenExtended()
+                        }
                 ))
                 .setMaxWaitTime(2)
                 .setWaitCondition(() -> spitDone2);
@@ -509,6 +513,7 @@ public class specmanual extends PathChainAutoOpMode {
             ))
                     .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.RED, motorActions.extendo.set(0))
                     .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.BLUE, motorActions.spin.poop())
+                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.YELLOW, motorActions.spin.poop())
             ;
             task.angle      = Math.abs(latestVisionAngle);
             task.isLeft     = (latestVisionAngle > 0);
