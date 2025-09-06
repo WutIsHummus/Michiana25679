@@ -16,17 +16,21 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.MotorActions;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
-@TeleOp(name = "Spec Tele", group = "Examples")
+@TeleOp(name = "Spec Tele Blue", group = "Examples")
 public class specimenteleop extends ActionOpMode {
     private Follower follower;
     private final Pose startPose = new Pose(0, 0, 0);
     private MotorControl motorControl;
     private MotorActions motorActions;
     private boolean specSensorTriggered = false;
+    private boolean hangMode = false;
 
+    private boolean gapIntakePressed = false;
 
     private DetectedColor allianceColor = DetectedColor.BLUE;
     private boolean autoOuttake = true;
+    public boolean optionpressed = false;
+    boolean right2BumperPressed = false;
 
     private boolean bangbangmode = false;
 
@@ -34,6 +38,9 @@ public class specimenteleop extends ActionOpMode {
     private boolean startPressed = false;
     private boolean xPressed = false;
     private boolean rightBumperPressed = false;
+
+    private boolean joystickDown = false;
+    private boolean joystickUp = false;
     private boolean leftBumperPressed = false;
     private boolean rightTriggerPressed = false;
     private boolean leftTriggerPressed = false;
@@ -43,6 +50,8 @@ public class specimenteleop extends ActionOpMode {
     private boolean dpadLeftPressed = false;
     private boolean dpadRightPressed = false;
     private boolean headingLock = false;
+
+    private boolean liftReseted = false;
     private boolean ranInit = false;
 
     private PIDController headingController;
@@ -72,17 +81,19 @@ public class specimenteleop extends ActionOpMode {
 
         if (!ranInit){
             run(motorActions.safePositions());
+            run(motorActions.hang.hang());
+            run(motorActions.lift.findZero());
             ranInit = true;
         }
 
 
         // Toggle alliance color
-        if (gamepad1.x && !xPressed) {
+        if (gamepad2.x && !xPressed) {
             allianceColor = (allianceColor == DetectedColor.RED)
                     ? DetectedColor.BLUE
                     : DetectedColor.RED;
             xPressed = true;
-        } else if (!gamepad1.x) {
+        } else if (!gamepad2.x) {
             xPressed = false;
         }
 
@@ -106,6 +117,16 @@ public class specimenteleop extends ActionOpMode {
             rightBumperPressed = false;
         }
 
+
+        if (gamepad2.right_bumper && ! right2BumperPressed) {
+            run(motorActions.specimenspittele(motorControl.extendo.getTargetPosition()));
+            right2BumperPressed = true;
+        } else if (!gamepad2.right_bumper) {
+            right2BumperPressed = false;
+        }
+
+
+
         // LEFT BUMPER: grab & optional auto-outtake
         if (gamepad1.left_bumper && !leftBumperPressed) {
             run(motorActions.spin.eat());
@@ -116,7 +137,7 @@ public class specimenteleop extends ActionOpMode {
                                 motorActions.grabUntilSpecimen(allianceColor)
                         ),
                         motorActions.extendo.waitUntilFinished(),
-                        motorActions.spitSamplettele()
+                        motorActions.spitSamplettele2()
                 ));
             } else {
                 run(new SequentialAction(
@@ -135,7 +156,6 @@ public class specimenteleop extends ActionOpMode {
         // Color detection
         DetectedColor color = motorControl.getDetectedColor();
         boolean correctColor = color == allianceColor
-                || color == DetectedColor.YELLOW
                 || motorControl.lift.getTargetPosition() > 70;
 
         if (correctColor) {
@@ -150,7 +170,7 @@ public class specimenteleop extends ActionOpMode {
             if (gamepad1.left_trigger > 0 && !leftTriggerPressed) {
                 run(new SequentialAction(motorActions.spin.poop(),
                                 motorActions.spin.waitUntilEmpty(motorControl),
-                                motorActions.lift.transfer())
+                                motorActions.lift.transfer(), new SleepAction(0.2))
                         );
 
                 leftTriggerPressed = true;
@@ -179,14 +199,13 @@ public class specimenteleop extends ActionOpMode {
         if (gamepad1.dpad_down && !dpadDownPressed) {
             if (!spinActive) {
                 run(new SequentialAction(
-                        motorActions.specimenExtend(650),
-                        motorActions.spin.poop()
+                        motorActions.specimenExtendtele(650)
                 ));
                 spinActive = true;
             } else {
                 run(new ParallelAction(
                         motorActions.spin.stop(),
-                        motorActions.intakeTransfer()
+                        motorActions.intakeTransfer2()
                 ));
                 spinActive = false;
             }
@@ -197,18 +216,60 @@ public class specimenteleop extends ActionOpMode {
 
         // D-pad up: outtake sample
         if (gamepad1.dpad_up && !dpadUpPressed) {
-            run(motorActions.outtakeSample());
+            if (motorControl.lift.motor.getCurrentPosition() < 50) {
+                run(new SequentialAction(
+                        motorActions.linkage.transfer(),
+                        new SleepAction(0.2),
+                        motorActions.claw.partclosetransfer(),
+                        new SleepAction(0.2),
+                        new ParallelAction(
+                                new SequentialAction(
+                                        new SleepAction(0.3),
+                                        motorActions.spin.slowpoop(),
+                                        motorActions.outArm.middle(),
+                                        motorActions.linkage.transfer()
+                                ),
+                                motorActions.lift.sample(),
+                                motorActions.inArm.specimenExtended(),
+                                motorActions.inPivot.specimenExtended()
+                        ),
+                        motorActions.linkage.transfer(),
+                        motorActions.lift.waitUntilFinished(800),
+                        motorActions.outArm.sampleScore()
+                ));
+            } else {
+                run(motorActions.outtakeTransfer()); // fallback to old behavior if lift isn't low
+            }
             dpadUpPressed = true;
         } else if (!gamepad1.dpad_up) {
             dpadUpPressed = false;
         }
 
 
+        if (gamepad1.share && !gapIntakePressed) {
+            run(new SequentialAction(
+                    motorActions.outArm.sampleScoreAuto(),
+                    new SleepAction(0.2),
+                    motorActions.linkage.transfer(),
+                    new SleepAction(0.2),
+                    motorActions.outArm.specimenIntake()
+            ));
+            gapIntakePressed = true;
+        } else if (!gamepad1.share) {
+            gapIntakePressed = false;
+        }
         if (gamepad1.square && !squarePressed) {
             bangbangmode = !bangbangmode;
             squarePressed = true;
         } else if (!gamepad1.square) {
             squarePressed = false;
+        }
+
+        if (gamepad1.options && !optionpressed) {
+            run(motorActions.intakeTransfer5());
+            optionpressed = true;
+        } else if (!gamepad1.options) {
+            optionpressed = false;
         }
 
         // Specimen controls
@@ -220,25 +281,41 @@ public class specimenteleop extends ActionOpMode {
             run(motorActions.specgone());
         }
 
+
+
         // Hang controls
         if (gamepad1.dpad_left && !dpadLeftPressed) {
             run(motorActions.hang.up());
+            run(motorActions.lift.set(820));
             dpadLeftPressed = true;
         } else if (!gamepad1.dpad_left) {
+            hangMode = true;
             dpadLeftPressed = false;
         }
 
         if (gamepad1.dpad_right && !dpadRightPressed) {
-            run(motorActions.hang.down());
+            run( new SequentialAction(
+                    motorActions.hang.hang(),
+                    motorActions.ptolLatch.lock(),
+                    motorActions.ptorLatch.lock()
+                    //motorActions.outArm.specimenIntake()
+            ));
+
             dpadRightPressed = true;
-        } else if (!gamepad1.dpad_right) {
-            dpadRightPressed = false;
+
+        }
+        else if (dpadRightPressed && gamepad1.right_stick_y > 0){
+            run(new SequentialAction(
+                    motorActions.lift.nothing(true),
+                    new SleepAction(0.5),
+                    motorActions.hang.down()
+            ));
         }
 
         double specDist = motorControl.getSpecSensorDistanceCm();
 
         if (bangbangmode && specDist < 4 && !specSensorTriggered && motorControl.lift.closeEnough(0,15)) {
-            run(motorActions.outtakeSpecimen());
+            run(motorActions.outtakeSpecimen2());
             specSensorTriggered = true;  // mark as triggered
         } else if (specDist >= 3.0) {
             specSensorTriggered = false; // reset when sensor clears
@@ -274,6 +351,34 @@ public class specimenteleop extends ActionOpMode {
             turn = -gamepad1.left_stick_x * rotation;
         }
 
+        if (gamepad2.right_stick_y> 0 && !joystickUp){
+            joystickUp = true;
+            run(motorActions.lift.set(motorControl.lift.getTargetPosition() + 50));
+        }
+        else {
+            joystickUp = false;
+        }
+
+        if (gamepad2.right_stick_y < 0&& !joystickDown){
+            joystickDown = true;
+            run(motorActions.lift.set(motorControl.lift.getTargetPosition() - 50));
+
+        }
+        else {
+            joystickDown = false;
+        }
+
+        if (gamepad2.b && !liftReseted){
+            liftReseted = true;
+            run(motorActions.lift.findZero());
+
+        }
+        else {
+            liftReseted = false;
+        }
+
+
+
         follower.setTeleOpMovementVectors(drive, strafe, turn);
 
 
@@ -285,6 +390,7 @@ public class specimenteleop extends ActionOpMode {
 
         // Telemetry
         telemetry.addData("SpecSensorDist", specDist);
+
         telemetry.addData("SpecSensorTriggered", specSensorTriggered);
         telemetry.addData("X", follower.getPose().getX());
         telemetry.addData("Y", follower.getPose().getY());

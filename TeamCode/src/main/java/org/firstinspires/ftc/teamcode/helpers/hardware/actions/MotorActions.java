@@ -12,6 +12,8 @@ import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums;
 import org.firstinspires.ftc.teamcode.helpers.hardware.MotorControl;
 
+import kotlin.collections.SlidingWindowKt;
+
 /**
  * MotorActions – updated to support ONLY the physical servos that still exist.
  * A dedicated inner class now wraps each servo (or servo‑pair) so every
@@ -119,12 +121,47 @@ public class MotorActions {
                 claw.transfer(),
                 inArm.transfer(),
                 outArm.transfer(),
+                spin.slowpoop(),
+                new SleepAction(0.001),
+                spin.eat(),
                 extendo.retracted(),
-                extendo.waitUntilFinished(0, 30),
+                extendo.waitUntilFinished(0, 40),
                 extendo.findZero(),
                 led.green()
         );
     }
+    public Action intakeTransfer2(){
+        return new SequentialAction(
+                led.yellow(),
+                inPivot.transfer(),
+                claw.transfer(),
+                inArm.transfer(),
+                spin.slowpoop(),
+                new SleepAction(0.001),
+                spin.eat(),
+                extendo.retracted(),
+                extendo.waitUntilFinished(0, 40),
+                extendo.findZero(),
+                led.green()
+        );
+    }
+    public Action intakeTransfertele(){
+        return new SequentialAction(
+                led.yellow(),
+                inPivot.transfer(),
+                claw.transfer(),
+                inArm.transfer(),
+                outArm.transfer(),
+                spin.slowpoop(),
+                new SleepAction(0.001),
+                spin.eat(),
+                extendo.retracted(),
+                extendo.waitUntilFinished(19, 30),
+                led.green()
+        );
+    }
+
+
 
     public Action intakeTransferAuto(){
         return new SequentialAction(
@@ -133,10 +170,47 @@ public class MotorActions {
                 claw.transfer(),
                 inArm.transfer(),
                 outArm.transfer(),
+                spin.slowpoop(),
+                new SleepAction(0.001),
+                spin.eat(),
                 extendo.retracted(),
-                extendo.waitUntilFinished(0, 40),
+                extendo.waitUntilFinished(0, 70),
                 extendo.findZero(),
                 led.green()
+        );
+    }
+    public Action intakeTransfer5(){
+        return new SequentialAction(
+                led.yellow(),
+                inPivot.transfer(),
+                claw.transfer(),
+                inArm.transfer(),
+                inArm.transfer(),
+                outArm.transfer(),
+                spin.eat(),
+                extendo.retracted(),
+                extendo.waitUntilFinished(0, 50),
+                led.green()
+        );
+    }
+
+    public Action transferdepo(){
+        return new SequentialAction(
+                intakeTransfer5(),
+                outtakeSampleAuto2()
+        );
+    }
+    public Action transferdepo2(){
+        return new SequentialAction(
+                inArm.transfer(),
+                inPivot.transfer(),
+                outArm.transfer(),
+                linkage.transfer(),
+                claw.transfer(),
+                lift.transfer(),
+                extendo.set(0),
+                extendo.waitUntilFinished(0,10),
+                outtakeSampleAuto2()
         );
     }
 
@@ -148,6 +222,15 @@ public class MotorActions {
                 spin.eatUntil(allianceColor, mc)
         );
     }
+    public Action grabUntilSpecimensampletele(Enums.DetectedColor allianceColor) {
+        return new SequentialAction(
+                led.blue(),
+                inArm.specimenGrab(),
+                inPivot.specimenGrab(),
+                spin.eatUntilsampletele(allianceColor, mc)
+        );
+    }
+
 
     public Action grabUntilSpecimen() {
         return new SequentialAction(
@@ -215,6 +298,39 @@ public class MotorActions {
                 extendo.waitUntilFinished(),
                 led.green());
     }
+    public Action specimenExtendauto(double Position) {
+        return new SequentialAction(
+                led.yellow(),
+                inArm.specimenExtended(),
+                inPivot.specimenExtended(),
+                extendo.autoSet(Position),
+                extendo.waitUntilFinished(),
+                led.green());
+    }
+    public Action specimenExtendtele(double Position) {
+        return new SequentialAction(
+                led.yellow(),
+                inArm.specimenExtended(),
+                inPivot.specimenExtended(),
+                extendo.set(Position),
+                extendo.waitUntilFinished(Position, 100),
+                spin.poop(),
+                new SleepAction(0.2),
+                extendo.retracted(),
+                led.green());
+    }
+    public Action specimenspittele(double Position) {
+        return new SequentialAction(
+                led.yellow(),
+                inArm.specimenGrab(),
+                inPivot.specimenGrab(),
+                extendo.set(Position),
+                extendo.waitUntilFinished(Position, 100),
+                spin.poop(),
+                new SleepAction(0.2),
+                extendo.retracted(),
+                led.green());
+    }
 
     public Action specgone() {
         return new SequentialAction(
@@ -222,6 +338,7 @@ public class MotorActions {
                 depositSpecimen(),
                 new SleepAction(0.2),
                 intakeSpecimen(),
+                lift.findZero(),
                 led.green()
         );
     }
@@ -252,6 +369,28 @@ public class MotorActions {
                 spin.slowpoop(),
                 lift.waitUntilFinished(),
                 outArm.sampleScore(),
+                extendo.findZero(),
+                led.green()
+
+        );
+    }
+
+
+    public Action outtakeSampleLow() {
+        return new SequentialAction(
+                led.yellow(),
+                spin.eat(),
+                claw.partialClose(),
+                new SleepAction(0.1),
+                lift.set(300),
+                inArm.specimenExtended(),
+                inPivot.specimenExtended(),
+                new SleepAction(0.2),
+                spin.slowpoop(),
+                lift.waitUntilFinished(),
+                linkage.extended(),
+                claw.loose(),
+                outArm.sampleScore(),
                 led.green()
 
         );
@@ -276,7 +415,7 @@ public class MotorActions {
                         inArm.specimenExtended(),
                         inPivot.specimenExtended()
                 ),
-                lift.waitUntilFinished(),
+                lift.waitUntilFinished(height, 100),
                 outArm.sampleScore(),
                 led.green()
 
@@ -357,6 +496,15 @@ public class MotorActions {
         );
     }
 
+    public Action descore1(){
+        return new SequentialAction(
+                outArm.specimenDeposit(),
+                linkage.specimen(),
+                claw.open(),
+                lift.set(300)
+        );
+    }
+
     public Action sweepcycle(){
         return new SequentialAction(
                 sweeper.extended(),
@@ -372,9 +520,9 @@ public class MotorActions {
                 inPivot.specimenGrab(),
                 spin.eat(),
                 extendo.waitUntilFinished(),
-                new SleepAction(0.1),
+                new SleepAction(0.2),
                 led.green(),
-                intakeTransfer(),
+                intakeTransfer5(),
                 extendo.waitUntilFinished(),
                 led.yellow(),
                 outtakeSampleAuto()
@@ -385,15 +533,39 @@ public class MotorActions {
         return new ParallelAction(
                 led.yellow(),
                 claw.close(),
-
+                lift.specimen(),
+                new SleepAction(0.1),
                 inArm.transfer(),
                 inPivot.transfer(),
-                new SleepAction(0.1),
-                lift.specimen(),
+
+
                 new SequentialAction(
                         new SleepAction(0.2),
                         outArm.specimenDeposit(),
+                        new SleepAction(0.2),
                         linkage.extended()
+                ),
+                led.green()
+                //intakeTransfer()
+        );
+    }
+    public Action outtakeSpecimen2(){
+        return new ParallelAction(
+                led.yellow(),
+                spin.poop(),
+                claw.close(),
+                lift.specimen(),
+                new SleepAction(0.1),
+                new SequentialAction(
+                        new SleepAction(0.2),
+                        outArm.specimenDeposit(),
+                        new SleepAction(0.2),
+                        linkage.extended(),
+                        new SleepAction(0.5),
+                        inArm.transfer(),
+                        inPivot.transfer(),
+                        spin.stop()
+
                 ),
                 led.green()
                 //intakeTransfer()
@@ -462,8 +634,10 @@ public class MotorActions {
     public Action spitSamplettele(){
         return new SequentialAction(
                 led.red(),
-                inPivot.sampleSpit(),
+                spin.poop(),
+                new SleepAction(0.03),
                 spin.slow(),
+                inPivot.sampleSpit(),
                 lift.set(100),
                 claw.open(),
                 outArm.specimenIntake(),
@@ -474,6 +648,23 @@ public class MotorActions {
                 extendo.findZero()
         );
     }
+    public Action spitSamplettele2(){
+        return new SequentialAction(
+                led.red(),
+                spin.poop(),
+                new SleepAction(0.03),
+                spin.slow(),
+                inPivot.sampleSpit(),
+                claw.open(),
+                outArm.specimenIntake(),
+                linkage.retracted(),
+                extendo.set(0),
+                extendo.waitUntilFinished(0,40),
+                inArm.sampleSpit(),
+                extendo.findZero()
+        );
+    }
+
     public Action resetToZero() {
         return new SequentialAction(
                 lift.waitUntilFinished(0, 200),
@@ -512,6 +703,12 @@ public class MotorActions {
                 mc.extendo.setTargetPosition(pos);
                 return false;
             }; }
+        public Action autoSet(double pos) {
+            return t -> {
+                mc.extendo.auto.setTargetPosition(pos);
+                return false;
+            };
+        }
 
         public Action retracted() {
             return new Action() {
@@ -573,6 +770,8 @@ public class MotorActions {
         public Action vision()      { return set(410); }
         public Action sample()      { return set(800); }
 
+        public Action nothing(boolean b) { return t -> { mc.lift.setNothing(b); return false; }; }
+
         public Action findZero() {
             return new SequentialAction(t -> {mc.lift.findZero();return false;},
                     new ActionHelpers.WaitUntilAction(() -> !mc.lift.isResetting()));
@@ -598,6 +797,7 @@ public class MotorActions {
     // --------------------------- Hang -----------------------------------
     public class Hang {
         public Action up()   { return t -> { mc.hangr.setPosition(0); mc.hangl.setPosition(0); return false; }; }
+        public Action hang() { return t -> { mc.hangr.setPosition( 0.5); mc.hangl.setPosition( 0.5); return false; }; }
         public Action down() { return t -> { mc.hangr.setPosition( 1); mc.hangl.setPosition( 1); return false; }; }
     }
 
@@ -609,7 +809,7 @@ public class MotorActions {
         private static final double RETRACTED = 0.49;
         private static final double SPECIMEN = 0.49;
         private static final double EXTENDED  = 0.98;
-        private static final double TRANSFER  = 0.71;
+        private static final double TRANSFER  = 0.72;
         private Action set(double p) { return t -> { mc.outtakeLinkage.setPosition(p); return false; }; }
         public Action retracted() { return set(RETRACTED); }
         public Action extended()  { return set(EXTENDED);  }
@@ -619,15 +819,19 @@ public class MotorActions {
 
     // ------------------------ Outtake Claw ------------------------------
     public class OuttakeClaw {
-        private static final double OPEN   = 0.32;
-        private static final double TRANS  = 0.27;
-        private static final double PART   = 0.14;
-        private static final double CLOSED = 0.08;
+        private static final double OPEN   = 0.35;
+        private static final double TRANS  = 0.3;
+        private static final double PART   = 0.17;
+        private static final double PARTclosetransfer   = 0.15;
+        private static final double lessthanpartialclose = 0.17;
+        private static final double CLOSED = 0.1;
         private Action set(double p){ return t -> { mc.outtakeClaw.setPosition(p); return false; }; }
         public Action open()          { return set(OPEN);   }
         public Action transfer()      { return set(TRANS);  }
         public Action partialClose()  { return set(PART);   }
         public Action close()         { return set(CLOSED); }
+        public Action partclosetransfer()         { return set(PARTclosetransfer); }
+        public Action loose()   { return set(lessthanpartialclose) ;}
     }
 
     // ----------------------- Outtake Arm (R+L) --------------------------
@@ -742,20 +946,78 @@ public class MotorActions {
                 // Read the sensor
                 Enums.DetectedColor color = motorControl.getDetectedColor();
 
-                // If yellow is detected, task is finished
-                if (color == Enums.DetectedColor.YELLOW ) {
-                    motorControl.spin.setPower(1); // Stop motor
-                    return false; // Action complete
-                }
 
                 boolean correctColorSeen = false;
                 if (allianceColor == Enums.DetectedColor.RED) {
                     // Accept RED or YELLOW
-                    correctColorSeen = (color == Enums.DetectedColor.RED || color == Enums.DetectedColor.YELLOW);
+                    correctColorSeen = (color == Enums.DetectedColor.RED );
                 } else if (allianceColor == Enums.DetectedColor.BLUE) {
                     // Accept BLUE or YELLOW
+                    correctColorSeen = (color == Enums.DetectedColor.BLUE );
+                }
+
+                switch (currentState[0]) {
+                    case SEARCHING:
+                        if (correctColorSeen) {
+                            motorControl.spin.setPower(1);
+                            return false; // Action complete
+                        }
+                        // If an unexpected (rejectable) color is seen, transition to REJECTING
+                        if (color != Enums.DetectedColor.BLACK
+                                && color != Enums.DetectedColor.UNKNOWN
+                                && !correctColorSeen) {
+                            currentState[0] = Enums.IntakeState.REJECTING;
+                            // Record the time when rejecting starts
+                            rejectingStartTime[0] = System.currentTimeMillis();
+                            motorControl.spin.setPower(-1); // Spin backward
+                        }
+                        return true; // Continue searching
+
+                    case REJECTING:
+                        long now = System.currentTimeMillis();
+                        // Only check for resuming forward spinning after the delay
+                        if (now - rejectingStartTime[0] >= REJECT_DELAY_MS) {
+                            if (color == Enums.DetectedColor.BLACK || color == Enums.DetectedColor.UNKNOWN) {
+                                // Done rejecting; resume forward spinning
+                                motorControl.spin.setPower(1);
+                                currentState[0] = Enums.IntakeState.SEARCHING;
+                                // Reset the timer (optional cleanup)
+                                rejectingStartTime[0] = 0;
+                            }
+                        }
+                        return true; // Continue in the REJECTING state until conditions are met
+                }
+
+                // Default (should not be reached)
+                return false;
+            };
+
+        }
+        public Action eatUntilsampletele(Enums.DetectedColor allianceColor, MotorControl motorControl) {
+            final Enums.IntakeState[] currentState = {Enums.IntakeState.SEARCHING};
+            final boolean[] started = {false};
+            // Add a variable to store when the rejecting state was entered
+            final long[] rejectingStartTime = {0};
+            // Define the delay in milliseconds (adjust as needed)
+            final long REJECT_DELAY_MS = 400;
+
+            return telemetryPacket -> {
+                if (!started[0]) {
+                    started[0] = true;
+                    motorControl.spin.setPower(1); // Start spinning forward
+                }
+
+                // Read the sensor
+                Enums.DetectedColor color = motorControl.getDetectedColor();
+
+
+                boolean correctColorSeen = false;
+                if (allianceColor == Enums.DetectedColor.RED) {
+                    correctColorSeen = (color == Enums.DetectedColor.RED || color == Enums.DetectedColor.YELLOW);
+                } else if (allianceColor == Enums.DetectedColor.BLUE) {
                     correctColorSeen = (color == Enums.DetectedColor.BLUE || color == Enums.DetectedColor.YELLOW);
                 }
+
 
                 switch (currentState[0]) {
                     case SEARCHING:

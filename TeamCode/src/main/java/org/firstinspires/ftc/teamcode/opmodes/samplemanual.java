@@ -6,7 +6,6 @@ import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.pedropathing.pathgen.BezierCurve;
-import com.pedropathing.pathgen.BezierLine;
 import com.pedropathing.pathgen.BezierPoint;
 import com.pedropathing.pathgen.PathChain;
 import com.pedropathing.pathgen.Point;
@@ -23,7 +22,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-@Autonomous(name = "Samplemanual Red")
+@Autonomous(name = "Samplemanual red")
 public class samplemanual extends PathChainAutoOpMode {
 
     // -------- Hardware & Helper Fields --------
@@ -110,13 +109,18 @@ public class samplemanual extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(startPose.getHeading(), scorePose.getHeading())
                 .addParametricCallback(0,   () -> run(motorActions.safeServos()))
                 .addParametricCallback(0, () -> run(motorActions.outtakeSampleAuto()))
-                .setZeroPowerAccelerationMultiplier(2)
+                .setZeroPowerAccelerationMultiplier(1)
                 .build();
+
+
+
+
+
 
         thirdgrabpath = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(scorePose), new Point(thirdgrab)))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), thirdgrab.getHeading())
-                .addParametricCallback(0.9, () -> run(motorActions.extendo.set(100)))
+                .addParametricCallback(0, () -> run(motorActions.extendo.set(300)))
                 .build();
 
         // buildPathChains(): split your park chain in two
@@ -130,6 +134,7 @@ public class samplemanual extends PathChainAutoOpMode {
                 .addParametricCallback(0.5, () -> run(new ParallelAction(
                         motorActions.inArm.sampleExtended(),
                         motorActions.inPivot.sampleExtended()
+                        //motorActions.extendo.set(100)
                 )))
                 .build();
 
@@ -160,9 +165,9 @@ public class samplemanual extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(scorePose.getHeading(),parkPose.getHeading())
                 .addParametricCallback(0.2, () -> run(motorActions.outtakeTransfer()))
                 .addParametricCallback(0, () -> run(motorActions.extendo.retracted()))
-                .addParametricCallback(0, () -> run(new SequentialAction(
-                        motorActions.intakeTransfer(),
-                        motorActions.outtakeSampleAuto2()
+                .addParametricCallback(0.5, () -> run(new ParallelAction(
+                        motorActions.inArm.sampleExtended(),
+                        motorActions.inPivot.sampleExtended()
                 )))
                 .build();
 
@@ -172,15 +177,10 @@ public class samplemanual extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(parkPose), new Point(parkControlPose), new Point(subscorepose)))
                 .setTangentHeadingInterpolation()
                 .setReversed(true)
-                .addParametricCallback(0, () -> run(new SequentialAction(
-                        motorActions.intakeTransferAuto(),
-                        new ParallelAction(
-                                motorActions.outtakeSampleAuto2(),
-                                new SequentialAction(
-                                        new SleepAction(0.4),
-                                        motorActions.extendo.set(150)
-                                )
-                        )
+                .addParametricCallback(0.5, () -> run(new SequentialAction(
+                        motorActions.extendo.set(150)
+
+
                 )))
                 .addParametricCallback(1, () -> run(motorActions.claw.open()))
                 .build();
@@ -190,14 +190,8 @@ public class samplemanual extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setReversed(true)
                 .addParametricCallback(0, () -> run(new SequentialAction(
-                        motorActions.intakeTransferAuto(),
-                        new ParallelAction(
-                                motorActions.outtakeSampleAuto2(),
-                                new SequentialAction(
-                                        new SleepAction(0.4),
-                                        motorActions.extendo.set(150)
-                                )
-                        )
+                        motorActions.extendo.set(150)
+
                 )))
                 .addParametricCallback(1, () -> run(motorActions.claw.open()))
                 .build();
@@ -207,18 +201,10 @@ public class samplemanual extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setReversed(true)
                 .addParametricCallback(0, () -> run(new SequentialAction(
-                        motorActions.intakeTransferAuto(),
-                        new ParallelAction(
-                                motorActions.outtakeSampleAuto2(),
-                                new SequentialAction(
-                                        new SleepAction(0.4),
-                                        motorActions.extendo.set(150)
-                                )
-                        )
+                        motorActions.extendo.set(150)
                 )))
                 .addParametricCallback(1, () -> run(motorActions.claw.open()))
                 .build();
-
 
 
     }
@@ -231,6 +217,7 @@ public class samplemanual extends PathChainAutoOpMode {
                 .addWaitAction(0, motorActions.extendo.set(300))
                 .addWaitAction(0, new SequentialAction(
                         motorActions.hang.down(),
+                        new SleepAction(0.5),
                         motorActions.cycle(),
                         telemetryPacket -> {
                             firstcycle = true; return false;
@@ -254,7 +241,8 @@ public class samplemanual extends PathChainAutoOpMode {
                         telemetryPacket -> {
                             eatdone1 = true; return false;
                         },
-                        motorActions.intakeTransfer(),
+                        new SleepAction(0.2),
+                        motorActions.intakeTransfer5(),
                         motorActions.extendo.waitUntilFinished()
                 ))
                 .setMaxWaitTime(2)
@@ -285,7 +273,7 @@ public class samplemanual extends PathChainAutoOpMode {
                         telemetryPacket -> {
                             eatdone2 = true; return false;
                         },
-                        motorActions.intakeTransfer(),
+                        motorActions.intakeTransfer5(),
                         motorActions.extendo.waitUntilFinished()
                 ))
                 .setMaxWaitTime(1)
@@ -308,8 +296,8 @@ public class samplemanual extends PathChainAutoOpMode {
 
 
         visionTurn1 = addRelativeTurnDegrees(0, true, 0)
-                .setWaitCondition(()->!motorControl.isEmpty())
-                .setMaxWaitTime(2);
+                .setWaitCondition(()-> motorControl.lift.closeEnough(800))
+                .setMaxWaitTime(4);
 
         addPath(subscore1, 0)
                 .addWaitAction(0, motorActions.outArm.sampleScoreAuto())
@@ -328,8 +316,8 @@ public class samplemanual extends PathChainAutoOpMode {
 
 
         visionTurn2 = addRelativeTurnDegrees(0, true, 0)
-                .setWaitCondition(()->!motorControl.isEmpty())
-                .setMaxWaitTime(2);
+                .setWaitCondition(()-> motorControl.lift.closeEnough(800))
+                .setMaxWaitTime(4);
 
         addPath(subscore2, 0)
                 .addWaitAction(0, motorActions.outArm.sampleScoreAuto())
@@ -347,8 +335,8 @@ public class samplemanual extends PathChainAutoOpMode {
         addPath(parkChain3, 0);
 
         visionTurn3 = addRelativeTurnDegrees(0, true, 0)
-                .setWaitCondition(()->!motorControl.isEmpty())
-                .setMaxWaitTime(2);
+                .setWaitCondition(()-> motorControl.lift.closeEnough(800))
+                .setMaxWaitTime(4);
 
         addPath(subscore3, 0)
                 .addWaitAction(0, motorActions.outArm.sampleScoreAuto())
@@ -508,18 +496,19 @@ public class samplemanual extends PathChainAutoOpMode {
             if (lastDistance != 0) {
                 task.addWaitAction(0, motorActions.outtakeTransfer())
                         .addWaitAction(0, new SequentialAction(
-                                motorActions.specimenExtend(Math.min(lastDistance * 32.25, 800)),
-                                motorActions.extendo.waitUntilFinished(Math.min(lastDistance * 32.25, 800), 300),
+                                motorActions.specimenExtendauto(Math.min((lastDistance + 5) * 32.25, 800)),
+                                motorActions.extendo.waitUntilFinished(Math.min((lastDistance + 5)* 32.25, 800), 50),
                                 motorActions.spin.eat(),
-                                motorActions.inArm.sampleGrab(),
-                                motorActions.inPivot.sampleGrab(),
-                                motorActions.spin.eatUntilStrictSpecimen(Enums.DetectedColor.YELLOW,Enums.DetectedColor.RED, motorControl),
+                                motorActions.inArm.specimenGrab(),
+                                motorActions.inPivot.specimenGrab(),
+                                new SleepAction(0.05),
+                                motorActions.extendo.set(Math.min(lastDistance * 32.25 + 250, 800)),
                                 telemetryPacket -> {
-                                    lastDistance=0;
+                                    lastDistance = 0;
                                     return false;
                                 }
                         ))
-                        .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.YELLOW, motorActions.extendo.set(0));
+                        .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.YELLOW || motorControl.getDetectedColor() == Enums.DetectedColor.RED, motorActions.transferdepo2());
             }
 
             // Now set the turn angle/side based on the stored vision angle:

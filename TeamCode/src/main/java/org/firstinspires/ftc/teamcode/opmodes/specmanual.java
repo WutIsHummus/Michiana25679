@@ -15,13 +15,11 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import org.firstinspires.ftc.teamcode.helpers.data.AngleUtils;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums;
 import org.firstinspires.ftc.teamcode.helpers.hardware.MotorControl;
-import org.firstinspires.ftc.teamcode.helpers.hardware.actions.ActionHelpers;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.MotorActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
-import java.util.Timer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Autonomous(name = "Specmanual red")
@@ -36,17 +34,22 @@ public class specmanual extends PathChainAutoOpMode {
     // -------- Poses --------
     private final Pose startPose    = new Pose(9,  67,   Math.toRadians(0));
     private final Pose preloadPose  = new Pose(41, 72.5, Math.toRadians(0));
-    private final Pose preloadCopy  = new Pose(27, 72.5, Math.toRadians(0));
+    private final Pose preloadCopy  = new Pose(25, 72.5, Math.toRadians(0));
     private final Pose scorePose    = new Pose(41, 64,   Math.toRadians(0));
     private final Pose scorePose1   = new Pose(41, 67,   Math.toRadians(0));
     private final Pose scorePose2   = new Pose(41, 66,   Math.toRadians(0));
     private final Pose scorePose3   = new Pose(41, 65,   Math.toRadians(0));
     private final Pose scorePose4   = new Pose(41, 64,   Math.toRadians(0));
-    private final Pose prescore     = new Pose(28, 64,   Math.toRadians(25));
+    private final Pose prescore     = new Pose(26, 64,   Math.toRadians(25));
+    private final Pose prescore1     = new Pose(24, 64,   Math.toRadians(25));
     private final Pose thirdgrab    = new Pose(23, 22,   Math.toRadians(325));
-    private final Pose pickup1Pose  = new Pose(20, 25,   Math.toRadians(0));
-    private final Pose prepickup    = new Pose(22, 40,   Math.toRadians(25));
+    private final Pose pickup1Pose  = new Pose(20, 25,   Math.toRadians(-2));
+    private final Pose prepickup    = new Pose(20, 40,   Math.toRadians(25));
+
+    private final Pose intake1Pose       = new Pose(10, 30,   Math.toRadians(25));
     private final Pose intake       = new Pose(11, 40,   Math.toRadians(0));
+
+    private final Pose intakeSpec       = new Pose(9, 40,   Math.toRadians(0));
     private final Pose intakeDown       = new Pose(11, 24,   Math.toRadians(0));
     private final Pose parkPose     = new Pose(11, 22,   Math.toRadians(90));
 
@@ -85,6 +88,8 @@ public class specmanual extends PathChainAutoOpMode {
     // how much each D-pad ◀/▶ press moves you
     private static final double HORIZ_STEP = 1.0;
 
+    private boolean vision1Good = false;
+
     private TurnTask visionTurn1, visionTurn2;
     private double latestVisionAngle = 0, lastDistance = 0;
 
@@ -94,7 +99,11 @@ public class specmanual extends PathChainAutoOpMode {
     private PathChain scorePreload, parkChain;
     private PathChain intake1, intake2, intake3, intake4, intake5;
     private PathChain score1, score2, score3, score4, score5;
-    private PathChain vision1deposit, vision2intake, vision2deposit, firsgrabdrive, secgrabdrive, thirdgrabdrive;
+
+
+
+    private PathChain gotopush, push1, push2, push3;
+    private PathChain vision1deposit, vision2intake, vision2deposit, thirdgrabdrive;
 
     @Override
     public void init() {
@@ -200,62 +209,75 @@ public class specmanual extends PathChainAutoOpMode {
 
         // 2) “Vision” deposit → intake
         vision1deposit = follower.pathBuilder()
-                .addPath(new BezierCurve(new Point(preloadPose), new Point(prepickup), new Point(intake)))
+                .addPath(new BezierLine(new Point(preloadPose),  new Point(intake1Pose)))
                 .addParametricCallback(0, ()->run(motorActions.extendo.set(0)))
-                .addParametricCallback(0, () -> run(new SequentialAction(
+                .addParametricCallback(0.1, () -> run(new SequentialAction(
                         motorActions.spitSamplettele(),
                         motorActions.spin.waitUntilEmpty(motorControl),
                         motorActions.lift.transfer())))
                 .addParametricCallback(0.7, () -> run(motorActions.spin.poop()))
                 .addParametricCallback(0.8,()-> run(motorActions.lift.transfer()))
                 .addParametricCallback(1,()-> run(motorActions.claw.close()))
-                .setConstantHeadingInterpolation(intake.getHeading())
+                .setConstantHeadingInterpolation(intake1Pose.getHeading())
                 .build();
 
-        // 3) “Vision” intake → preload
-        vision2intake = follower.pathBuilder()
-                .addPath(new BezierCurve(new Point(intake), new Point(preloadCopy), new Point(preloadPose)))
-                .addParametricCallback(0,     () -> run(new SequentialAction(motorActions.spin.stop(), motorActions.sampleExtend(0))))
-                .setTangentHeadingInterpolation()
-                .setZeroPowerAccelerationMultiplier(7)
+
+        gotopush = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Point(intake1Pose),
+                        new Point(28, 60),
+                        new Point(6, 42),
+                        new Point(30, 40)))
+                .setConstantHeadingInterpolation(0)
+                .addParametricCallback(0, () -> run(motorActions.intakeSpecimen()))
                 .build();
 
-        // 4) “Vision” deposit at pickup1
-        vision2deposit = follower.pathBuilder()
-                .addPath(new BezierCurve(new Point(scorePose), new Point(preloadCopy), new Point(pickup1Pose)))
-                .addParametricCallback(0, ()->run(motorActions.extendo.set(0)))
-                .addParametricCallback(0,    () -> run(motorActions.spin.stop()))
-                .addParametricCallback(0,    () -> run(motorActions.spitSamplettele()))
-                .addParametricCallback(0.7, () -> run(motorActions.spin.poop()))
-                .addParametricCallback(1,    () -> run(motorActions.extendo.extended()))
-                .setZeroPowerAccelerationMultiplier(3)
-                .setConstantHeadingInterpolation(Math.toRadians(pickup1Pose.getHeading()))
+        push1 = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Point(30, 40),
+                        new Point(45, 39),
+                        new Point(90, 18),
+                        new Point(13, 23)))
+                .setConstantHeadingInterpolation(0)
                 .build();
 
-        // 5) Third grab drive
-        thirdgrabdrive = follower.pathBuilder()
-                .addPath(new BezierLine(new Point(pickup1Pose), new Point(thirdgrab)))
-                .addParametricCallback(0,()->run(motorActions.extendo.set(600)))
-                .addParametricCallback(0, () -> run(new ParallelAction(
-                        motorActions.grabUntilSpecimen())))
-                .setConstantHeadingInterpolation(thirdgrab.getHeading())
+        push2 = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Point(13, 23),
+                        new Point(75, 30),
+                        new Point(66, 5),
+                        new Point(13, 14)))
+                .setConstantHeadingInterpolation(0)
                 .build();
+
+        push3 = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Point(13, 14),
+                        new Point(75, 20),
+                        new Point(70, 4),
+                        new Point(12, 8)))
+                .setConstantHeadingInterpolation(0)
+                .build();
+
+
 
         // 6) Intake1
         intake1 = follower.pathBuilder()
-                .addPath(new BezierCurve(new Point(thirdgrab), new Point(intakeDown)))
+                .addPath(new BezierCurve( new Point(12, 8), new Point(30, 14), new Point(intakeSpec)))
                 .setConstantHeadingInterpolation(intake.getHeading())
-                .addParametricCallback(0.9, () -> motorControl.spin.setPower(-1))
                 .addParametricCallback(0,   () -> run(motorActions.spitSample()))
                 .addParametricCallback(0,   () -> run(motorActions.intakeSpecimen()))
-                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
+                .addParametricCallback(1,   () -> run(motorActions.claw.close()))
                 .build();
 
         // 7) Score1
         score1 = follower.pathBuilder()
-                .addPath(new BezierCurve(new Point(intake), new Point(prescore), new Point(scorePose1)))
+                .addPath(new BezierCurve(new Point(intake), new Point(prescore1), new Point(scorePose1)))
                 .setTangentHeadingInterpolation()
                 .setZeroPowerAccelerationMultiplier(7)
+                .addParametricCallback(0, () -> run(motorActions.spin.poop()))
+                .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0, () -> motorControl.spin.setPower(0))
                 .build();
 
@@ -264,9 +286,9 @@ public class specmanual extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(scorePose), new Point(prepickup), new Point(intake)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setReversed(true)
                 .setZeroPowerAccelerationMultiplier(7)
-                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
                 .build();
 
@@ -283,9 +305,9 @@ public class specmanual extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(scorePose), new Point(prepickup), new Point(intake)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setReversed(true)
                 .setZeroPowerAccelerationMultiplier(7)
-                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
                 .build();
 
@@ -302,7 +324,7 @@ public class specmanual extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(new Point(scorePose), new Point(prepickup), new Point(intake)))
                 .setConstantHeadingInterpolation(scorePose1.getHeading())
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
-                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setZeroPowerAccelerationMultiplier(7)
                 .setReversed(true)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
@@ -322,7 +344,7 @@ public class specmanual extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.2, () -> motorControl.spin.setPower(0))
                 .setZeroPowerAccelerationMultiplier(7)
-                .addParametricCallback(1, () -> run(motorActions.outtakeSpecimen()))
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setReversed(true)
                 .addParametricCallback(0,   () -> run(motorActions.specgone()))
                 .build();
@@ -339,6 +361,7 @@ public class specmanual extends PathChainAutoOpMode {
         parkChain = follower.pathBuilder()
                 .addPath(new BezierCurve(new Point(scorePose4), new Point(parkPose)))
                 .setLinearHeadingInterpolation(scorePose.getHeading(), parkPose.getHeading())
+                .addParametricCallback(0.5, () -> run(motorActions.lift.findZero()))
                 .setZeroPowerAccelerationMultiplier(6)
                 .build();
     }
@@ -356,76 +379,19 @@ public class specmanual extends PathChainAutoOpMode {
                 ));
 
         // 2) First manual turn
-        visionTurn1 = addRelativeTurnDegrees(0, true, 0)
-                .setWaitCondition(()->!motorControl.isEmpty())
-                .setMaxWaitTime(2);
+        visionTurn1 = addRelativeTurnDegrees(0, true, 2);
+
+        visionTurn2 = addTurnTo(0, 0)
+                .setMaxWaitTime(2)
+                .setWaitCondition(()->vision1Good);
 
         // 3) First vision deposit
-        addPath(vision1deposit, 0.1)
-                .addWaitAction(0,   motorActions.outtakespecvision());
+        addPath(vision1deposit, 0.1);
 
-        // 4) Intake after deposit
-        addPath(vision2intake, 0)
-                .addWaitAction(0, new ParallelAction(
-                        motorActions.claw.open(),
-                        motorActions.outArm.pretransfer(),
-                        motorActions.linkage.retracted()
-                ));
+        addPath(push1, 0);
+        addPath(push2, 0);
+        addPath(push3, 0);
 
-        // 5) Second manual turn
-        visionTurn2 = addTurnToDegrees(0, 0)
-                .setWaitCondition(()->!motorControl.isEmpty())
-                .setMaxWaitTime(2);
-
-        // 6) Second vision deposit
-        addPath(vision2deposit, 0)
-                .addWaitAction(0, new SequentialAction(
-                        motorActions.inArm.specimenGrab(),
-                        motorActions.inPivot.specimenGrab(),
-                        new SleepAction(0.05),
-                        motorActions.extendo.set(640),
-                        motorActions.spin.eat(),
-                        motorActions.extendo.waitUntilFinished(640),
-                        motorActions.spitSampleautofast(),
-                        telemetryPacket -> {
-                            spitDone1 = true; return false;
-                        }
-                ))
-                .setMaxWaitTime(1.5)
-                .setWaitCondition(() -> spitDone1);
-
-        // 7) Additional scoring
-        addTurnToDegrees(-21, 0)
-                .addWaitAction(0, new SequentialAction(
-                        motorActions.spin.waitUntilEmpty(motorControl),
-                        motorActions.inArm.specimenGrab(),
-                        motorActions.inPivot.specimenGrab(),
-                        new SleepAction(0.05),
-                        motorActions.extendo.set(640),
-                        motorActions.spin.eat(),
-                        motorActions.extendo.waitUntilFinished(),
-                        new SleepAction(0.05),
-                        motorActions.spitSampleautofast(),
-                        new SleepAction(0.05),
-                        motorActions.inPivot.specimenExtended(),
-                        telemetryPacket -> {
-                            spitDone2 = true; return false;
-                        }
-                ))
-                .setMaxWaitTime(2)
-                .setWaitCondition(() -> spitDone2);
-
-        // 8) Third grab & spit
-        tasks.add(new PathChainTask(thirdgrabdrive, 0)
-                .addWaitAction(0, new SequentialAction(
-                        motorActions.extendo.set(600),
-                        motorActions.grabUntilSpecimen(),
-                        telemetryPacket -> { thirdgrabbed = true; return false; },
-                        motorActions.spitSample()
-                ))
-                .setMaxWaitTime(1)
-                .setWaitCondition(() -> thirdgrabbed)
-        );
 
         // 9) Intake1 follow-up
         tasks.add(new PathChainTask(intake1, 0)
@@ -498,22 +464,24 @@ public class specmanual extends PathChainAutoOpMode {
             lastDistance      = manualDistance2;
         }
 
-        if ((task == visionTurn1 || task == visionTurn2) && lastDistance > 0) {
-            task.addWaitAction(0, new ParallelAction(
-                    new SequentialAction(
-                            motorActions.sampleExtend(Math.min(lastDistance * 32.25, 800)),
-                            motorActions.extendo.waitUntilFinished(Math.min(lastDistance * 32.25, 800), 300),
+        if ((task == visionTurn1 || task == visionTurn2) && lastDistance > 0 && !vision1Good) {
+            task.addWaitAction(0, new SequentialAction(
+                            motorActions.extendo.waitUntilFinished(),
+                            motorActions.specimenExtendauto(Math.min((lastDistance -1) * 32.25, 800)),
+                            motorActions.extendo.waitUntilFinished(Math.min((lastDistance -1)* 32.25, 800), 50),
                             motorActions.spin.eat(),
-                            motorActions.spin.eatUntilStrict(Enums.DetectedColor.RED, motorControl),
+                            motorActions.inArm.specimenGrab(),
+                            motorActions.inPivot.specimenGrab(),
+                            new SleepAction(0.2),
+                            motorActions.extendo.set(Math.min(lastDistance * 32.25 + 100, 800)),
                             telemetryPacket -> {
                                 lastDistance = 0;
                                 return false;
-                            },
-                            motorActions.spitSamplettele())
-            ))
-                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.RED, motorActions.extendo.set(0))
-                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.BLUE, motorActions.spin.poop())
-                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.YELLOW, motorActions.spin.poop())
+                            }
+                    ))
+                    .addWaitAction(()->vision1Good, motorActions.specimenExtend(0))
+                    .addWaitAction(()->motorControl.getDetectedColor() == Enums.DetectedColor.RED, telemetryPacket -> {vision1Good = true; return false;} )
+                    .addWaitAction(()-> motorControl.getDetectedColor() == Enums.DetectedColor.BLUE || motorControl.getDetectedColor() == Enums.DetectedColor.YELLOW, motorActions.spin.poop())
             ;
             task.angle      = Math.abs(latestVisionAngle);
             task.isLeft     = (latestVisionAngle > 0);

@@ -1,7 +1,5 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
-import android.graphics.Color;
-
 import com.acmerobotics.roadrunner.ParallelAction;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
@@ -9,7 +7,6 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.localization.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.helpers.data.Enums.DetectedColor;
 import org.firstinspires.ftc.teamcode.helpers.hardware.MotorControl;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.ActionOpMode;
@@ -17,8 +14,8 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.MotorActions;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
-@TeleOp(name = "Advanced Teleop V2 Blue", group = "Examples")
-public class TeleopBlue extends ActionOpMode {
+@TeleOp(name = "descore test teleop", group = "Examples")
+public class descoretest extends ActionOpMode {
     private Follower follower;
     private final Pose startPose = new Pose(0, 0, 0);
     private MotorControl motorControl;
@@ -44,6 +41,9 @@ public class TeleopBlue extends ActionOpMode {
     private boolean lowbasket = false;
 
     private boolean dpad2Pressed = false;
+
+    private boolean touchpadPressed = false;
+    private int touchpadPressCount = 0;
 
     private boolean ranInit = false;
 
@@ -81,6 +81,34 @@ public class TeleopBlue extends ActionOpMode {
         } else if (!gamepad1.start) {
             startPressed = false;
         }
+        // TOUCHPAD multi-action sequencer with rising edge
+        if (gamepad1.touchpad && !touchpadPressed) {
+            touchpadPressed = true;
+
+            switch (touchpadPressCount % 4) {
+                case 0:
+                    run(motorActions.descore1());
+                    break;
+                case 1:
+                    run(new SequentialAction(
+                            motorActions.claw.loose(),
+                            motorActions.lift.specimen()
+                    ));
+                    break;
+                case 2:
+                    run(motorActions.outArm.pretransfer());
+                    run(motorActions.claw.close());
+                    break;
+                case 3:
+                    run(motorActions.outArm.transfer());
+                    break;
+            }
+
+            touchpadPressCount++;
+        } else if (!gamepad1.touchpad) {
+            touchpadPressed = false;
+        }
+
 
         // Toggle alliance color
         if (gamepad2.x && !xPressed) {
@@ -222,7 +250,6 @@ public class TeleopBlue extends ActionOpMode {
         } else if (!gamepad1.share) {
             dpad2Pressed = false;
         }
-
 
         if (gamepad1.options && !optionspressed) {
             run(motorActions.intakeTransfer5());
