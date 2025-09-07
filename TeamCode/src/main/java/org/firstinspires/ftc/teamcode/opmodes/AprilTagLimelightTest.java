@@ -1,7 +1,4 @@
 package org.firstinspires.ftc.teamcode.opmodes;
-
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.LLStatus;
@@ -10,8 +7,6 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-import org.firstinspires.ftc.robotcore.external.stream.CameraStreamSource;
-import org.firstinspires.ftc.teamcode.util.LimelightDashboardStream;
 
 import java.util.List;
 
@@ -19,19 +14,11 @@ import java.util.List;
 public class AprilTagLimelightTest extends LinearOpMode {
 
     private Limelight3A limelight;
-    private FtcDashboard dashboard;
 
     @Override
     public void runOpMode() throws InterruptedException {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(8); // Switch to pipeline number 0
-
-        // Dashboard setup and stream
-        dashboard = FtcDashboard.getInstance();
-        telemetry = new MultipleTelemetry(telemetry, dashboard.getTelemetry());
-        // Replace with your Limelight IP or hostname
-        String limelightHost = "limelight.local"; // or e.g. "192.168.1.11"
-        dashboard.startCameraStream((CameraStreamSource) new LimelightDashboardStream(limelightHost), 24);
 
         telemetry.setMsTransmissionInterval(11);
         limelight.start();
