@@ -18,7 +18,7 @@ public class AprilTagLimelightTest extends LinearOpMode {
     @Override
     public void runOpMode() throws InterruptedException {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(8); // Switch to pipeline number 0
+        limelight.pipelineSwitch(0); // Use your AprilTag pipeline index
 
         telemetry.setMsTransmissionInterval(11);
         limelight.start();
