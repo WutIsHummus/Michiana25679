@@ -185,13 +185,19 @@ public class MotorControl {
     }
 
     public static class Extendo extends ControlledDevice {
-        private static final double p = 0.005, i = 0, d = 0.0001;
+        private PIDController controller = new PIDController(0.008, 0, 0.0001);
+        private double p = 0.008, i = 0, d = 0.0001;
+
+        public void setPID(double p, double i, double d) {
+            this.p = p; this.i = i; this.d = d;
+            controller.setPID(p, i, d);
+        }
 
         public Extendo(HardwareMap hardwareMap) {
-            extendoController = new PIDController(p, i, d);
-            motor =  hardwareMap.get(DcMotorEx.class, "extendo");
+            motor = hardwareMap.get(DcMotorEx.class, "extendo");
             motor.setDirection(DcMotorSimple.Direction.REVERSE);
             motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            controller.setPID(p, i, d);
         }
 
         public void reset() {
@@ -210,13 +216,11 @@ public class MotorControl {
 
         public void update() {
             if (resetting) {
-                if (Math.abs(motor.getVelocity())  < 5) {
+                if (Math.abs(motor.getVelocity()) < 5) {
                     reset();
-                    resetting = false;
                 }
             } else {
-                extendoController.setPID(p, i, d);
-                double pid = extendoController.calculate(motor.getCurrentPosition(), targetPosition);
+                double pid = controller.calculate(motor.getCurrentPosition(), targetPosition);
                 motor.setPower(pid);
             }
         }
@@ -229,16 +233,52 @@ public class MotorControl {
             return Math.abs(motor.getCurrentPosition() - target) < 20;
         }
 
-
         public boolean closeEnough(double target, double range) {
             return Math.abs(motor.getCurrentPosition() - target) < range;
         }
+
+        public final AutoExtendo auto = new AutoExtendo();
+
+        public class AutoExtendo {
+            private final double autoP = 0.004, autoI = 0, autoD = 0.0005;
+
+            public void setTargetPosition(double target) {
+                setPID(autoP, autoI, autoD);
+                Extendo.this.setTargetPosition(target);
+            }
+
+            public boolean closeEnough() {
+                return Extendo.this.closeEnough();
+            }
+
+            public boolean closeEnough(double target) {
+                return Extendo.this.closeEnough(target);
+            }
+
+            public boolean closeEnough(double target, double range) {
+                return Extendo.this.closeEnough(target, range);
+            }
+
+            public void findZero() {
+                Extendo.this.findZero();
+            }
+
+            public boolean isResetting() {
+                return Extendo.this.isResetting();
+            }
+        }
     }
+
 
     public static class Lift extends ControlledDevice {
         public CachingDcMotorEx motor2;
-        public static final double p = -0.02, i = 0, d = -0.0003;
+        private boolean nothing = false;
+        public static final double p = -0.015, i = 0, d = -0.0003;
         // public static final double GRAVITY_FEEDFORWARD = 0; // Not used in current update
+
+        public void setNothing(boolean b){
+            nothing = b;
+        }
 
         public Lift(HardwareMap hardwareMap) {
             liftController = new PIDController(p, i, d);
@@ -272,6 +312,7 @@ public class MotorControl {
 
 
         public void update() {
+            if (nothing) return;
             if (resetting) {
                 if (Math.abs(motor.getVelocity()) < 5) { // Assuming primary motor velocity indicates stop
                     reset();

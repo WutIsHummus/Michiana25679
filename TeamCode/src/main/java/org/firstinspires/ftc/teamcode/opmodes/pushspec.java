@@ -131,8 +131,8 @@ public class pushspec extends PathChainAutoOpMode {
         score = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(1, 35),
-                        new Point(27, 70),
-                        new Point(42, 71)))
+                        new Point(27, 72),
+                        new Point(42, 72)))
                 .setConstantHeadingInterpolation(0)
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .build();
@@ -151,7 +151,7 @@ public class pushspec extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Point(1, 35),
                         new Point(27, 70),
-                        new Point(42, 71)))
+                        new Point(42, 70)))
                 .setConstantHeadingInterpolation(0)
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .build();
@@ -169,8 +169,8 @@ public class pushspec extends PathChainAutoOpMode {
         score3 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(1, 35),
-                        new Point(27, 70),
-                        new Point(42, 71)))
+                        new Point(27, 68),
+                        new Point(42, 68)))
                 .setConstantHeadingInterpolation(0)
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .build();
@@ -188,8 +188,8 @@ public class pushspec extends PathChainAutoOpMode {
         score4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Point(1, 35),
-                        new Point(27, 70),
-                        new Point(42, 71)))
+                        new Point(27, 66),
+                        new Point(42, 66)))
                 .setConstantHeadingInterpolation(0)
                 .addParametricCallback(0, () -> run(motorActions.outtakeSpecimen()))
                 .build();
