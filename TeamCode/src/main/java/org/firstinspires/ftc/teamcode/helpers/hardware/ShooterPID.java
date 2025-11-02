@@ -45,8 +45,8 @@ public class ShooterPID extends OpMode {
     public void init() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        DcMotorEx rawR = hardwareMap.get(DcMotorEx.class, "shooterr"); 
-        DcMotorEx rawL = hardwareMap.get(DcMotorEx.class, "shooterl");
+        DcMotorEx rawR = hardwareMap.get(DcMotorEx.class, "shootr");
+        DcMotorEx rawL = hardwareMap.get(DcMotorEx.class, "shootl");
 
         motorR = new CachingDcMotorEx(rawR);
         motorL = new CachingDcMotorEx(rawL);
@@ -65,7 +65,7 @@ public class ShooterPID extends OpMode {
         motorL.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
         pid = new PIDController(p, i, d);
-        pid.setIntegratorRange(-I_ZONE, I_ZONE);
+        pid.setIntegrationBounds(-I_ZONE, I_ZONE);
 
         telemetry.update();
     }
