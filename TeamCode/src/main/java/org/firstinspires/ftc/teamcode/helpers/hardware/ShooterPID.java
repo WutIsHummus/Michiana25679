@@ -45,8 +45,8 @@ public class ShooterPID extends OpMode {
     public void init() {
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
 
-        DcMotorEx rawR = hardwareMap.get(DcMotorEx.class, "shooterr"); 
-        DcMotorEx rawL = hardwareMap.get(DcMotorEx.class, "shooterl");
+        DcMotorEx rawR = hardwareMap.get(DcMotorEx.class, "shootr"); 
+        DcMotorEx rawL = hardwareMap.get(DcMotorEx.class, "shootl");
 
         motorR = new CachingDcMotorEx(rawR);
         motorL = new CachingDcMotorEx(rawL);
@@ -102,6 +102,7 @@ public class ShooterPID extends OpMode {
         motorL.setPower(power);
 
         // Telemetry (no current/overcurrent)
+        telemetry.addData("Current Tick", motor.getCurrentPosition());
         telemetry.addData("Target RPM", targetRPM);
         telemetry.addData("Target TPS", String.format("%.1f", targetTPS));
         telemetry.addLine();
