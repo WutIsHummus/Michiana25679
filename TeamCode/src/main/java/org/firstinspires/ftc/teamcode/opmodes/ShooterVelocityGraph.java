@@ -3,12 +3,14 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+@Disabled
 @Config
 @TeleOp(name = "Shooter Velocity Graph", group = "Tuning")
 public class ShooterVelocityGraph extends LinearOpMode {
@@ -64,9 +66,9 @@ public class ShooterVelocityGraph extends LinearOpMode {
     }
     
     private void initializeMotors() {
-        intakeFront = hardwareMap.get(DcMotorEx.class, "Intake front");
-        intakeBack = hardwareMap.get(DcMotorEx.class, "Intake back");
-        shoot = hardwareMap.get(DcMotorEx.class, "shoot");
+        intakeFront = hardwareMap.get(DcMotorEx.class, "intakefront");
+        intakeBack = hardwareMap.get(DcMotorEx.class, "intakeback");
+        shoot = hardwareMap.get(DcMotorEx.class, "shootr");
         shootL = hardwareMap.get(DcMotorEx.class, "shootl");
         
         intakeFront.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);

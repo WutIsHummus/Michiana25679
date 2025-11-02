@@ -37,7 +37,7 @@ public class IntakeOvercurrentTest extends LinearOpMode {
     }
     
     private void initializeHardware() {
-        intakeMotor = hardwareMap.get(DcMotorEx.class, "Intake front");
+        intakeMotor = hardwareMap.get(DcMotorEx.class, "intakefront");
         intakeMotor.setDirection(DcMotorSimple.Direction.REVERSE);
         intakeMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intakeMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
