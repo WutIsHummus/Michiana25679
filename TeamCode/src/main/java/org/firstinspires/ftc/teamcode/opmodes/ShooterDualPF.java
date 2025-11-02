@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode;
+package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
@@ -39,7 +39,7 @@ public class ShooterDualPF extends LinearOpMode {
         shootl.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
-        telemetry.addLine("Ready — both shooter motors linked.").update();
+        telemetry.addLine("Ready — both shooter motors linked.");
 
         waitForStart();
 
