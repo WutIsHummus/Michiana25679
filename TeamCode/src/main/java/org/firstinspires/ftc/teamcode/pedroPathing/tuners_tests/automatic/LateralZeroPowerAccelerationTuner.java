@@ -89,13 +89,6 @@ public class LateralZeroPowerAccelerationTuner extends OpMode {
         rightFront.setDirection(rightFrontMotorDirection);
         rightRear.setDirection(rightRearMotorDirection);
 
-        Servo ptor,ptol, sweeper;
-        ptor           = hardwareMap.get(Servo.class, "ptor");
-        sweeper = hardwareMap.get(Servo.class, "sweeper");
-        ptol           = hardwareMap.get(Servo.class, "ptol");
-        ptol.setPosition(0.44);
-        ptor.setPosition(0.60);
-        sweeper.setPosition(0.67);
 
         motors = Arrays.asList(leftFront, leftRear, rightFront, rightRear);
 

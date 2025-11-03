@@ -77,13 +77,7 @@ public class StrafeVelocityTuner extends OpMode {
         Constants.setConstants(FConstants.class, LConstants.class);
         poseUpdater = new PoseUpdater(hardwareMap);
 
-        Servo ptor,ptol, sweeper;
-        ptor           = hardwareMap.get(Servo.class, "ptor");
-        sweeper = hardwareMap.get(Servo.class, "sweeper");
-        ptol           = hardwareMap.get(Servo.class, "ptol");
-        ptol.setPosition(0.44);
-        ptor.setPosition(0.60);
-        sweeper.setPosition(0.67);
+
 
         leftFront = hardwareMap.get(DcMotorEx.class, leftFrontMotorName);
         leftRear = hardwareMap.get(DcMotorEx.class, leftRearMotorName);

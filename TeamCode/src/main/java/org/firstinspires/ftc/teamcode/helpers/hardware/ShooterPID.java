@@ -65,7 +65,7 @@ public class ShooterPID extends OpMode {
         motorL.setMode(DcMotorEx.RunMode.RUN_WITHOUT_ENCODER);
 
         pid = new PIDController(p, i, d);
-        pid.setIntegratorRange(-I_ZONE, I_ZONE);
+        pid.setIntegrationBounds(-I_ZONE, I_ZONE);
 
         telemetry.update();
     }
@@ -102,7 +102,7 @@ public class ShooterPID extends OpMode {
         motorL.setPower(power);
 
         // Telemetry (no current/overcurrent)
-        telemetry.addData("Current Tick", motor.getCurrentPosition());
+        telemetry.addData("Current Tick", motorR.getCurrentPosition());
         telemetry.addData("Target RPM", targetRPM);
         telemetry.addData("Target TPS", String.format("%.1f", targetTPS));
         telemetry.addLine();

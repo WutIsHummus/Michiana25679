@@ -11,10 +11,10 @@ public class FConstants {
         FollowerConstants.localizers = Localizers.PINPOINT;
 
 
-        FollowerConstants.leftFrontMotorName = "FL";
-        FollowerConstants.leftRearMotorName = "BL";
-        FollowerConstants.rightFrontMotorName = "FR";
-        FollowerConstants.rightRearMotorName = "BR";
+        FollowerConstants.leftFrontMotorName = "frontleft";
+        FollowerConstants.leftRearMotorName = "backleft";
+        FollowerConstants.rightFrontMotorName = "frontright";
+        FollowerConstants.rightRearMotorName = "backright";
         FollowerConstants.useBrakeModeInTeleOp = true;
 
         FollowerConstants.leftFrontMotorDirection = DcMotorSimple.Direction.REVERSE;
@@ -22,13 +22,13 @@ public class FConstants {
         FollowerConstants.rightFrontMotorDirection = DcMotorSimple.Direction.FORWARD;
         FollowerConstants.rightRearMotorDirection = DcMotorSimple.Direction.FORWARD;
 
-        FollowerConstants.mass = 14.787;
+        FollowerConstants.mass = 13.222218;
 
-        FollowerConstants.xMovement = 72.15606995309422;
-        FollowerConstants.yMovement = 47.90792618802868;
+        FollowerConstants.xMovement = 77.0763;
+        FollowerConstants.yMovement = 62.6258;
 
-        FollowerConstants.forwardZeroPowerAcceleration = -44.09575584757384;
-        FollowerConstants.lateralZeroPowerAcceleration = -83.99702874916117;
+        FollowerConstants.forwardZeroPowerAcceleration = -33.0504;
+        FollowerConstants.lateralZeroPowerAcceleration = -70.7352;
 
         FollowerConstants.translationalPIDFCoefficients.setCoefficients(0.15,
                 0,
