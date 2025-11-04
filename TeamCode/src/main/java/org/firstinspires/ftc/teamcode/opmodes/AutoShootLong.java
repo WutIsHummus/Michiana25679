@@ -45,6 +45,8 @@ public class AutoShootLong extends OpMode {
     // Shooter PIDF Constants
     public static double TICKS_PER_REV = 28.0;
     public static double GEAR_RATIO = 1.0;
+    
+    // Short range PIDF (< 6 feet)
     public static double p = 0.002;
     public static double i = 0.0;
     public static double d = 0.0001;
@@ -53,13 +55,23 @@ public class AutoShootLong extends OpMode {
     public static double kS = 0.01;
     public static double I_ZONE = 250.0;
     
+    // Long range PIDF (>= 6 feet)
+    public static double pLong = 0.01;
+    public static double iLong = 0.0;
+    public static double dLong = 0.0001;
+    public static double fLong = 0.00084;
+    public static double kVLong = 0.0008;
+    public static double kSLong = 0.01;
+    public static double I_ZONE_LONG = 250.0;
+    
     // Turret servo constants
     public static double turretCenterPosition = 0.51;
     public static double turretLeftPosition = 0.275;
     public static double turretRightPosition = 0.745;
     public static double turretMaxAngle = 90.0;
     
-    public static double hood1Position = 0.54;
+    public static double hood1Position = 0.54;        // Short range hood
+    public static double hood1PositionLong = 0.45;    // Long range hood (>= 6 feet)
     
     // Linear regression for RPM: RPM = 100 * feet + 1150
     private static final double RPM_SLOPE = 100.0;
@@ -207,7 +219,7 @@ public class AutoShootLong extends OpMode {
         
         // Calculate target RPM based on distance
         calculatedRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-        calculatedRPM = Math.max(1250.0, Math.min(1750.0, calculatedRPM));
+        calculatedRPM = Math.max(1250.0, Math.min(2500.0, calculatedRPM));  // Increased max for long shots
         
         // Calculate turret servo position
         double turretPos;
@@ -314,9 +326,25 @@ public class AutoShootLong extends OpMode {
         }
         
         // ==================== SHOOTER VELOCITY CONTROL ====================
+        // Determine if we're shooting long range (>= 6 feet)
+        boolean isLongRange = distanceToGoalFeet >= 6.0;
+        
+        // Use appropriate PIDF values based on distance
+        double currentP = isLongRange ? pLong : p;
+        double currentI = isLongRange ? iLong : i;
+        double currentD = isLongRange ? dLong : d;
+        double currentF = isLongRange ? fLong : f;
+        double currentKV = isLongRange ? kVLong : kV;
+        double currentKS = isLongRange ? kSLong : kS;
+        double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
+        double currentHood = isLongRange ? hood1PositionLong : hood1Position;
+        
         // Update PIDF coefficients
-        shooterPID.setPIDF(p, i, d, f);
-        shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
+        shooterPID.setPIDF(currentP, currentI, currentD, currentF);
+        shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
+        
+        // Set hood position based on distance
+        hood1.setPosition(currentHood);
         
         // Convert target RPM to ticks per second
         double targetTPS = rpmToTicksPerSec(calculatedRPM);
@@ -334,9 +362,9 @@ public class AutoShootLong extends OpMode {
             // PIDF control
             pidfOutput = shooterPID.calculate(vAvg, targetTPS);
             
-            // Additional feedforward
+            // Additional feedforward (use current values based on distance)
             double sgn = Math.signum(targetTPS);
-            additionalFF = (Math.abs(targetTPS) > 1e-6) ? (kS * sgn + kV * targetTPS) : 0.0;
+            additionalFF = (Math.abs(targetTPS) > 1e-6) ? (currentKS * sgn + currentKV * targetTPS) : 0.0;
             
             // Total power
             shooterPower = pidfOutput + additionalFF;
@@ -367,6 +395,7 @@ public class AutoShootLong extends OpMode {
         telemetryA.addData("", "");
         
         telemetryA.addLine("=== SHOOTER STATUS ===");
+        telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
         telemetryA.addData("Status", shootStatus);
         telemetryA.addData("State", shootState);
         telemetryA.addData("Current RPM", "%.0f", avgRPM);

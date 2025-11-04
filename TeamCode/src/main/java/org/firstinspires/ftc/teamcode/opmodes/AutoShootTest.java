@@ -40,6 +40,8 @@ public class AutoShootTest extends OpMode {
     // Shooter PIDF Constants - From VelocityFinder
     public static double TICKS_PER_REV = 28.0;
     public static double GEAR_RATIO = 1.0;
+    
+    // Short range PIDF (< 6 feet)
     public static double p = 0.002;
     public static double i = 0.0;
     public static double d = 0.0001;
@@ -47,6 +49,15 @@ public class AutoShootTest extends OpMode {
     public static double kV = 0.0008;
     public static double kS = 0.01;
     public static double I_ZONE = 250.0;
+    
+    // Long range PIDF (>= 6 feet)
+    public static double pLong = 0.01;
+    public static double iLong = 0.0;
+    public static double dLong = 0.0001;
+    public static double fLong = 0.00084;
+    public static double kVLong = 0.0008;
+    public static double kSLong = 0.01;
+    public static double I_ZONE_LONG = 250.0;
     
     // Turret servo constants
     public static double turretCenterPosition = 0.51;
@@ -79,7 +90,8 @@ public class AutoShootTest extends OpMode {
     private double calculatedRPM = 0;
     private double distanceToGoalFeet = 0;
     
-    public static double hood1Position = 0.54;
+    public static double hood1Position = 0.54;        // Short range hood
+    public static double hood1PositionLong = 0.45;    // Long range hood (>= 6 feet)
 
     @Override
     public void init() {
@@ -220,7 +232,7 @@ public class AutoShootTest extends OpMode {
         // Store calculated values for long-range mode
         calculatedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDeg));
         calculatedRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-        calculatedRPM = Math.max(1250.0, Math.min(1750.0, calculatedRPM));
+        calculatedRPM = Math.max(1250.0, Math.min(2500.0, calculatedRPM));  // Increased max for long shots
         
         // Use appropriate values based on mode
         if (useLongRangeMode) {
@@ -228,7 +240,7 @@ public class AutoShootTest extends OpMode {
             turretAngle = calculatedAngle;
         } else {
             targetRPM = RPM_SLOPE * PRESET_DISTANCE_FEET + RPM_INTERCEPT;
-            targetRPM = Math.max(1250.0, Math.min(1750.0, targetRPM));
+            targetRPM = Math.max(1250.0, Math.min(2500.0, targetRPM));  // Increased max for long shots
             turretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, PRESET_TURRET_ANGLE));
         }
         
@@ -239,15 +251,14 @@ public class AutoShootTest extends OpMode {
             turretPos = turretCenterPosition - (Math.abs(turretAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
         }
         
-        // Set turret position
+        // Set turret position (hood is set in velocity control section)
         turret1.setPosition(turretPos);
         turret2.setPosition(turretPos);
-        hood1.setPosition(hood1Position);
         
         // Detect A button press (preset mode) or X/B button press (long-range mode)
         boolean currentA = gamepad1.a;
-        boolean currentX = gamepad1.x;
-        boolean currentB = gamepad1.b;
+        boolean currentXButton = gamepad1.x;
+        boolean currentBButton = gamepad1.b;
         
         if (currentA && !lastA && !shooting) {
             // Start shooting sequence in PRESET mode
@@ -255,7 +266,7 @@ public class AutoShootTest extends OpMode {
             shooting = true;
             shootState = 0;
             shootTimer.reset();
-        } else if ((currentX && !lastX && !shooting) || (currentB && !lastB && !shooting)) {
+        } else if ((currentXButton && !lastX && !shooting) || (currentBButton && !lastB && !shooting)) {
             // Start shooting sequence in LONG RANGE mode (X or B button)
             useLongRangeMode = true;
             shooting = true;
@@ -263,8 +274,8 @@ public class AutoShootTest extends OpMode {
             shootTimer.reset();
         }
         lastA = currentA;
-        lastX = currentX;
-        lastB = currentB;
+        lastX = currentXButton;
+        lastB = currentBButton;
 
         // Run shooting state machine (3 shots)
         String shootStatus = "Ready";
@@ -347,9 +358,25 @@ public class AutoShootTest extends OpMode {
         }
         
         // ==================== SHOOTER VELOCITY CONTROL ====================
+        // Determine if we're shooting long range (>= 6 feet)
+        boolean isLongRange = distanceToGoalFeet >= 6.0;
+        
+        // Use appropriate PIDF values based on distance
+        double currentP = isLongRange ? pLong : p;
+        double currentI = isLongRange ? iLong : i;
+        double currentD = isLongRange ? dLong : d;
+        double currentF = isLongRange ? fLong : f;
+        double currentKV = isLongRange ? kVLong : kV;
+        double currentKS = isLongRange ? kSLong : kS;
+        double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
+        double currentHood = isLongRange ? hood1PositionLong : hood1Position;
+        
         // Update PIDF coefficients
-        shooterPID.setPIDF(p, i, d, f);
-        shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
+        shooterPID.setPIDF(currentP, currentI, currentD, currentF);
+        shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
+        
+        // Set hood position based on distance
+        hood1.setPosition(currentHood);
         
         // Convert target RPM to ticks per second
         double targetTPS = rpmToTicksPerSec(targetRPM);
@@ -367,9 +394,9 @@ public class AutoShootTest extends OpMode {
             // PIDF control
             pidfOutput = shooterPID.calculate(vAvg, targetTPS);
             
-            // Additional feedforward
+            // Additional feedforward (use current values based on distance)
             double sgn = Math.signum(targetTPS);
-            additionalFF = (Math.abs(targetTPS) > 1e-6) ? (kS * sgn + kV * targetTPS) : 0.0;
+            additionalFF = (Math.abs(targetTPS) > 1e-6) ? (currentKS * sgn + currentKV * targetTPS) : 0.0;
             
             // Total power
             shooterPower = pidfOutput + additionalFF;
@@ -390,6 +417,7 @@ public class AutoShootTest extends OpMode {
         telemetryA.addData("Current Pose", String.format("(%.1f, %.1f) @ %.1f°", 
             currentX, currentY, Math.toDegrees(currentHeading)));
         telemetryA.addData("Mode", useLongRangeMode ? "LONG RANGE 🎯" : "PRESET 📍");
+        telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
         telemetryA.addData("", "");
         
         if (useLongRangeMode) {
