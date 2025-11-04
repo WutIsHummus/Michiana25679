@@ -62,7 +62,7 @@ public class FullTesting extends OpMode {
     
     // Goal zone coordinates (for RPM calculation)
     public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
-    public static double goalZoneY = 115.0; // Goal zone Y coordinate in inches
+    public static double goalZoneY = 121.0; // Goal zone Y coordinate in inches
     
     // Height measurements
     public static double aprilTagHeight = 30.0; // AprilTag height in inches
