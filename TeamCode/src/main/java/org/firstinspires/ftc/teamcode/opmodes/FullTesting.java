@@ -456,9 +456,6 @@ public class FullTesting extends OpMode {
             shooterPID.reset();
         }
         
-        // Hood position update
-        hood1.setPosition(hood1Position);
-        
         // Launch gate - Left Trigger (gamepad1)
         if (gamepad1.left_trigger > 0.1) {
             launchgate.setPosition(0.8);
