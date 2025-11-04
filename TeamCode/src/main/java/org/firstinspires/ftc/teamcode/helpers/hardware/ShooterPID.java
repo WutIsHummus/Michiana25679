@@ -74,6 +74,7 @@ public class ShooterPID extends OpMode {
     @Override
     public void loop() {
         pidf.setPIDF(p, i, d, f);
+        pidf.setIntegrationBounds(-I_ZONE, I_ZONE);
 
         // Target (motor shaft units)
         double targetTPS = rpmToTicksPerSec(targetRPM);
@@ -85,7 +86,7 @@ public class ShooterPID extends OpMode {
         // Average velocity
         double vAvg = 0.5 * (vR + vL);
 
-        // PIDF calculation (F term is built into FTCLib's PIDFController)
+        // PIDF calculation (F is applied to setpoint by controller)
         double pidfOutput = pidf.calculate(vAvg, targetTPS);
 
         // Additional feedforward terms (kS for static friction, kV for velocity)
@@ -119,6 +120,7 @@ public class ShooterPID extends OpMode {
         telemetry.addLine("--- Controller ---");
         telemetry.addData("vAvg (TPS)", String.format("%.1f", vAvg));
         telemetry.addData("vAvg (RPM)", String.format("%.1f", ticksPerSecToRPM(vAvg)));
+        telemetry.addData("Error (TPS)", String.format("%.1f", targetTPS - vAvg));
         telemetry.addData("PIDF Output", String.format("%.3f", pidfOutput));
         telemetry.addData("Additional FF (kS+kV)", String.format("%.3f", ff));
         telemetry.addData("Total Power", String.format("%.3f", power));

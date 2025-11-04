@@ -20,10 +20,10 @@ public class VelocityFinder extends OpMode {
     public static double GEAR_RATIO = 1.0;
     
     // Velocity PIDF Constants - From your tuned values
-    public static double p = 0.01;
+    public static double p = 0.002;
     public static double i = 0.0;
     public static double d = 0.0001;
-    public static double f = 0.0;     // Feedforward (F*setpoint, tune this for rapid fire!)
+    public static double f = 0.00084;  // Feedforward (F*setpoint, tune this for rapid fire!)
     public static double kV = 0.0008;  // Velocity feedforward (power per tick/s)
     public static double kS = 0.01;    // Static feedforward
     public static double I_ZONE = 250.0;  // Integrator clamp range
@@ -150,15 +150,16 @@ public class VelocityFinder extends OpMode {
         double feedforward = 0;
         
         if (shooterOn) {
-            // PID on average velocity (in ticks/sec)
-            pidOutput = shooterPID.calculate(vAvg, targetTPS);
+            // PIDF calculation (F is applied to setpoint by controller)
+            double pidfOutput = shooterPID.calculate(vAvg, targetTPS);
             
-            // Feedforward
+            // Additional feedforward terms (kS for static friction, kV for velocity)
             double sgn = Math.signum(targetTPS);
             feedforward = (Math.abs(targetTPS) > 1e-6) ? (kS * sgn + kV * targetTPS) : 0.0;
             
-            // Total power
-            shooterPower = pidOutput + feedforward;
+            // Total power = PIDF + additional feedforward
+            shooterPower = pidfOutput + feedforward;
+            pidOutput = pidfOutput;  // Store for telemetry
             
             // Safety: If already at or above target, reduce power to prevent overshoot
             if (avgVelocityRPM >= targetRPM && shooterPower > 0) {
@@ -224,8 +225,8 @@ public class VelocityFinder extends OpMode {
             telemetry.addData("Error (TPS)", "%.1f", targetTPS - vAvg);
             telemetry.addData("Error (RPM)", "%.0f", targetRPM - avgVelocityRPM);
             telemetry.addData("", "");
-            telemetry.addData("PID Output", "%.4f", pidOutput);
-            telemetry.addData("Feedforward", "%.4f (kS=%.4f + kV*TPS=%.4f)", feedforward, kS * Math.signum(targetTPS), kV * targetTPS);
+            telemetry.addData("PIDF Output", "%.4f", pidOutput);
+            telemetry.addData("Additional FF (kS+kV)", "%.4f (kS=%.4f + kV*TPS=%.4f)", feedforward, kS * Math.signum(targetTPS), kV * targetTPS);
             telemetry.addData("Total Power", "%.4f", shooterPower);
             
             telemetry.addData("", "");
@@ -255,11 +256,11 @@ public class VelocityFinder extends OpMode {
             
             telemetry.addData("", "");
             telemetry.addLine("Tuning Guide (for TPS units):");
-            telemetry.addData("1. F", "Tune F (0.0008-0.001) for base velocity (rapid fire!)");
-            telemetry.addData("2. kV + kS", "Or use kV/kS instead (alternative method)");
-            telemetry.addData("3. P", "Add 0.0003-0.0008 for error correction");
-            telemetry.addData("4. D", "Add small D for stability if needed");
-            telemetry.addData("Note", "F term helps maintain speed during rapid fire!");
+            telemetry.addData("1. F", "Simple feedforward (F*setpoint) for rapid fire");
+            telemetry.addData("2. kV + kS", "Additional feedforward (kS+kV*target)");
+            telemetry.addData("3. P", "Proportional gain for error correction");
+            telemetry.addData("4. D", "Derivative for stability if needed");
+            telemetry.addData("Note", "PIDF controller handles F, kS/kV are extra!");
             
             telemetry.update();
     }
