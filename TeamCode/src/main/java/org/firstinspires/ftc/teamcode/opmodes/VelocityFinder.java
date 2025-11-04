@@ -3,34 +3,35 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.arcrobotics.ftclib.controller.PIDController;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 @Config
-@TeleOp(name = "Shooter Velocity Controller")
-public class VelocityFinder extends LinearOpMode {
+@TeleOp(name = "Shooter Velocity Controller v2")
+public class VelocityFinder extends OpMode {
 
     // Motor Constants
-    private static final double GEAR_RATIO = 1;
-    private static final double TICKS_PER_REV = 28;
+    public static double TICKS_PER_REV = 28.0;
+    public static double GEAR_RATIO = 1.0;
     
-    // Tuned Velocity PIDF Constants - Adjustable via Dashboard
-    public static double I_ZONE = 250;
-    
-    public static double P = 0.01;
-    public static double I = 0;
-    public static double D = 0.0001;
-    public static double KV = 0.0008;  // Velocity feedforward (try reducing to 0.0004 or lower)
-    public static double KS = 0.01;    // Static feedforward
+    // Velocity PIDF Constants - From your tuned values
+    public static double p = 0.01;
+    public static double i = 0.0;
+    public static double d = 0.0001;
+    public static double kV = 0.0008;  // Velocity feedforward (power per tick/s)
+    public static double kS = 0.01;    // Static feedforward
+    public static double I_ZONE = 250.0;  // Integrator clamp range
     
     // Adjustable target RPM via Dashboard
     public static double targetRPM = 2000;
+    
+    // Hood servo position
+    public static double hood1Position = 0.54;
 
     private DcMotorEx fl, fr, bl, br;
     private DcMotorEx intakefront, intakeback;
@@ -38,23 +39,13 @@ public class VelocityFinder extends LinearOpMode {
 
     private Servo reargate;
     private Servo launchgate;
+    private Servo hood1;
 
-    private ElapsedTime timer;
-    
-    // PIDF state for shooter right
-    private double lastErrorR = 0;
-    private double integralSumR = 0;
-    private int lastEncoderPosR = 0;
-    private double lastTimeR = 0;
-    
-    // PIDF state for shooter left
-    private double lastErrorL = 0;
-    private double integralSumL = 0;
-    private int lastEncoderPosL = 0;
-    private double lastTimeL = 0;
+    // PID Controller
+    private PIDController shooterPID;
 
     @Override
-    public void runOpMode() throws InterruptedException {
+    public void init() {
         // Initialize telemetry with FTC Dashboard
         telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
         
@@ -79,8 +70,10 @@ public class VelocityFinder extends LinearOpMode {
 
         reargate = hardwareMap.get(Servo.class, "reargate");
         launchgate = hardwareMap.get(Servo.class, "launchgate");
+        hood1 = hardwareMap.get(Servo.class, "hood 1");
 
         launchgate.setPosition(0.5);
+        hood1.setPosition(hood1Position);
         
         for (DcMotorEx m : new DcMotorEx[]{fl, fr, bl, br, intakefront, intakeback, shootr, shootl}) {
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -88,21 +81,20 @@ public class VelocityFinder extends LinearOpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        timer = new ElapsedTime();
+        // Initialize PID controller
+        shooterPID = new PIDController(p, i, d);
+        shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
         
         telemetry.addLine("Shooter Velocity Controller Initialized");
-        telemetry.addLine("A = Spin up shooters");
-        telemetry.addLine("B = Stop shooters");
+        telemetry.addLine("HOLD A = Spin up shooters (release to stop)");
         telemetry.addLine("Right Bumper = Run intakes inward");
         telemetry.addLine("Left Trigger = Fire launch gate");
-        telemetry.addLine("Change targetRPM on FTC Dashboard");
+        telemetry.addLine("Change targetRPM and PIDF on FTC Dashboard");
         telemetry.update();
-        
-        waitForStart();
-        
-        if (isStopRequested()) return;
-        
-        while (opModeIsActive()) {
+    }
+
+    @Override
+    public void loop() {
         // Drive controls
         double y = -gamepad1.right_stick_y;
         double x = gamepad1.right_stick_x * 1.1;
@@ -130,45 +122,68 @@ public class VelocityFinder extends LinearOpMode {
             intakeback.setPower(0);
         }
         
-        // Shooter control
+        // Shooter control - Hold A to run, release to stop
         boolean shooterOn = gamepad1.a;
-        boolean shooterOff = gamepad1.b;
         
-        // Always read current velocity for telemetry
-        double shootrVelocity = getCurrentRPM(shootr);
-        double shootlVelocity = getCurrentRPM(shootl);
-        double shootrPower = 0;
-        double shootlPower = 0;
+        // Update PID coefficients every loop
+        shooterPID.setPID(p, i, d);
+        shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
+        
+        // Convert target RPM to ticks per second
+        double targetTPS = rpmToTicksPerSec(targetRPM);
+        
+        // Read current velocities in ticks/sec
+        double vR = shootr.getVelocity();
+        double vL = shootl.getVelocity();
+        
+        // Average velocity for PID control
+        double vAvg = 0.5 * (vR + vL);
+        
+        // Convert to RPM for display
+        double shootrVelocity = ticksPerSecToRPM(vR);
+        double shootlVelocity = ticksPerSecToRPM(vL);
+        double avgVelocityRPM = ticksPerSecToRPM(vAvg);
+        
+        double shooterPower = 0;
+        double pidOutput = 0;
+        double feedforward = 0;
         
         if (shooterOn) {
-            // Control shooter right with velocity PIDF
-            shootrPower = calculateVelocityPIDF(shootr, targetRPM, 
-                ref -> lastErrorR = ref.error,
-                ref -> integralSumR = ref.integral,
-                ref -> lastEncoderPosR = ref.lastPos,
-                ref -> lastTimeR = ref.lastTime,
-                lastErrorR, integralSumR, lastEncoderPosR, lastTimeR);
+            // PID on average velocity (in ticks/sec)
+            pidOutput = shooterPID.calculate(vAvg, targetTPS);
             
-            // Control shooter left with velocity PIDF
-            shootlPower = calculateVelocityPIDF(shootl, targetRPM,
-                ref -> lastErrorL = ref.error,
-                ref -> integralSumL = ref.integral,
-                ref -> lastEncoderPosL = ref.lastPos,
-                ref -> lastTimeL = ref.lastTime,
-                lastErrorL, integralSumL, lastEncoderPosL, lastTimeL);
+            // Feedforward
+            double sgn = Math.signum(targetTPS);
+            feedforward = (Math.abs(targetTPS) > 1e-6) ? (kS * sgn + kV * targetTPS) : 0.0;
             
-            // Get actual power being applied
-            shootrPower = shootr.getPower();
-            shootlPower = shootl.getPower();
+            // Total power
+            shooterPower = pidOutput + feedforward;
             
-        } else if (shooterOff) {
+            // Safety: If already at or above target, reduce power to prevent overshoot
+            if (avgVelocityRPM >= targetRPM && shooterPower > 0) {
+                shooterPower = Math.min(shooterPower, 0.5); // Cap at 50% if at target
+            }
+            
+            // Clamp to motor limits
+            shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
+            
+            // Apply same power to both motors
+            shootr.setPower(shooterPower);
+            shootl.setPower(shooterPower);
+            
+        } else {
+            // Not pressing A - turn off motors
             shootr.setPower(0);
             shootl.setPower(0);
-            resetPIDFState();
-            shootrPower = 0;
-            shootlPower = 0;
+            shooterPID.reset();
+            shooterPower = 0;
+            pidOutput = 0;
+            feedforward = 0;
         }
 
+            // Hood position - continuously update from dashboard
+            hood1.setPosition(hood1Position);
+            
             // Launch gate control - Left Trigger
             if (gamepad1.left_trigger > 0.1) {
                 launchgate.setPosition(0.8);
@@ -176,142 +191,100 @@ public class VelocityFinder extends LinearOpMode {
                 launchgate.setPosition(0.5);
             }
             
-            // Calculate feedforward for display
-            double feedforwardCalc = (KV * targetRPM) + (KS * Math.signum(targetRPM));
-            
             // Telemetry
             telemetry.addData("Drive", String.format("FL:%.2f FR:%.2f BL:%.2f BR:%.2f", 
                 flPower, frPower, blPower, brPower));
             telemetry.addData("", "");
             telemetry.addData("Intakes", gamepad1.right_bumper ? "RUNNING" : "STOPPED");
             telemetry.addData("Launch Gate", gamepad1.left_trigger > 0.1 ? "FIRING" : "RESET");
+            telemetry.addData("Hood1 Position", "%.2f", hood1Position);
             telemetry.addData("", "");
+            
             String shooterStatus = shooterOn ? "VELOCITY CONTROL" : "STOPPED";
             telemetry.addData("Shooter Status", shooterStatus);
-            telemetry.addData("Target RPM", "%.0f", targetRPM);
             telemetry.addData("", "");
-            telemetry.addData("Shooter R - Current RPM", "%.0f", shootrVelocity);
-            telemetry.addData("Shooter R - Power", "%.4f", shootrPower);
-            telemetry.addData("Shooter R - Error", "%.0f", targetRPM - shootrVelocity);
+            telemetry.addLine("=== TARGET (Updates Live from Dashboard) ===");
+            telemetry.addData("Target RPM", "%.0f ← Change on dashboard!", targetRPM);
+            telemetry.addData("Target TPS", "%.1f (auto-calculated)", targetTPS);
+            telemetry.addData("Will go to", "%.0f RPM when you press A", targetRPM);
             telemetry.addData("", "");
-            telemetry.addData("Shooter L - Current RPM", "%.0f", shootlVelocity);
-            telemetry.addData("Shooter L - Power", "%.4f", shootlPower);
-            telemetry.addData("Shooter L - Error", "%.0f", targetRPM - shootlVelocity);
+            
+            telemetry.addLine("--- Right Motor ---");
+            telemetry.addData("vR (TPS)", "%.1f", vR);
+            telemetry.addData("vR (RPM)", "%.0f", shootrVelocity);
+            
+            telemetry.addLine("--- Left Motor ---");
+            telemetry.addData("vL (TPS)", "%.1f", vL);
+            telemetry.addData("vL (RPM)", "%.0f", shootlVelocity);
+            
+            telemetry.addLine("--- Controller ---");
+            telemetry.addData("vAvg (TPS)", "%.1f", vAvg);
+            telemetry.addData("vAvg (RPM)", "%.0f", avgVelocityRPM);
+            telemetry.addData("Error (TPS)", "%.1f", targetTPS - vAvg);
+            telemetry.addData("Error (RPM)", "%.0f", targetRPM - avgVelocityRPM);
             telemetry.addData("", "");
-            telemetry.addLine("=== PIDF Tuning ===");
-            telemetry.addData("Feedforward", "%.4f (kV*RPM + kS)", feedforwardCalc);
-            telemetry.addData("P", "%.6f", P);
-            telemetry.addData("I", "%.6f", I);
-            telemetry.addData("D", "%.6f", D);
-            telemetry.addData("kV", "%.6f", KV);
-            telemetry.addData("kS", "%.6f", KS);
-            if (feedforwardCalc > 1.0) {
-                telemetry.addData("⚠️ WARNING", "Feedforward > 1.0! Motor saturated!");
-                telemetry.addData("Suggestion", "Reduce kV to %.6f or lower", 0.9 / targetRPM);
+            telemetry.addData("PID Output", "%.4f", pidOutput);
+            telemetry.addData("Feedforward", "%.4f (kS=%.4f + kV*TPS=%.4f)", feedforward, kS * Math.signum(targetTPS), kV * targetTPS);
+            telemetry.addData("Total Power", "%.4f", shooterPower);
+            
+            telemetry.addData("", "");
+            telemetry.addLine("=== DEBUG: RAW VALUES ===");
+            telemetry.addData("shootr.getVelocity()", "%.1f TPS (raw)", vR);
+            telemetry.addData("shootl.getVelocity()", "%.1f TPS (raw)", vL);
+            telemetry.addData("TICKS_PER_REV", "%.0f", TICKS_PER_REV);
+            telemetry.addData("GEAR_RATIO", "%.2f", GEAR_RATIO);
+            
+            telemetry.addData("", "");
+            telemetry.addLine("=== PIDF Constants (FROM DASHBOARD) ===");
+            telemetry.addData("p", "%.6f", p);
+            telemetry.addData("i", "%.6f", i);
+            telemetry.addData("d", "%.6f", d);
+            telemetry.addData("kV", "%.6f <-- CHANGE THIS!", kV);
+            telemetry.addData("kS", "%.6f", kS);
+            telemetry.addData("I_ZONE", "%.1f", I_ZONE);
+            telemetry.addData("", "");
+            telemetry.addData("kV * targetTPS", "%.4f (should be ~0.84)", kV * targetTPS);
+            
+            if (shooterPower >= 0.99 || shooterPower <= -0.99) {
+                telemetry.addData("⚠️ SATURATED!", "Power capped at 1.0!");
+                telemetry.addData("", "Reduce kV to %.4f or lower", 0.8 / targetTPS);
             }
             
+            telemetry.addData("", "");
+            telemetry.addLine("Tuning Guide (for TPS units):");
+            telemetry.addData("1. kV", "Adjust 0.0008-0.001 until near target");
+            telemetry.addData("2. kS", "Add 0.01-0.03 for friction");
+            telemetry.addData("3. P", "Add 0.0003-0.0008 for error correction");
+            telemetry.addData("Note", "Gains are 20x smaller than RPM control!");
+            
             telemetry.update();
-        }
-        
-        // Stop all motors when OpMode ends
-        for (DcMotorEx m : new DcMotorEx[]{fl, fr, bl, br, intakefront, intakeback, shootr, shootl}) {
-            m.setPower(0);
-        }
+    }
+    
+    @Override
+    public void stop() {
+        shootr.setPower(0);
+        shootl.setPower(0);
+        fl.setPower(0);
+        fr.setPower(0);
+        bl.setPower(0);
+        br.setPower(0);
+        intakefront.setPower(0);
+        intakeback.setPower(0);
     }
     
     /**
-     * Calculate velocity PIDF output for a motor
+     * Convert RPM to ticks per second
      */
-    private double calculateVelocityPIDF(DcMotorEx motor, double targetRPM,
-                                        java.util.function.Consumer<StateRef> errorSetter,
-                                        java.util.function.Consumer<StateRef> integralSetter,
-                                        java.util.function.Consumer<StateRef> posSetter,
-                                        java.util.function.Consumer<StateRef> timeSetter,
-                                        double lastError, double integralSum, 
-                                        int lastEncoderPos, double lastTime) {
-        
-        // Calculate current velocity in RPM using motor.getVelocity()
-        double currentVelocity = getCurrentRPM(motor);
-        
-        double currentTime = timer.milliseconds();
-        double deltaTime = (currentTime - lastTime) / 1000.0; // Convert to seconds
-        
-        // Prevent division by zero
-        if (deltaTime <= 0) {
-            deltaTime = 0.02; // Default to 20ms
-        }
-        
-        // PIDF Control
-        double error = targetRPM - currentVelocity;
-        
-        // Integral with I_ZONE
-        if (Math.abs(error) < I_ZONE) {
-            integralSum += error * deltaTime;
-        } else {
-            integralSum = 0;
-        }
-        
-        // Derivative
-        double derivative = (error - lastError) / deltaTime;
-        
-        // Feedforward - convert targetRPM to motor power estimate
-        // For most FTC motors, max RPM is around 5000-6000, so normalize
-        double feedforward = (KV * targetRPM) + (KS * Math.signum(targetRPM));
-        
-        // PID
-        double pidOutput = (P * error) + (I * integralSum) + (D * derivative);
-        
-        // Total output
-        double power = feedforward + pidOutput;
-        
-        // Clamp power
-        power = Math.max(-1.0, Math.min(1.0, power));
-        
-        motor.setPower(power);
-        
-        // Update state through setters
-        StateRef ref = new StateRef();
-        ref.error = error;
-        errorSetter.accept(ref);
-        ref.integral = integralSum;
-        integralSetter.accept(ref);
-        ref.lastPos = motor.getCurrentPosition();
-        posSetter.accept(ref);
-        ref.lastTime = currentTime;
-        timeSetter.accept(ref);
-        
-        return power;
+    private static double rpmToTicksPerSec(double rpm) {
+        double motorRPM = rpm * GEAR_RATIO;
+        return (motorRPM / 60.0) * TICKS_PER_REV;
     }
-    
+
     /**
-     * Get current RPM of a motor
+     * Convert ticks per second to RPM
      */
-    private double getCurrentRPM(DcMotorEx motor) {
-        return motor.getVelocity() / (TICKS_PER_REV * GEAR_RATIO) * 60.0;
-    }
-    
-    /**
-     * Reset PIDF state for both shooters
-     */
-    private void resetPIDFState() {
-        lastErrorR = 0;
-        integralSumR = 0;
-        lastEncoderPosR = shootr.getCurrentPosition();
-        lastTimeR = timer.milliseconds();
-        
-        lastErrorL = 0;
-        integralSumL = 0;
-        lastEncoderPosL = shootl.getCurrentPosition();
-        lastTimeL = timer.milliseconds();
-    }
-    
-    /**
-     * Helper class for passing state references
-     */
-    private static class StateRef {
-        double error;
-        double integral;
-        int lastPos;
-        double lastTime;
+    private static double ticksPerSecToRPM(double tps) {
+        double motorRPM = (tps / TICKS_PER_REV) * 60.0;
+        return motorRPM / GEAR_RATIO;
     }
 }

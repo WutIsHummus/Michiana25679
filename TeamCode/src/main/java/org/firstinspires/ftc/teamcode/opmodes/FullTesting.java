@@ -1,0 +1,465 @@
+package org.firstinspires.ftc.teamcode.opmodes;
+
+import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.arcrobotics.ftclib.controller.PIDController;
+import com.pedropathing.util.Constants;
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLResultTypes;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.Servo;
+
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+
+import com.pedropathing.localization.PoseUpdater;
+import com.pedropathing.util.DashboardPoseTracker;
+import com.pedropathing.util.Drawing;
+
+import java.util.List;
+
+//import pedropathing.constants.*;
+
+/**
+ * This is the LocalizationTest OpMode. This is basically just a simple mecanum drive attached to a
+ * PoseUpdater. The OpMode will print out the robot's pose to telemetry as well as draw the robot
+ * on FTC Dashboard (192/168/43/1:8080/dash). You should use this to check the robot's localization.
+ *
+ * @author Anyi Lin - 10158 Scott's Bots
+ * @version 1.0, 5/6/2024
+ */
+@Config
+@TeleOp(name = "Full Testing")
+public class FullTesting extends OpMode {
+    private PoseUpdater poseUpdater;
+    private DashboardPoseTracker dashboardPoseTracker;
+    private Telemetry telemetryA;
+
+    private DcMotorEx fl, fr, bl, br;
+
+    private Servo turret1;
+    private Servo turret2;
+
+    private Limelight3A limelight;
+    
+    // Shooter hardware
+    private DcMotorEx intakefront, intakeback;
+    private DcMotorEx shootr, shootl;
+    private Servo reargate, launchgate, hood1;
+    private PIDController shooterPID;
+
+    // Target coordinates for distance calculation
+    public static double targetX = 128.0;
+    public static double targetY = 128.0;
+    
+    // Goal zone coordinates (for RPM calculation)
+    public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
+    public static double goalZoneY = 115.0; // Goal zone Y coordinate in inches
+    
+    // Height measurements
+    public static double aprilTagHeight = 30.0; // AprilTag height in inches
+    public static double limelightHeight = 13.5; // Limelight height in inches
+    public static double heightDifference = aprilTagHeight - limelightHeight; // 16.3 inches
+    public static double limelightMountAngle = 19.0; // Limelight mount angle in degrees
+    
+    // Turret servo constants
+    public static double turretCenterPosition = 0.51; // Servo position for 0 degrees
+    public static double turretLeftPosition = 0.275; // Servo position for max left
+    public static double turretRightPosition = 0.745; // Servo position for max right
+    public static double turretMaxAngle = 90.0; // Max angle in degrees (left or right from center)
+    
+    // Shooter PIDF Constants - From VelocityFinder
+    public static double TICKS_PER_REV = 28.0;
+    public static double GEAR_RATIO = 1.0;
+    public static double p = 0.01;
+    public static double i = 0.0;
+    public static double d = 0.0001;
+    public static double kV = 0.0008;  // Velocity feedforward
+    public static double kS = 0.01;    // Static feedforward
+    public static double I_ZONE = 250.0;
+    public static double hood1Position = 0.54;
+    
+    // Linear regression for RPM calculation: RPM = 100 * (feet_from_goal) + 1150
+    // where x is feet from goal zone, y is RPM
+    // Formula: y = 100x + 1150
+    private static final double RPM_SLOPE = 100.0;  // m in y = mx + b
+    private static final double RPM_INTERCEPT = 1150.0;  // b in y = mx + b
+
+    /**
+     * This initializes the PoseUpdater, the mecanum drive motors, and the FTC Dashboard telemetry.
+     */
+    @Override
+    public void init() {
+        Constants.setConstants(FConstants.class, LConstants.class);
+        poseUpdater = new PoseUpdater(hardwareMap);
+        dashboardPoseTracker = new DashboardPoseTracker(poseUpdater);
+        
+        // Initialize drive motors
+        fl = hardwareMap.get(DcMotorEx.class, "frontleft");
+        fr = hardwareMap.get(DcMotorEx.class, "frontright");
+        bl = hardwareMap.get(DcMotorEx.class, "backleft");
+        br = hardwareMap.get(DcMotorEx.class, "backright");
+
+        fl.setDirection(DcMotorSimple.Direction.REVERSE);
+        bl.setDirection(DcMotorSimple.Direction.REVERSE);
+        fr.setDirection(DcMotorSimple.Direction.FORWARD);
+        br.setDirection(DcMotorSimple.Direction.FORWARD);
+        
+        // Initialize turret servos
+        turret1 = hardwareMap.get(Servo.class, "turret1");
+        turret2 = hardwareMap.get(Servo.class, "turret2");
+        
+        // Initialize shooter hardware
+        intakefront = hardwareMap.get(DcMotorEx.class, "intakefront");
+        intakeback = hardwareMap.get(DcMotorEx.class, "intakeback");
+        shootr = hardwareMap.get(DcMotorEx.class, "shootr");
+        shootl = hardwareMap.get(DcMotorEx.class, "shootl");
+        
+        reargate = hardwareMap.get(Servo.class, "reargate");
+        launchgate = hardwareMap.get(Servo.class, "launchgate");
+        hood1 = hardwareMap.get(Servo.class, "hood 1");
+        
+        // Set shooter motor directions
+        shootl.setDirection(DcMotorSimple.Direction.REVERSE);
+        intakeback.setDirection(DcMotorSimple.Direction.REVERSE);
+        intakefront.setDirection(DcMotorSimple.Direction.REVERSE);
+        
+        // Setup all motors
+        for (DcMotorEx m : new DcMotorEx[]{fl, fr, bl, br, intakefront, intakeback, shootr, shootl}) {
+            m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            m.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        }
+        
+        // Initialize shooter PID controller
+        shooterPID = new PIDController(p, i, d);
+        shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
+        
+        // Set initial servo positions
+        launchgate.setPosition(0.5);
+        hood1.setPosition(hood1Position);
+
+        telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
+        telemetryA.setMsTransmissionInterval(11);
+        
+        // Initialize Limelight
+        try {
+            limelight = hardwareMap.get(Limelight3A.class, "limelight");
+            limelight.pipelineSwitch(0);
+            limelight.start();
+            telemetryA.addLine("Limelight initialized successfully");
+        } catch (Exception e) {
+            telemetryA.addLine("Warning: Limelight not found - " + e.getMessage());
+            limelight = null;
+        }
+        
+        telemetryA.addLine("Full Testing OpMode - Localization + Shooter");
+        telemetryA.addLine("Gamepad 1 Controls:");
+        telemetryA.addLine("  - Right Stick: Mecanum drive (Y/X)");
+        telemetryA.addLine("  - Left Stick X: Rotation");
+        telemetryA.addLine("  - Left Bumper: Back intake");
+        telemetryA.addLine("  - Right Bumper: Front intake");
+        telemetryA.addLine("  - Right Trigger: Spin up shooter (RPM auto-calculated)");
+        telemetryA.addLine("  - Left Trigger: Fire launch gate");
+        telemetryA.addLine("RPM Formula: RPM = 100 * (feet from goal) + 1150");
+        telemetryA.update();
+
+        Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
+        Drawing.sendPacket();
+    }
+
+    /**
+     * This updates the robot's pose estimate, the simple mecanum drive, and updates the FTC
+     * Dashboard telemetry with the robot's position as well as draws the robot's position.
+     */
+    @Override
+    public void loop() {
+        poseUpdater.update();
+        dashboardPoseTracker.update();
+
+        // Drive controls - matching VelocityFinder setup
+        double y = -gamepad1.right_stick_y;
+        double x = gamepad1.right_stick_x * 1.1;
+        double rx = gamepad1.left_stick_x;
+        
+        double scale = 1;
+        double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1.0);
+        
+        double flPower = (y + x + rx) / denominator * scale;
+        double blPower = (y - x + rx) / denominator * scale;
+        double frPower = (y - x - rx) / denominator * scale;
+        double brPower = (y + x - rx) / denominator * scale;
+        
+        fl.setPower(flPower);
+        fr.setPower(frPower);
+        bl.setPower(blPower);
+        br.setPower(brPower);
+
+        // Get current position
+        double currentX = poseUpdater.getPose().getX();
+        double currentY = poseUpdater.getPose().getY();
+
+        // Calculate distance to target (119, 119)
+        double deltaX = targetX - currentX;
+        double deltaY = targetY - currentY;
+        double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
+        // Calculate angle to target relative to field (0 degrees = east, 90 = north)
+        double angleToTargetField = Math.atan2(deltaY, deltaX);
+        
+        // Calculate angle relative to robot (turret angle needed)
+        // Subtract robot heading to get relative angle
+        double currentHeading = poseUpdater.getPose().getHeading();
+        double turretAngle = angleToTargetField - currentHeading;
+        
+        // Normalize angle to [-PI, PI]
+        while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
+        while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
+        
+        // Convert to degrees
+        double turretAngleDegrees = Math.toDegrees(turretAngle);
+        
+        // Calculate servo position
+        // Clamp angle to valid range
+        double clampedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
+        
+        // Convert angle to servo position (FLIPPED)
+        double servoPosition;
+        if (clampedAngle >= 0) {
+            // Positive angle = turn right
+            double servoRange = turretRightPosition - turretCenterPosition; // 0.235
+            servoPosition = turretCenterPosition + (clampedAngle / turretMaxAngle) * servoRange;
+        } else {
+            // Negative angle = turn left
+            double servoRange = turretCenterPosition - turretLeftPosition; // 0.235
+            servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
+        }
+        
+        // Set servo positions
+        turret1.setPosition(servoPosition);
+        turret2.setPosition(servoPosition);
+        
+        // ===== SHOOTER CONTROL =====
+        // Intake controls - split between bumpers
+        // Left bumper: back intake
+        if (gamepad1.left_bumper) {
+            intakeback.setPower(1.0);
+        } else {
+            intakeback.setPower(0);
+        }
+        
+        // Right bumper: front intake
+        if (gamepad1.right_bumper) {
+            intakefront.setPower(1.0);
+        } else {
+            intakefront.setPower(0);
+        }
+        
+        // Shooter velocity control - Hold Right Trigger to spin up
+        boolean shooterOn = gamepad1.right_trigger > 0.1;
+        
+        // Calculate distance to goal zone for RPM calculation
+        double deltaGoalX = goalZoneX - currentX;
+        double deltaGoalY = goalZoneY - currentY;
+        double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
+        double distanceToGoalFeet = distanceToGoalInches / 12.0;  // Convert inches to feet
+        
+        // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
+        double calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
+        // Clamp RPM to reasonable bounds (based on data: 1-6 feet = 1250-1750 RPM)
+        calculatedTargetRPM = Math.max(1250.0, Math.min(1750.0, calculatedTargetRPM));
+        
+        // Update PID coefficients
+        shooterPID.setPID(p, i, d);
+        shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
+        
+        // Convert target RPM to ticks per second
+        double targetTPS = rpmToTicksPerSec(calculatedTargetRPM);
+        
+        // Read current velocities
+        double vR = shootr.getVelocity();
+        double vL = shootl.getVelocity();
+        double vAvg = 0.5 * (vR + vL);
+        
+        // Convert to RPM for display
+        double shootrVelocityRPM = ticksPerSecToRPM(vR);
+        double shootlVelocityRPM = ticksPerSecToRPM(vL);
+        double avgVelocityRPM = ticksPerSecToRPM(vAvg);
+        
+        double shooterPower = 0;
+        double pidOutput = 0;
+        double feedforward = 0;
+        
+        if (shooterOn) {
+            // PID control
+            pidOutput = shooterPID.calculate(vAvg, targetTPS);
+            
+            // Feedforward
+            double sgn = Math.signum(targetTPS);
+            feedforward = (Math.abs(targetTPS) > 1e-6) ? (kS * sgn + kV * targetTPS) : 0.0;
+            
+            // Total power
+            shooterPower = pidOutput + feedforward;
+            
+            // Safety: prevent overshoot
+            if (avgVelocityRPM >= calculatedTargetRPM && shooterPower > 0) {
+                shooterPower = Math.min(shooterPower, 0.5);
+            }
+            
+            // Clamp
+            shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
+            
+            shootr.setPower(shooterPower);
+            shootl.setPower(shooterPower);
+        } else {
+            shootr.setPower(0);
+            shootl.setPower(0);
+            shooterPID.reset();
+        }
+        
+        // Hood position update
+        hood1.setPosition(hood1Position);
+        
+        // Launch gate - Left Trigger (gamepad1)
+        if (gamepad1.left_trigger > 0.1) {
+            launchgate.setPosition(0.8);
+        } else {
+            launchgate.setPosition(0.5);
+        }
+
+
+        telemetryA.addData("x", currentX);
+        telemetryA.addData("y", currentY);
+        telemetryA.addData("heading (rad)", currentHeading);
+        telemetryA.addData("heading (deg)", Math.toDegrees(currentHeading));
+        telemetryA.addData("", ""); // Empty line
+        telemetryA.addData("Distance to Target", "%.2f inches", distance);
+        telemetryA.addData("Turret Angle", "%.2f degrees", turretAngleDegrees);
+        telemetryA.addData("Turret Servo Position", "%.3f", servoPosition);
+        if (turretAngleDegrees < -turretMaxAngle || turretAngleDegrees > turretMaxAngle) {
+            telemetryA.addData("WARNING", "Target out of turret range!");
+        }
+        
+        // Add shooter telemetry
+        telemetryA.addData("", ""); // Empty line
+        telemetryA.addLine("=== Shooter Status ===");
+        telemetryA.addData("Shooter", shooterOn ? "RUNNING" : "STOPPED");
+        telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
+        telemetryA.addData("Calculated Target RPM", "%.0f (RPM = 100*%.2f + 1150)", calculatedTargetRPM, distanceToGoalFeet);
+        telemetryA.addData("Current RPM", "%.0f", avgVelocityRPM);
+        telemetryA.addData("Right Motor RPM", "%.0f", shootrVelocityRPM);
+        telemetryA.addData("Left Motor RPM", "%.0f", shootlVelocityRPM);
+        telemetryA.addData("Error (RPM)", "%.0f", calculatedTargetRPM - avgVelocityRPM);
+        telemetryA.addData("Shooter Power", "%.3f", shooterPower);
+        telemetryA.addData("Front Intake", gamepad1.right_bumper ? "RUNNING" : "STOPPED");
+        telemetryA.addData("Back Intake", gamepad1.left_bumper ? "RUNNING" : "STOPPED");
+        telemetryA.addData("Launch Gate", gamepad1.left_trigger > 0.1 ? "FIRING" : "RESET");
+        telemetryA.addData("Hood Position", "%.2f", hood1Position);
+        
+        // Add Limelight data
+        if (limelight != null) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.isValid()) {
+                telemetryA.addData("", ""); // Empty line
+                telemetryA.addLine("=== Limelight Data ===");
+                telemetryA.addData("tx (degrees)", "%.2f", result.getTx());
+                telemetryA.addData("ty (degrees)", "%.2f", result.getTy());
+                
+                // Display AprilTag fiducial results
+                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+                if (!fiducialResults.isEmpty()) {
+                    telemetryA.addData("AprilTags Detected", fiducialResults.size());
+                    for (LLResultTypes.FiducialResult fr : fiducialResults) {
+                        double tx = fr.getTargetXDegrees();
+                        double ty = fr.getTargetYDegrees();
+                        
+                        telemetryA.addData("  Tag ID", "%d", fr.getFiducialId());
+                        telemetryA.addData("    X (degrees)", "%.2f", tx);
+                        telemetryA.addData("    Y (degrees)", "%.2f", ty);
+                        
+                        // Calculate distance using height difference, mount angle, and vertical angle
+                        double angleToTarget = limelightMountAngle + ty;
+                        
+                        if (Math.abs(angleToTarget) > 0.5) { // Only calculate if we have a valid angle
+                            // Horizontal distance calculation accounting for mount angle
+                            double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
+                            
+                            // Diagonal distance from lens to center of AprilTag
+                            double diagonalDistance = Math.sqrt(
+                                horizontalDistance * horizontalDistance + 
+                                heightDifference * heightDifference
+                            );
+                            
+                            // Convert horizontal angle to inches offset
+                            double x_inches = horizontalDistance * Math.tan(Math.toRadians(tx));
+                            
+                            telemetryA.addData("    Angle to Target", "%.2f deg", angleToTarget);
+                            telemetryA.addData("    Horizontal Dist", "%.2f inches", horizontalDistance);
+                            telemetryA.addData("    Diagonal Dist", "%.2f inches", diagonalDistance);
+                            telemetryA.addData("    X Offset", "%.2f inches", x_inches);
+                            telemetryA.addData("    Height Diff", "%.2f inches", heightDifference);
+                        } else {
+                            telemetryA.addData("    Distance", "Invalid angle");
+                        }
+                        
+                        // Also show the 3D pose data if available
+                        org.firstinspires.ftc.robotcore.external.navigation.Pose3D targetPose = fr.getRobotPoseTargetSpace();
+                        if (targetPose != null && targetPose.getPosition() != null) {
+                            telemetryA.addData("    Pose X", "%.2f", targetPose.getPosition().x);
+                            telemetryA.addData("    Pose Y", "%.2f", targetPose.getPosition().y);
+                            telemetryA.addData("    Pose Z", "%.2f", targetPose.getPosition().z);
+                        }
+                    }
+                } else {
+                    telemetryA.addData("AprilTags", "None detected");
+                }
+            } else {
+                telemetryA.addData("", ""); // Empty line
+                telemetryA.addData("Limelight", "No valid data");
+            }
+        }
+        
+        telemetryA.update();
+
+        Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
+        Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
+        Drawing.sendPacket();
+    }
+    
+    /**
+     * Convert RPM to ticks per second
+     */
+    private static double rpmToTicksPerSec(double rpm) {
+        double motorRPM = rpm * GEAR_RATIO;
+        return (motorRPM / 60.0) * TICKS_PER_REV;
+    }
+
+    /**
+     * Convert ticks per second to RPM
+     */
+    private static double ticksPerSecToRPM(double tps) {
+        double motorRPM = (tps / TICKS_PER_REV) * 60.0;
+        return motorRPM / GEAR_RATIO;
+    }
+    
+    @Override
+    public void stop() {
+        // Stop all motors on OpMode stop
+        shootr.setPower(0);
+        shootl.setPower(0);
+        intakefront.setPower(0);
+        intakeback.setPower(0);
+        fl.setPower(0);
+        fr.setPower(0);
+        bl.setPower(0);
+        br.setPower(0);
+    }
+}
+
