@@ -108,9 +108,16 @@ public class FullTesting extends OpMode {
     
     // Auto-shoot state machine
     private boolean lastA = false;
+    private boolean lastLeftTrigger = false;
     private boolean shooting = false;
+    private boolean autoTransfer = false;
     private int shootState = 0;
+    private int transferState = 0;
     private ElapsedTime shootTimer;
+    private ElapsedTime transferTimer;
+    
+    // RPM tolerance for "at target" detection
+    public static double RPM_TOLERANCE = 100.0;
 
     /**
      * This initializes the PoseUpdater, the mecanum drive motors, and the FTC Dashboard telemetry.
@@ -162,8 +169,9 @@ public class FullTesting extends OpMode {
         shooterPID = new PIDFController(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
         
-        // Initialize auto-shoot timer
+        // Initialize auto-shoot timers
         shootTimer = new ElapsedTime();
+        transferTimer = new ElapsedTime();
         
         // Set initial servo positions
         launchgate.setPosition(0.5);
@@ -190,9 +198,10 @@ public class FullTesting extends OpMode {
         telemetryA.addLine("  - Left Bumper: Back intake");
         telemetryA.addLine("  - Right Bumper: Front intake");
         telemetryA.addLine("  - Right Trigger: Spin up shooter (RPM auto-calculated)");
-        telemetryA.addLine("  - Left Trigger: Fire launch gate");
+        telemetryA.addLine("  - Left Trigger: Auto-transfer 3 balls when at speed");
         telemetryA.addLine("  - A Button: Auto-shoot 3 balls (distance-based)");
         telemetryA.addLine("RPM Formula: RPM = 100 * (feet from goal) + 1150");
+        telemetryA.addLine("Auto-transfer adapts to distance (fast <7ft, slow ≥7ft)");
         telemetryA.update();
 
         Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
@@ -461,10 +470,178 @@ public class FullTesting extends OpMode {
             shooterPID.reset();
         }
         
-        // Launch gate - Left Trigger (gamepad1)
-        if (gamepad1.left_trigger > 0.1) {
-            launchgate.setPosition(0.8);
-        } else {
+        // ==================== AUTO-TRANSFER CONTROL (Left Trigger) ====================
+        boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
+        
+        // Check if shooter is at target velocity
+        double avgVelocityRPM = ticksPerSecToRPM(vAvg);
+        boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
+        
+        // Detect left trigger press for auto-transfer
+        if (currentLeftTrigger && !lastLeftTrigger && !autoTransfer && !shooting && shooterOn && atTargetSpeed) {
+            // Start auto-transfer sequence
+            autoTransfer = true;
+            transferState = 0;
+            transferTimer.reset();
+        }
+        lastLeftTrigger = currentLeftTrigger;
+        
+        // Run auto-transfer state machine
+        String transferStatus = "Ready";
+        if (autoTransfer) {
+            boolean isLongRangeTransfer = distanceToGoalFeet >= 7.0;
+            
+            if (isLongRangeTransfer) {
+                // LONG RANGE: Intakes on, push, intakes off, wait 0.3s, repeat 3x
+                switch (transferState) {
+                    case 0: // Shot 1: Intakes on
+                        transferStatus = "Shot 1/3: Intakes on";
+                        intakefront.setPower(-1.0);
+                        intakeback.setPower(-1.0);
+                        if (transferTimer.seconds() > 0.1) {
+                            transferState = 1;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 1: // Shot 1: Push
+                        transferStatus = "Shot 1/3: Pushing";
+                        launchgate.setPosition(0.8);
+                        if (transferTimer.seconds() > 0.2) {
+                            transferState = 2;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 2: // Shot 1: Reset and intakes off
+                        transferStatus = "Shot 1/3: Reset";
+                        launchgate.setPosition(0.5);
+                        intakefront.setPower(0);
+                        intakeback.setPower(0);
+                        if (transferTimer.seconds() > 0.3) {
+                            transferState = 3;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 3: // Shot 2: Intakes on
+                        transferStatus = "Shot 2/3: Intakes on";
+                        intakefront.setPower(-1.0);
+                        intakeback.setPower(-1.0);
+                        if (transferTimer.seconds() > 0.1) {
+                            transferState = 4;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 4: // Shot 2: Push
+                        transferStatus = "Shot 2/3: Pushing";
+                        launchgate.setPosition(0.8);
+                        if (transferTimer.seconds() > 0.2) {
+                            transferState = 5;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 5: // Shot 2: Reset and intakes off
+                        transferStatus = "Shot 2/3: Reset";
+                        launchgate.setPosition(0.5);
+                        intakefront.setPower(0);
+                        intakeback.setPower(0);
+                        if (transferTimer.seconds() > 0.3) {
+                            transferState = 6;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 6: // Shot 3: Intakes on
+                        transferStatus = "Shot 3/3: Intakes on";
+                        intakefront.setPower(-1.0);
+                        intakeback.setPower(-1.0);
+                        if (transferTimer.seconds() > 0.1) {
+                            transferState = 7;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 7: // Shot 3: Push
+                        transferStatus = "Shot 3/3: Pushing";
+                        launchgate.setPosition(0.8);
+                        if (transferTimer.seconds() > 0.2) {
+                            transferState = 8;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 8: // Shot 3: Final reset
+                        transferStatus = "Complete!";
+                        launchgate.setPosition(0.5);
+                        intakefront.setPower(0);
+                        intakeback.setPower(0);
+                        if (transferTimer.seconds() > 0.2) {
+                            autoTransfer = false;
+                            transferState = 0;
+                        }
+                        break;
+                }
+            } else {
+                // SHORT RANGE: Run intakes continuously, push 3x rapidly
+                switch (transferState) {
+                    case 0: // Start intakes
+                        transferStatus = "Starting intakes...";
+                        intakefront.setPower(-1.0);
+                        intakeback.setPower(-1.0);
+                        if (transferTimer.seconds() > 0.1) {
+                            transferState = 1;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 1: // Push 1
+                        transferStatus = "Firing 1/3";
+                        launchgate.setPosition(0.8);
+                        if (transferTimer.seconds() > 0.2) {
+                            transferState = 2;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 2: // Reset 1
+                        transferStatus = "Reset 1/3";
+                        launchgate.setPosition(0.5);
+                        if (transferTimer.seconds() > 0.3) {
+                            transferState = 3;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 3: // Push 2
+                        transferStatus = "Firing 2/3";
+                        launchgate.setPosition(0.8);
+                        if (transferTimer.seconds() > 0.2) {
+                            transferState = 4;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 4: // Reset 2
+                        transferStatus = "Reset 2/3";
+                        launchgate.setPosition(0.5);
+                        if (transferTimer.seconds() > 0.3) {
+                            transferState = 5;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 5: // Push 3
+                        transferStatus = "Firing 3/3";
+                        launchgate.setPosition(0.8);
+                        if (transferTimer.seconds() > 0.2) {
+                            transferState = 6;
+                            transferTimer.reset();
+                        }
+                        break;
+                    case 6: // Final reset and stop intakes
+                        transferStatus = "Complete!";
+                        launchgate.setPosition(0.5);
+                        intakefront.setPower(0);
+                        intakeback.setPower(0);
+                        if (transferTimer.seconds() > 0.2) {
+                            autoTransfer = false;
+                            transferState = 0;
+                        }
+                        break;
+                }
+            }
+        } else if (!currentLeftTrigger && !autoTransfer) {
+            // Manual launch gate control when not auto-transferring
             launchgate.setPosition(0.5);
         }
 
@@ -485,9 +662,15 @@ public class FullTesting extends OpMode {
         telemetryA.addData("", ""); // Empty line
         telemetryA.addLine("=== Shooter Status ===");
         telemetryA.addData("Shooter", shooterOn ? "RUNNING" : "STOPPED");
+        telemetryA.addData("At Target Speed", atTargetSpeed ? "✓ YES" : "NO");
         if (shooting) {
             telemetryA.addData("Auto-Shoot", shootStatus);
             telemetryA.addData("State", shootState);
+        }
+        if (autoTransfer) {
+            telemetryA.addData("Auto-Transfer", transferStatus);
+            telemetryA.addData("Transfer State", transferState);
+            telemetryA.addData("Transfer Mode", distanceToGoalFeet >= 7.0 ? "LONG (slow)" : "SHORT (fast)");
         }
         telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
         telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
