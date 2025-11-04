@@ -4,6 +4,10 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDFController;
+import com.pedropathing.localization.Pose;
+import com.pedropathing.localization.PoseUpdater;
+import com.pedropathing.util.DashboardPoseTracker;
+import com.pedropathing.util.Drawing;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -13,13 +17,25 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+
 @Config
 @TeleOp(name = "Auto Shoot Test")
 public class AutoShootTest extends OpMode {
+    
+    private PoseUpdater poseUpdater;
+    private DashboardPoseTracker dashboardPoseTracker;
+    private Telemetry telemetryA;
 
     // Preset shooting parameters (adjustable from dashboard)
     public static double PRESET_DISTANCE_FEET = 3.0;
     public static double PRESET_TURRET_ANGLE = 0.0;
+    
+    // Goal zone coordinates for long-range shooting (adjustable from dashboard)
+    public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
+    public static double goalZoneY = 115.0; // Goal zone Y coordinate in inches
     
     // Shooter PIDF Constants - From VelocityFinder
     public static double TICKS_PER_REV = 28.0;
@@ -52,14 +68,27 @@ public class AutoShootTest extends OpMode {
     private ElapsedTime shootTimer;
     
     private boolean lastA = false;
+    private boolean lastX = false;
+    private boolean lastB = false;
     private boolean shooting = false;
     private int shootState = 0;
+    private boolean useLongRangeMode = false;
+    
+    // Store calculated values for long-range mode
+    private double calculatedAngle = 0;
+    private double calculatedRPM = 0;
+    private double distanceToGoalFeet = 0;
     
     public static double hood1Position = 0.54;
 
     @Override
     public void init() {
-        telemetry = new MultipleTelemetry(telemetry, FtcDashboard.getInstance().getTelemetry());
+        telemetry.setMsTransmissionInterval(25);
+        telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
+        
+        // Initialize PedroPathing localization
+        poseUpdater = new PoseUpdater(hardwareMap, FConstants.class, LConstants.class);
+        dashboardPoseTracker = new DashboardPoseTracker(poseUpdater);
         
         // Initialize drive motors
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
@@ -89,12 +118,12 @@ public class AutoShootTest extends OpMode {
         turret2 = hardwareMap.get(Servo.class, "turret2");
         hood1 = hardwareMap.get(Servo.class, "hood 1");
 
-        // Initialize limelight (optional, can be null if not used)
+        // Initialize limelight (optional)
         try {
             limelight = hardwareMap.get(Limelight3A.class, "limelight");
             limelight.start();
         } catch (Exception e) {
-            telemetry.addData("Limelight", "Not found - continuing without it");
+            telemetryA.addData("Limelight", "Not found - continuing without it");
             limelight = null;
         }
 
@@ -117,22 +146,39 @@ public class AutoShootTest extends OpMode {
         reargate.setPosition(0.0);
         hood1.setPosition(hood1Position);
 
-        telemetry.addLine("Auto Shoot Test Initialized");
-        telemetry.addLine("=========================");
-        telemetry.addLine("Controls:");
-        telemetry.addLine("  A Button = Auto Shoot at Preset");
-        telemetry.addLine("  Right Stick = Drive");
-        telemetry.addLine("  Left Stick X = Rotate");
-        telemetry.addLine("");
-        telemetry.addData("Preset Distance", "%.1f feet", PRESET_DISTANCE_FEET);
-        telemetry.addData("Preset Turret Angle", "%.1f degrees", PRESET_TURRET_ANGLE);
-        telemetry.addLine("");
-        telemetry.addLine("Adjust presets on FTC Dashboard");
-        telemetry.update();
+        telemetryA.addLine("Auto Shoot Test Initialized");
+        telemetryA.addLine("============================");
+        telemetryA.addLine("TWO SHOOTING MODES:");
+        telemetryA.addLine("");
+        telemetryA.addLine("PRESET MODE (Default):");
+        telemetryA.addLine("  A Button = Shoot at preset distance/angle");
+        telemetryA.addData("  Distance", "%.1f feet", PRESET_DISTANCE_FEET);
+        telemetryA.addData("  Angle", "%.1f degrees", PRESET_TURRET_ANGLE);
+        telemetryA.addLine("");
+        telemetryA.addLine("LONG RANGE MODE:");
+        telemetryA.addLine("  X or B Button = Shoot at goal (auto-aim)");
+        telemetryA.addData("  Goal", "(%.1f, %.1f)", goalZoneX, goalZoneY);
+        telemetryA.addLine("  Uses localization for distance/angle");
+        telemetryA.addLine("");
+        telemetryA.addLine("Right Stick = Drive | Left Stick X = Rotate");
+        telemetryA.update();
     }
 
     @Override
     public void loop() {
+        // Update localization
+        poseUpdater.update();
+        Pose currentPose = poseUpdater.getPose();
+        double currentX = currentPose.getX();
+        double currentY = currentPose.getY();
+        double currentHeading = currentPose.getHeading();
+        
+        // Update dashboard
+        dashboardPoseTracker.update();
+        Drawing.drawRobot(currentPose, "#4CAF50");
+        Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50FF");
+        Drawing.sendPacket();
+        
         // ==================== DRIVE CONTROLS ====================
         double y = -gamepad1.right_stick_y;
         double x = gamepad1.right_stick_x * 1.1;
@@ -152,17 +198,45 @@ public class AutoShootTest extends OpMode {
         br.setPower(brPower);
 
         // ==================== AUTO SHOOT CONTROL ====================
-        // Calculate target RPM based on preset distance
-        double targetRPM = RPM_SLOPE * PRESET_DISTANCE_FEET + RPM_INTERCEPT;
-        targetRPM = Math.max(1250.0, Math.min(1750.0, targetRPM));
+        double targetRPM;
+        double turretAngle;
+        double turretPos;
+        
+        // Calculate distance and angle to goal for long-range mode
+        double deltaGoalX = goalZoneX - currentX;
+        double deltaGoalY = goalZoneY - currentY;
+        double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
+        distanceToGoalFeet = distanceToGoalInches / 12.0;
+        
+        // Calculate angle to goal
+        double angleToGoalRad = Math.atan2(deltaGoalY, deltaGoalX);
+        double angleToGoalDeg = Math.toDegrees(angleToGoalRad);
+        double turretAngleDeg = angleToGoalDeg - Math.toDegrees(currentHeading);
+        
+        // Normalize turret angle to -180 to 180
+        while (turretAngleDeg > 180) turretAngleDeg -= 360;
+        while (turretAngleDeg < -180) turretAngleDeg += 360;
+        
+        // Store calculated values for long-range mode
+        calculatedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDeg));
+        calculatedRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
+        calculatedRPM = Math.max(1250.0, Math.min(1750.0, calculatedRPM));
+        
+        // Use appropriate values based on mode
+        if (useLongRangeMode) {
+            targetRPM = calculatedRPM;
+            turretAngle = calculatedAngle;
+        } else {
+            targetRPM = RPM_SLOPE * PRESET_DISTANCE_FEET + RPM_INTERCEPT;
+            targetRPM = Math.max(1250.0, Math.min(1750.0, targetRPM));
+            turretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, PRESET_TURRET_ANGLE));
+        }
         
         // Calculate turret servo position
-        double clampedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, PRESET_TURRET_ANGLE));
-        double turretPos;
-        if (clampedAngle >= 0) {
-            turretPos = turretCenterPosition + (clampedAngle / turretMaxAngle) * (turretRightPosition - turretCenterPosition);
+        if (turretAngle >= 0) {
+            turretPos = turretCenterPosition + (turretAngle / turretMaxAngle) * (turretRightPosition - turretCenterPosition);
         } else {
-            turretPos = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
+            turretPos = turretCenterPosition - (Math.abs(turretAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
         }
         
         // Set turret position
@@ -170,15 +244,27 @@ public class AutoShootTest extends OpMode {
         turret2.setPosition(turretPos);
         hood1.setPosition(hood1Position);
         
-        // Detect A button press (edge trigger)
+        // Detect A button press (preset mode) or X/B button press (long-range mode)
         boolean currentA = gamepad1.a;
+        boolean currentX = gamepad1.x;
+        boolean currentB = gamepad1.b;
+        
         if (currentA && !lastA && !shooting) {
-            // Start shooting sequence
+            // Start shooting sequence in PRESET mode
+            useLongRangeMode = false;
+            shooting = true;
+            shootState = 0;
+            shootTimer.reset();
+        } else if ((currentX && !lastX && !shooting) || (currentB && !lastB && !shooting)) {
+            // Start shooting sequence in LONG RANGE mode (X or B button)
+            useLongRangeMode = true;
             shooting = true;
             shootState = 0;
             shootTimer.reset();
         }
         lastA = currentA;
+        lastX = currentX;
+        lastB = currentB;
 
         // Run shooting state machine (3 shots)
         String shootStatus = "Ready";
@@ -300,40 +386,49 @@ public class AutoShootTest extends OpMode {
         // ==================== TELEMETRY ====================
         double avgRPM = ticksPerSecToRPM(vAvg);
         
-        telemetry.addLine("=== AUTO SHOOT TEST ===");
-        telemetry.addData("Drive", String.format("FL:%.2f FR:%.2f BL:%.2f BR:%.2f", 
-            flPower, frPower, blPower, brPower));
-        telemetry.addData("", "");
+        telemetryA.addLine("=== AUTO SHOOT TEST ===");
+        telemetryA.addData("Current Pose", String.format("(%.1f, %.1f) @ %.1f°", 
+            currentX, currentY, Math.toDegrees(currentHeading)));
+        telemetryA.addData("Mode", useLongRangeMode ? "LONG RANGE 🎯" : "PRESET 📍");
+        telemetryA.addData("", "");
         
-        telemetry.addLine("=== PRESET PARAMETERS ===");
-        telemetry.addData("Distance", "%.1f feet", PRESET_DISTANCE_FEET);
-        telemetry.addData("Turret Angle", "%.1f degrees", PRESET_TURRET_ANGLE);
-        telemetry.addData("Target RPM", "%.0f", targetRPM);
-        telemetry.addData("Turret Servo Pos", "%.3f", turretPos);
-        telemetry.addData("", "");
+        if (useLongRangeMode) {
+            telemetryA.addLine("=== LONG RANGE MODE ===");
+            telemetryA.addData("Goal Zone", "(%.1f, %.1f)", goalZoneX, goalZoneY);
+            telemetryA.addData("Distance", "%.1f inches (%.1f feet)", distanceToGoalInches, distanceToGoalFeet);
+            telemetryA.addData("Calculated Angle", "%.1f°", calculatedAngle);
+            telemetryA.addData("Calculated RPM", "%.0f", calculatedRPM);
+        } else {
+            telemetryA.addLine("=== PRESET MODE ===");
+            telemetryA.addData("Preset Distance", "%.1f feet", PRESET_DISTANCE_FEET);
+            telemetryA.addData("Preset Angle", "%.1f°", PRESET_TURRET_ANGLE);
+            telemetryA.addData("Target RPM", "%.0f", targetRPM);
+        }
+        telemetryA.addData("Turret Servo", "%.3f", turretPos);
+        telemetryA.addData("", "");
         
-        telemetry.addLine("=== SHOOTER STATUS ===");
-        telemetry.addData("Status", shootStatus);
-        telemetry.addData("State", shootState);
-        telemetry.addData("Current RPM", "%.0f", avgRPM);
-        telemetry.addData("Error (RPM)", "%.0f", targetRPM - avgRPM);
-        telemetry.addData("Shooter Power", "%.3f", shooterPower);
+        telemetryA.addLine("=== SHOOTER STATUS ===");
+        telemetryA.addData("Status", shootStatus);
+        telemetryA.addData("State", shootState);
+        telemetryA.addData("Current RPM", "%.0f", avgRPM);
+        telemetryA.addData("Error (RPM)", "%.0f", targetRPM - avgRPM);
+        telemetryA.addData("Shooter Power", "%.3f", shooterPower);
         
         if (shooting || gamepad1.right_trigger > 0.1) {
-            telemetry.addData("PIDF Output", "%.4f", pidfOutput);
-            telemetry.addData("Additional FF", "%.4f", additionalFF);
+            telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
+            telemetryA.addData("Additional FF", "%.4f", additionalFF);
         }
         
-        telemetry.addData("Right Motor TPS", "%.1f", vR);
-        telemetry.addData("Left Motor TPS", "%.1f", vL);
-        telemetry.addData("", "");
+        telemetryA.addData("Right Motor TPS", "%.1f", vR);
+        telemetryA.addData("Left Motor TPS", "%.1f", vL);
+        telemetryA.addData("", "");
         
-        telemetry.addLine("=== CONTROLS ===");
-        telemetry.addData("A Button", "Auto shoot sequence");
-        telemetry.addData("Right Trigger", "Manual shooter spin");
-        telemetry.addLine("Adjust Distance/Angle on Dashboard");
+        telemetryA.addLine("=== CONTROLS ===");
+        telemetryA.addData("A Button", "Shoot at preset");
+        telemetryA.addData("X or B Button", "Shoot at goal (auto-aim)");
+        telemetryA.addData("Right Trigger", "Manual shooter spin");
         
-        telemetry.update();
+        telemetryA.update();
     }
 
     @Override
