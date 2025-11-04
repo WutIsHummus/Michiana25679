@@ -26,7 +26,7 @@ public class DecodeTest extends PathChainAutoOpMode {
     
     private RobotActions actions;
 
-    private PathChain path1, path3, path4, path5, path6, path7, path8, path9, path10;
+    private PathChain path1, path3, path4, path5, path6, path7, path8, path9, path10, path11;
 
     @Override
     public void init() {
@@ -47,7 +47,7 @@ public class DecodeTest extends PathChainAutoOpMode {
         
         actions = new RobotActions(intakefront, intakeback, shootr, shootl, launchgate, reargate);
 
-        follower.setStartingPose(new Pose(19.548, 118.452, Math.toRadians(145)));
+        follower.setStartingPose(new Pose(23.806, 126.000, Math.toRadians(145)));
 
         buildPathChains();
         buildTaskList();
@@ -78,89 +78,82 @@ public class DecodeTest extends PathChainAutoOpMode {
     protected void buildPathChains() {
         path1 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(19.548, 118.452),
-                        new Pose(94, 78),
-                        new Pose(19.548, 84.000)))
+                        new Pose(23.806, 126.000),
+                        new Pose(87.484, 85.161),
+                        new Pose(22.258, 84.000)))
                 .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(180))
-                .addParametricCallback(0, () -> run(actions.safePositions()))
-                .addParametricCallback(0.5, () -> run(actions.startIntake()))
                 .build();
 
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(19.548, 84.000),
-                        new Pose(55.935, 88.258)))
+                        new Pose(22.258, 84.000),
+                        new Pose(43.742, 99.871)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(130))
                 .setReversed(true)
-                .addParametricCallback(0, () -> run(actions.stopIntake()))
-                .addParametricCallback(0.3, () -> run(actions.intakeAndLaunch()))
                 .build();
 
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(55.935, 88.258),
-                        new Pose(62.323, 55.742),
-                        new Pose(21.484, 59.613)))
+                        new Pose(43.742, 99.871),
+                        new Pose(69.677, 54.968),
+                        new Pose(21.677, 60.000)))
                 .setLinearHeadingInterpolation(Math.toRadians(130), Math.toRadians(180))
-                .addParametricCallback(0.5, () -> run(actions.startIntake()))
                 .build();
 
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(21.484, 59.613),
-                        new Pose(30.387, 68.903),
-                        new Pose(55.355, 88.258)))
+                        new Pose(21.677, 60.000),
+                        new Pose(32.516, 76.839),
+                        new Pose(43.742, 99.871)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(130))
                 .setReversed(true)
-                .addParametricCallback(0, () -> run(actions.stopIntake()))
-                .addParametricCallback(0.3, () -> run(actions.intakeAndLaunch()))
                 .build();
 
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(55.355, 88.258),
-                        new Pose(66.194, 29.419),
-                        new Pose(20.903, 35.226)))
-                .setLinearHeadingInterpolation(Math.toRadians(130), Math.toRadians(180))
-                .addParametricCallback(0.5, () -> run(actions.startIntake()))
+                        new Pose(43.742, 99.871),
+                        new Pose(57.097, 75.290),
+                        new Pose(15.677, 70.065)))
+                .setLinearHeadingInterpolation(Math.toRadians(130), Math.toRadians(270))
                 .build();
 
-        // Path7
         path7 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(20.903, 35.226),
-                        new Pose(50.323, 76.452),
-                        new Pose(17.419, 70.258)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(270))
+                        new Pose(15.677, 70.065),
+                        new Pose(85.548, 33.290),
+                        new Pose(21.290, 35.419)))
+                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(180))
                 .build();
 
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(17.419, 70.258),
-                        new Pose(55.548, 88.065)))
+                        new Pose(21.290, 35.419),
+                        new Pose(43.548, 99.677)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(130))
-                .addParametricCallback(0, () -> run(actions.stopIntake()))
-                .addParametricCallback(0.3, () -> run(actions.intakeAndLaunch()))
                 .build();
 
         path9 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(55.548, 88.065),
+                        new Pose(43.548, 99.677),
                         new Pose(11.032, 50.129),
-                        new Pose(14.700, 6.581)))
+                        new Pose(13.161, 10.452)))
                 .setLinearHeadingInterpolation(Math.toRadians(130), Math.toRadians(270))
-                .addParametricCallback(0.5, () -> run(actions.startIntake()))
                 .build();
 
         path10 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(9.677, 6.581),
+                        new Pose(13.161, 10.452),
                         new Pose(47.419, 32.323),
-                        new Pose(55.355, 88.258)))
+                        new Pose(43.742, 99.871)))
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(130))
-                .addParametricCallback(0, () -> run(actions.stopIntake()))
-                .addParametricCallback(0.3, () -> run(actions.intakeAndLaunch()))
-                .addParametricCallback(1, () -> run(actions.safePositions()))
+                .build();
+
+        path11 = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Pose(43.742, 99.871),
+                        new Pose(10.839, 50.129),
+                        new Pose(13.161, 10.452)))
+                .setLinearHeadingInterpolation(Math.toRadians(130), Math.toRadians(270))
                 .build();
     }
 
@@ -176,6 +169,7 @@ public class DecodeTest extends PathChainAutoOpMode {
         addPath(path8, 1);
         addPath(path9, 0);
         addPath(path10, 1);
+        addPath(path11, 0);
     }
 
     @Override
