@@ -22,6 +22,7 @@ public class ShooterVelocityPIDF extends LinearOpMode {
     public static double kS = 0.05;
     public static double kV = 0.0002;
     public static double kA = 0.0;
+    public static double kF = 0.0;     // Simple feedforward (F*setpoint)
     
     public static double kP = 0.0005;
     public static double kI = 0.0;
@@ -128,6 +129,7 @@ public class ShooterVelocityPIDF extends LinearOpMode {
             ctrl.kS = kS;
             ctrl.kV = kV;
             ctrl.kA = kA;
+            ctrl.kF = kF;
             ctrl.kP = kP;
             ctrl.kI = kI;
             ctrl.kD = kD;
@@ -184,6 +186,7 @@ public class ShooterVelocityPIDF extends LinearOpMode {
         packet.put("kS", kS);
         packet.put("kV", kV);
         packet.put("kA", kA);
+        packet.put("kF", kF);
         packet.put("kP", kP);
         packet.put("kI", kI);
         packet.put("kD", kD);
