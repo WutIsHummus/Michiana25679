@@ -233,7 +233,7 @@ public class AutoShootLong extends OpMode {
         }
         lastA = currentA;
 
-        // Run shooting state machine
+        // Run shooting state machine (3 shots)
         String shootStatus = "Ready";
         if (shooting) {
             switch (shootState) {
@@ -245,18 +245,18 @@ public class AutoShootLong extends OpMode {
                     }
                     break;
                     
-                case 1: // Run intakes
-                    shootStatus = "Running intakes...";
+                case 1: // Start intakes
+                    shootStatus = "Starting intakes...";
                     intakefront.setPower(-1.0);
                     intakeback.setPower(-1.0);
-                    if (shootTimer.seconds() > 0.3) {
+                    if (shootTimer.seconds() > 0.1) {
                         shootState = 2;
                         shootTimer.reset();
                     }
                     break;
                     
-                case 2: // Fire launch gate
-                    shootStatus = "Firing!";
+                case 2: // Fire shot 1
+                    shootStatus = "Firing shot 1/3";
                     launchgate.setPosition(0.8);
                     if (shootTimer.seconds() > 0.2) {
                         shootState = 3;
@@ -264,15 +264,50 @@ public class AutoShootLong extends OpMode {
                     }
                     break;
                     
-                case 3: // Reset launch gate
-                    shootStatus = "Resetting...";
+                case 3: // Reset gate 1
+                    shootStatus = "Reset 1/3";
+                    launchgate.setPosition(0.5);
+                    if (shootTimer.seconds() > 0.3) {
+                        shootState = 4;
+                        shootTimer.reset();
+                    }
+                    break;
+                    
+                case 4: // Fire shot 2
+                    shootStatus = "Firing shot 2/3";
+                    launchgate.setPosition(0.8);
+                    if (shootTimer.seconds() > 0.2) {
+                        shootState = 5;
+                        shootTimer.reset();
+                    }
+                    break;
+                    
+                case 5: // Reset gate 2
+                    shootStatus = "Reset 2/3";
+                    launchgate.setPosition(0.5);
+                    if (shootTimer.seconds() > 0.3) {
+                        shootState = 6;
+                        shootTimer.reset();
+                    }
+                    break;
+                    
+                case 6: // Fire shot 3
+                    shootStatus = "Firing shot 3/3";
+                    launchgate.setPosition(0.8);
+                    if (shootTimer.seconds() > 0.2) {
+                        shootState = 7;
+                        shootTimer.reset();
+                    }
+                    break;
+                    
+                case 7: // Reset gate 3 and stop
+                    shootStatus = "Complete!";
                     launchgate.setPosition(0.5);
                     intakefront.setPower(0);
                     intakeback.setPower(0);
                     if (shootTimer.seconds() > 0.2) {
                         shooting = false;
                         shootState = 0;
-                        shootStatus = "Complete!";
                     }
                     break;
             }
