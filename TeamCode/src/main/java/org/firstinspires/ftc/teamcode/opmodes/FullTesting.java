@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.arcrobotics.ftclib.controller.PIDController;
+import com.arcrobotics.ftclib.controller.PIDFController;
 import com.pedropathing.util.Constants;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
@@ -53,7 +53,7 @@ public class FullTesting extends OpMode {
     private DcMotorEx intakefront, intakeback;
     private DcMotorEx shootr, shootl;
     private Servo reargate, launchgate, hood1;
-    private PIDController shooterPID;
+    private PIDFController shooterPID;
 
     // Target coordinates for distance calculation
     public static double targetX = 128.0;
@@ -81,7 +81,8 @@ public class FullTesting extends OpMode {
     public static double p = 0.01;
     public static double i = 0.0;
     public static double d = 0.0001;
-    public static double kV = 0.0008;  // Velocity feedforward
+    public static double f = 0.0008;  // Feedforward (simple F term, multiplied by setpoint)
+    public static double kV = 0.0008;  // Velocity feedforward (alternative method)
     public static double kS = 0.01;    // Static feedforward
     public static double I_ZONE = 250.0;
     public static double hood1Position = 0.54;
@@ -138,8 +139,8 @@ public class FullTesting extends OpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
         
-        // Initialize shooter PID controller
-        shooterPID = new PIDController(p, i, d);
+        // Initialize shooter PIDF controller
+        shooterPID = new PIDFController(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
         
         // Set initial servo positions
@@ -276,8 +277,8 @@ public class FullTesting extends OpMode {
         // Clamp RPM to reasonable bounds (based on data: 1-6 feet = 1250-1750 RPM)
         calculatedTargetRPM = Math.max(1250.0, Math.min(1750.0, calculatedTargetRPM));
         
-        // Update PID coefficients
-        shooterPID.setPID(p, i, d);
+        // Update PIDF coefficients
+        shooterPID.setPIDF(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
         
         // Convert target RPM to ticks per second
@@ -294,19 +295,21 @@ public class FullTesting extends OpMode {
         double avgVelocityRPM = ticksPerSecToRPM(vAvg);
         
         double shooterPower = 0;
-        double pidOutput = 0;
-        double feedforward = 0;
+        double pidfOutput = 0;
+        double additionalFF = 0;
         
         if (shooterOn) {
-            // PID control
-            pidOutput = shooterPID.calculate(vAvg, targetTPS);
+            // PIDF control (F term is built-in and multiplied by setpoint)
+            pidfOutput = shooterPID.calculate(vAvg, targetTPS);
             
-            // Feedforward
+            // Optional: Additional feedforward using kV and kS
+            // You can disable this if you want to use only the F term
             double sgn = Math.signum(targetTPS);
-            feedforward = (Math.abs(targetTPS) > 1e-6) ? (kS * sgn + kV * targetTPS) : 0.0;
+            additionalFF = (Math.abs(targetTPS) > 1e-6) ? (kS * sgn + kV * targetTPS) : 0.0;
             
-            // Total power
-            shooterPower = pidOutput + feedforward;
+            // Total power (PIDF output already includes F*setpoint)
+            // If using only F term, set kS and kV to 0
+            shooterPower = pidfOutput + additionalFF;
             
             // Safety: prevent overshoot
             if (avgVelocityRPM >= calculatedTargetRPM && shooterPower > 0) {
@@ -358,10 +361,25 @@ public class FullTesting extends OpMode {
         telemetryA.addData("Left Motor RPM", "%.0f", shootlVelocityRPM);
         telemetryA.addData("Error (RPM)", "%.0f", calculatedTargetRPM - avgVelocityRPM);
         telemetryA.addData("Shooter Power", "%.3f", shooterPower);
+        if (shooterOn) {
+            telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
+            telemetryA.addData("Additional FF", "%.4f (kS=%.4f + kV*TPS=%.4f)", 
+                additionalFF, kS * Math.signum(targetTPS), kV * targetTPS);
+            telemetryA.addData("F Term Contribution", "%.4f (F*setpoint = %.4f*%.1f)", 
+                f * targetTPS, f, targetTPS);
+        }
         telemetryA.addData("Front Intake", gamepad1.right_bumper ? "RUNNING" : "STOPPED");
         telemetryA.addData("Back Intake", gamepad1.left_bumper ? "RUNNING" : "STOPPED");
         telemetryA.addData("Launch Gate", gamepad1.left_trigger > 0.1 ? "FIRING" : "RESET");
         telemetryA.addData("Hood Position", "%.2f", hood1Position);
+        telemetryA.addData("", "");
+        telemetryA.addLine("=== PIDF Tuning ===");
+        telemetryA.addData("P", "%.6f", p);
+        telemetryA.addData("I", "%.6f", i);
+        telemetryA.addData("D", "%.6f", d);
+        telemetryA.addData("F", "%.6f (NEW - tune this!)", f);
+        telemetryA.addData("kV", "%.6f (optional, can set to 0)", kV);
+        telemetryA.addData("kS", "%.6f (optional, can set to 0)", kS);
         
         // Add Limelight data
         if (limelight != null) {

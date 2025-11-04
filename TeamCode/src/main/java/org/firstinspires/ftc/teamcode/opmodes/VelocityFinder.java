@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.arcrobotics.ftclib.controller.PIDController;
+import com.arcrobotics.ftclib.controller.PIDFController;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -23,6 +23,7 @@ public class VelocityFinder extends OpMode {
     public static double p = 0.01;
     public static double i = 0.0;
     public static double d = 0.0001;
+    public static double f = 0.0;     // Feedforward (F*setpoint, tune this for rapid fire!)
     public static double kV = 0.0008;  // Velocity feedforward (power per tick/s)
     public static double kS = 0.01;    // Static feedforward
     public static double I_ZONE = 250.0;  // Integrator clamp range
@@ -41,8 +42,8 @@ public class VelocityFinder extends OpMode {
     private Servo launchgate;
     private Servo hood1;
 
-    // PID Controller
-    private PIDController shooterPID;
+    // PIDF Controller
+    private PIDFController shooterPID;
 
     @Override
     public void init() {
@@ -81,8 +82,8 @@ public class VelocityFinder extends OpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        // Initialize PID controller
-        shooterPID = new PIDController(p, i, d);
+        // Initialize PIDF controller
+        shooterPID = new PIDFController(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
         
         telemetry.addLine("Shooter Velocity Controller Initialized");
@@ -125,8 +126,8 @@ public class VelocityFinder extends OpMode {
         // Shooter control - Hold A to run, release to stop
         boolean shooterOn = gamepad1.a;
         
-        // Update PID coefficients every loop
-        shooterPID.setPID(p, i, d);
+        // Update PIDF coefficients every loop
+        shooterPID.setPIDF(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
         
         // Convert target RPM to ticks per second
@@ -239,9 +240,11 @@ public class VelocityFinder extends OpMode {
             telemetry.addData("p", "%.6f", p);
             telemetry.addData("i", "%.6f", i);
             telemetry.addData("d", "%.6f", d);
-            telemetry.addData("kV", "%.6f <-- CHANGE THIS!", kV);
+            telemetry.addData("f", "%.6f <-- NEW: F*setpoint for rapid fire!", f);
+            telemetry.addData("kV", "%.6f", kV);
             telemetry.addData("kS", "%.6f", kS);
             telemetry.addData("I_ZONE", "%.1f", I_ZONE);
+            telemetry.addData("F contribution", "%.4f (F*targetTPS)", f * targetTPS);
             telemetry.addData("", "");
             telemetry.addData("kV * targetTPS", "%.4f (should be ~0.84)", kV * targetTPS);
             
@@ -252,10 +255,11 @@ public class VelocityFinder extends OpMode {
             
             telemetry.addData("", "");
             telemetry.addLine("Tuning Guide (for TPS units):");
-            telemetry.addData("1. kV", "Adjust 0.0008-0.001 until near target");
-            telemetry.addData("2. kS", "Add 0.01-0.03 for friction");
+            telemetry.addData("1. F", "Tune F (0.0008-0.001) for base velocity (rapid fire!)");
+            telemetry.addData("2. kV + kS", "Or use kV/kS instead (alternative method)");
             telemetry.addData("3. P", "Add 0.0003-0.0008 for error correction");
-            telemetry.addData("Note", "Gains are 20x smaller than RPM control!");
+            telemetry.addData("4. D", "Add small D for stability if needed");
+            telemetry.addData("Note", "F term helps maintain speed during rapid fire!");
             
             telemetry.update();
     }
