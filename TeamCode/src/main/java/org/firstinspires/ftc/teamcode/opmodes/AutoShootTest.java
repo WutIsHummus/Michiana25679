@@ -231,16 +231,27 @@ public class AutoShootTest extends OpMode {
         
         // Store calculated values for long-range mode
         calculatedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDeg));
-        calculatedRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-        calculatedRPM = Math.max(1250.0, Math.min(2500.0, calculatedRPM));  // Increased max for long shots
+        
+        // Calculate RPM: use formula up to 7 feet, then cap at 2100 RPM
+        if (distanceToGoalFeet >= 7.0) {
+            calculatedRPM = 2100.0;  // Fixed RPM for 7+ feet
+        } else {
+            calculatedRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
+            calculatedRPM = Math.max(1250.0, Math.min(2100.0, calculatedRPM));
+        }
         
         // Use appropriate values based on mode
         if (useLongRangeMode) {
             targetRPM = calculatedRPM;
             turretAngle = calculatedAngle;
         } else {
-            targetRPM = RPM_SLOPE * PRESET_DISTANCE_FEET + RPM_INTERCEPT;
-            targetRPM = Math.max(1250.0, Math.min(2500.0, targetRPM));  // Increased max for long shots
+            // Preset mode RPM calculation
+            if (PRESET_DISTANCE_FEET >= 7.0) {
+                targetRPM = 2100.0;  // Fixed RPM for 7+ feet
+            } else {
+                targetRPM = RPM_SLOPE * PRESET_DISTANCE_FEET + RPM_INTERCEPT;
+                targetRPM = Math.max(1250.0, Math.min(2100.0, targetRPM));
+            }
             turretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, PRESET_TURRET_ANGLE));
         }
         

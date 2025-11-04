@@ -217,9 +217,13 @@ public class AutoShootLong extends OpMode {
         // Clamp to turret limits
         calculatedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDeg));
         
-        // Calculate target RPM based on distance
-        calculatedRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-        calculatedRPM = Math.max(1250.0, Math.min(2500.0, calculatedRPM));  // Increased max for long shots
+        // Calculate target RPM: use formula up to 7 feet, then cap at 2100 RPM
+        if (distanceToGoalFeet >= 7.0) {
+            calculatedRPM = 2100.0;  // Fixed RPM for 7+ feet
+        } else {
+            calculatedRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
+            calculatedRPM = Math.max(1250.0, Math.min(2100.0, calculatedRPM));
+        }
         
         // Calculate turret servo position
         double turretPos;

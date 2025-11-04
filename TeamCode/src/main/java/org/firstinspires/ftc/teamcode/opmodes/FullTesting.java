@@ -387,9 +387,14 @@ public class FullTesting extends OpMode {
         double distanceToGoalFeet = distanceToGoalInches / 12.0;  // Convert inches to feet
         
         // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
-        double calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-        // Clamp RPM to reasonable bounds (increased max for long shots)
-        calculatedTargetRPM = Math.max(1250.0, Math.min(2500.0, calculatedTargetRPM));
+        // Calculate target RPM: use formula up to 7 feet, then cap at 2100 RPM
+        double calculatedTargetRPM;
+        if (distanceToGoalFeet >= 7.0) {
+            calculatedTargetRPM = 2100.0;  // Fixed RPM for 7+ feet
+        } else {
+            calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
+            calculatedTargetRPM = Math.max(1250.0, Math.min(2100.0, calculatedTargetRPM));
+        }
         
         // Determine if we're shooting long range (>= 6 feet)
         boolean isLongRange = distanceToGoalFeet >= 6.0;
