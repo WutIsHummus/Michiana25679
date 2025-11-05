@@ -474,7 +474,6 @@ public class FullTesting extends OpMode {
         boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
         
         // Check if shooter is at target velocity
-        double avgVelocityRPM = ticksPerSecToRPM(vAvg);
         boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
         
         // Detect left trigger press for auto-transfer
