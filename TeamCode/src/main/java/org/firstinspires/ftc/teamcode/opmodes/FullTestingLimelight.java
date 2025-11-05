@@ -64,8 +64,21 @@ public class FullTestingLimelight extends OpMode {
     public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
     public static double goalZoneY = 121.0; // Goal zone Y coordinate in inches
     
-    // AprilTag ID for Limelight distance comparison
+    // AprilTag ID for goal detection
     public static int GOAL_APRILTAG_ID = -1;  // -1 for any tag, or specific ID for goal
+    
+    // Limelight camera offset from robot center (configure in LL web UI AND here for reference)
+    // These should match what's set in Limelight Settings -> Robot
+    public static double LL_FORWARD_INCHES = 5.5;      // 14.5 - 9 = 5.5 inches forward
+    public static double LL_RIGHT_INCHES = -0.5;       // 0.5 inches to the LEFT
+    public static double LL_UP_INCHES = 13.5;          // 13.5 inches height
+    
+    public static double LL_FORWARD_METERS = 0.1397;   // 5.5 inches = 0.1397 meters
+    public static double LL_RIGHT_METERS = -0.0127;    // -0.5 inches = -0.0127 meters
+    public static double LL_UP_METERS = 0.3429;        // 13.5 inches = 0.3429 meters
+    public static double LL_PITCH_DEG = 19.0;          // Camera tilt angle (degrees)
+    public static double LL_ROLL_DEG = 0.0;            // Camera roll (usually 0)
+    public static double LL_YAW_DEG = 0.0;             // Camera yaw (usually 0)
     
     // Height measurements
     public static double aprilTagHeight = 30.0; // AprilTag height in inches
@@ -197,8 +210,16 @@ public class FullTestingLimelight extends OpMode {
             limelight = null;
         }
         
-        telemetryA.addLine("Full Testing Limelight - AprilTag Distance");
-        telemetryA.addLine("Uses Limelight for distance & angle to goal");
+        telemetryA.addLine("Full Testing Limelight - MegaTag Position");
+        telemetryA.addLine("LIMELIGHT SETUP (Web UI -> Settings -> Robot):");
+        telemetryA.addData("  LL Forward", "%.4f meters (%.1f in)", LL_FORWARD_METERS, LL_FORWARD_INCHES);
+        telemetryA.addData("  LL Right", "%.4f meters (%.1f in)", LL_RIGHT_METERS, LL_RIGHT_INCHES);
+        telemetryA.addData("  LL Up", "%.4f meters (%.1f in)", LL_UP_METERS, LL_UP_INCHES);
+        telemetryA.addData("  LL Pitch", "%.1f degrees", LL_PITCH_DEG);
+        telemetryA.addLine("Also Required:");
+        telemetryA.addLine("  - Upload FTC field map to Limelight");
+        telemetryA.addLine("  - Enable 3D in AprilTag pipeline");
+        telemetryA.addLine("");
         telemetryA.addLine("Gamepad 1 Controls:");
         telemetryA.addLine("  - Right Stick: Mecanum drive (Y/X)");
         telemetryA.addLine("  - Left Stick X: Rotation");
@@ -262,16 +283,25 @@ public class FullTestingLimelight extends OpMode {
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
-                // Get botpose (robot's field position from AprilTags)
+                // Get MegaTag botpose (robot position in field space)
+                // This requires: 1) Robot offset configured in LL web UI, 2) Field map uploaded
                 org.firstinspires.ftc.robotcore.external.navigation.Pose3D botpose = result.getBotpose();
                 if (botpose != null && botpose.getPosition() != null) {
-                    botposeAvailable = true;
-                    // Convert from meters to inches
-                    limelightRobotX = botpose.getPosition().x * 39.3701;
-                    limelightRobotY = botpose.getPosition().y * 39.3701;
-                    limelightRobotHeading = botpose.getOrientation().getYaw();  // degrees
+                    double rawX = botpose.getPosition().x;  // meters
+                    double rawY = botpose.getPosition().y;  // meters
+                    double rawZ = botpose.getPosition().z;  // meters
+                    
+                    // Check if we have valid (non-zero) data
+                    if (Math.abs(rawX) > 0.001 || Math.abs(rawY) > 0.001 || Math.abs(rawZ) > 0.001) {
+                        botposeAvailable = true;
+                        // Convert from meters to inches
+                        limelightRobotX = rawX * 39.3701;
+                        limelightRobotY = rawY * 39.3701;
+                        limelightRobotHeading = botpose.getOrientation().getYaw();  // degrees
+                    }
                 }
                 
+                // Also get individual AprilTag info
                 List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
                 
                 if (!fiducialResults.isEmpty()) {
@@ -711,11 +741,23 @@ public class FullTestingLimelight extends OpMode {
         telemetryA.addData("Heading (Odometry)", "%.1f° (%.3f rad)", Math.toDegrees(currentHeading), currentHeading);
         telemetryA.addData("", "");
         
-        telemetryA.addLine("=== LIMELIGHT POSITION (Pinpoint Coords) ===");
-        telemetryA.addData("Botpose Available", botposeAvailable ? "✓ YES" : "❌ NO");
+        telemetryA.addLine("=== LIMELIGHT MEGATAG BOTPOSE ===");
+        
+        // Show raw botpose data from Limelight
+        if (limelight != null) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.isValid()) {
+                org.firstinspires.ftc.robotcore.external.navigation.Pose3D botpose = result.getBotpose();
+                if (botpose != null && botpose.getPosition() != null) {
+                    telemetryA.addData("Botpose Raw X", "%.3f m (%.1f in)", botpose.getPosition().x, botpose.getPosition().x * 39.3701);
+                    telemetryA.addData("Botpose Raw Y", "%.3f m (%.1f in)", botpose.getPosition().y, botpose.getPosition().y * 39.3701);
+                    telemetryA.addData("Botpose Yaw", "%.1f°", botpose.getOrientation().getYaw());
+                }
+            }
+        }
+        
+        telemetryA.addData("Robot Pose Available", botposeAvailable ? "✓ YES" : "❌ NO");
         if (botposeAvailable) {
-            // Convert Limelight coordinates to Pinpoint coordinate system
-            // Limelight gives field coordinates in meters, we convert to inches
             telemetryA.addData("X (Limelight)", "%.2f inches", limelightRobotX);
             telemetryA.addData("Y (Limelight)", "%.2f inches", limelightRobotY);
             telemetryA.addData("Heading (Limelight)", "%.1f°", limelightRobotHeading);
@@ -733,7 +775,14 @@ public class FullTestingLimelight extends OpMode {
             telemetryA.addData("ΔY (LL - Odo)", "%.2f in", deltaY);
             telemetryA.addData("ΔHeading (LL - Odo)", "%.1f°", deltaHeading);
         } else {
-            telemetryA.addData("Status", "No AprilTags visible");
+            telemetryA.addData("⚠️ Botpose is Zero", "Setup needed:");
+            telemetryA.addLine("  1. LL Web UI -> Settings -> Robot");
+            telemetryA.addLine("     Set Forward/Right/Up offset (meters)");
+            telemetryA.addLine("  2. Upload FTC field map to Limelight");
+            telemetryA.addLine("  3. Enable 3D in AprilTag pipeline");
+            if (aprilTagVisible) {
+                telemetryA.addData("  Tag " + detectedTagId + " detected", "but no field map");
+            }
         }
         
         if (aprilTagVisible) {
