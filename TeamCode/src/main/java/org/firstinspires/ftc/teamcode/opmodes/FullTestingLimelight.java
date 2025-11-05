@@ -56,7 +56,15 @@ public class FullTestingLimelight extends OpMode {
     private Servo reargate, launchgate, hood1;
     private PIDFController shooterPID;
 
-    // AprilTag ID for goal detection
+    // Target coordinates for distance calculation (used for shooting)
+    public static double targetX = 128.0;
+    public static double targetY = 128.0;
+    
+    // Goal zone coordinates (for RPM calculation)
+    public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
+    public static double goalZoneY = 121.0; // Goal zone Y coordinate in inches
+    
+    // AprilTag ID for Limelight distance comparison
     public static int GOAL_APRILTAG_ID = -1;  // -1 for any tag, or specific ID for goal
     
     // Height measurements
@@ -239,16 +247,31 @@ public class FullTestingLimelight extends OpMode {
         double currentY = poseUpdater.getPose().getY();
         double currentHeading = poseUpdater.getPose().getHeading();
         
-        // ==================== LIMELIGHT APRILTAG DISTANCE & ANGLE ====================
-        double distance = 0;  // Will be calculated from Limelight
-        double turretAngleDegrees = 0;
-        double clampedTurretAngle = 0;
-        double servoPosition = turretCenterPosition;
+        // ==================== LIMELIGHT FIELD POSITION & APRILTAG DISTANCE (For Display Only) ====================
+        double limelightDistance = 0;
+        double limelightTurretAngle = 0;
         boolean aprilTagVisible = false;
+        int detectedTagId = -1;
+        
+        // Limelight's estimate of robot position on field
+        double limelightRobotX = 0;
+        double limelightRobotY = 0;
+        double limelightRobotHeading = 0;
+        boolean botposeAvailable = false;
         
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
+                // Get botpose (robot's field position from AprilTags)
+                org.firstinspires.ftc.robotcore.external.navigation.Pose3D botpose = result.getBotpose();
+                if (botpose != null && botpose.getPosition() != null) {
+                    botposeAvailable = true;
+                    // Convert from meters to inches
+                    limelightRobotX = botpose.getPosition().x * 39.3701;
+                    limelightRobotY = botpose.getPosition().y * 39.3701;
+                    limelightRobotHeading = botpose.getOrientation().getYaw();  // degrees
+                }
+                
                 List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
                 
                 if (!fiducialResults.isEmpty()) {
@@ -263,6 +286,7 @@ public class FullTestingLimelight extends OpMode {
                     
                     if (targetTag != null) {
                         aprilTagVisible = true;
+                        detectedTagId = targetTag.getFiducialId();
                         
                         // Get angles from Limelight
                         double tx = targetTag.getTargetXDegrees();  // Horizontal angle
@@ -272,27 +296,43 @@ public class FullTestingLimelight extends OpMode {
                         double angleToTarget = limelightMountAngle + ty;
                         if (Math.abs(angleToTarget) > 0.5) {
                             double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
-                            distance = horizontalDistance;  // Distance in inches
+                            limelightDistance = horizontalDistance;  // Distance in inches
                         }
                         
-                        // Use tx for turret angle (negate for correct direction)
-                        turretAngleDegrees = -tx;
-                        clampedTurretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
-                        
-                        // Convert angle to servo position
-                        if (clampedTurretAngle >= 0) {
-                            servoPosition = turretCenterPosition + (clampedTurretAngle / turretMaxAngle) * (turretRightPosition - turretCenterPosition);
-                        } else {
-                            servoPosition = turretCenterPosition - (Math.abs(clampedTurretAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
-                        }
+                        // Calculate turret angle from tx
+                        limelightTurretAngle = -tx;
                     }
                 }
             }
         }
         
-        // Set turret servos
+        // ==================== COORDINATE-BASED TURRET CONTROL (Original Logic) ====================
+        // Turret control - aim at target point
+        double angleToTargetField = Math.atan2(targetY - currentY, targetX - currentX);
+        
+        // Subtract robot heading to get relative angle
+        double turretAngle = angleToTargetField - currentHeading;
+        
+        // Normalize to -180 to 180 degrees
+        while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
+        while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
+        
+        double turretAngleDegrees = Math.toDegrees(turretAngle);
+        double clampedTurretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
+        
+        // Convert angle to servo position
+        double servoPosition;
+        if (clampedTurretAngle >= 0) {
+            servoPosition = turretCenterPosition + (clampedTurretAngle / turretMaxAngle) * (turretRightPosition - turretCenterPosition);
+        } else {
+            servoPosition = turretCenterPosition - (Math.abs(clampedTurretAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
+        }
+        
         turret1.setPosition(servoPosition);
         turret2.setPosition(servoPosition);
+        
+        // Calculate distance to target (for display)
+        double distance = Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2));
         
         // ===== SHOOTER CONTROL =====
         // Intake controls - split between bumpers
@@ -404,8 +444,10 @@ public class FullTestingLimelight extends OpMode {
         // Shooter velocity control - Hold Right Trigger OR auto-shoot active
         boolean shooterOn = gamepad1.right_trigger > 0.1 || shooting;
         
-        // Use Limelight distance for RPM calculation
-        double distanceToGoalInches = distance;
+        // Calculate distance to goal zone for RPM calculation (COORDINATE-BASED)
+        double deltaGoalX = goalZoneX - currentX;
+        double deltaGoalY = goalZoneY - currentY;
+        double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
         double distanceToGoalFeet = distanceToGoalInches / 12.0;  // Convert inches to feet
         
         // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
@@ -663,23 +705,51 @@ public class FullTestingLimelight extends OpMode {
         }
 
 
-        telemetryA.addData("x", currentX);
-        telemetryA.addData("y", currentY);
-        telemetryA.addData("heading (rad)", currentHeading);
-        telemetryA.addData("heading (deg)", Math.toDegrees(currentHeading));
-        telemetryA.addData("", ""); // Empty line
+        telemetryA.addLine("=== PEDROPATHING/PINPOINT COORDINATES ===");
+        telemetryA.addData("X (Odometry)", "%.2f inches", currentX);
+        telemetryA.addData("Y (Odometry)", "%.2f inches", currentY);
+        telemetryA.addData("Heading (Odometry)", "%.1f° (%.3f rad)", Math.toDegrees(currentHeading), currentHeading);
+        telemetryA.addData("", "");
         
-        telemetryA.addLine("=== LIMELIGHT APRILTAG ===");
-        telemetryA.addData("AprilTag Visible", aprilTagVisible ? "✓ YES" : "❌ NO");
-        if (aprilTagVisible) {
-            telemetryA.addData("Distance to Tag", "%.2f inches (%.2f feet)", distance, distanceToGoalFeet);
-            telemetryA.addData("Turret Angle (from tx)", "%.2f degrees", turretAngleDegrees);
-            telemetryA.addData("Turret Servo Position", "%.3f", servoPosition);
-            if (Math.abs(turretAngleDegrees) > turretMaxAngle) {
-                telemetryA.addData("WARNING", "Target out of turret range!");
-            }
+        telemetryA.addLine("=== LIMELIGHT POSITION (Pinpoint Coords) ===");
+        telemetryA.addData("Botpose Available", botposeAvailable ? "✓ YES" : "❌ NO");
+        if (botposeAvailable) {
+            // Convert Limelight coordinates to Pinpoint coordinate system
+            // Limelight gives field coordinates in meters, we convert to inches
+            telemetryA.addData("X (Limelight)", "%.2f inches", limelightRobotX);
+            telemetryA.addData("Y (Limelight)", "%.2f inches", limelightRobotY);
+            telemetryA.addData("Heading (Limelight)", "%.1f°", limelightRobotHeading);
+            telemetryA.addData("", "");
+            
+            // Calculate difference from PedroPathing odometry
+            double deltaX = limelightRobotX - currentX;
+            double deltaY = limelightRobotY - currentY;
+            double deltaHeading = limelightRobotHeading - Math.toDegrees(currentHeading);
+            double positionError = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            
+            telemetryA.addLine("=== ODOMETRY vs LIMELIGHT ===");
+            telemetryA.addData("Position Error", "%.2f inches", positionError);
+            telemetryA.addData("ΔX (LL - Odo)", "%.2f in", deltaX);
+            telemetryA.addData("ΔY (LL - Odo)", "%.2f in", deltaY);
+            telemetryA.addData("ΔHeading (LL - Odo)", "%.1f°", deltaHeading);
         } else {
-            telemetryA.addData("Status", "Aim camera at AprilTag!");
+            telemetryA.addData("Status", "No AprilTags visible");
+        }
+        
+        if (aprilTagVisible) {
+            telemetryA.addData("", "");
+            telemetryA.addLine("=== APRILTAG INFO ===");
+            telemetryA.addData("Tag ID", detectedTagId);
+            telemetryA.addData("Distance to Tag", "%.2f inches (%.2f feet)", limelightDistance, limelightDistance / 12.0);
+            telemetryA.addData("Angle to Tag (tx)", "%.2f degrees", limelightTurretAngle);
+        }
+        telemetryA.addData("", "");
+        
+        telemetryA.addData("Distance to Target", "%.2f inches", distance);
+        telemetryA.addData("Turret Angle", "%.2f degrees", turretAngleDegrees);
+        telemetryA.addData("Turret Servo Position", "%.3f", servoPosition);
+        if (turretAngleDegrees < -turretMaxAngle || turretAngleDegrees > turretMaxAngle) {
+            telemetryA.addData("WARNING", "Target out of turret range!");
         }
         
         // Add shooter telemetry
@@ -697,13 +767,19 @@ public class FullTestingLimelight extends OpMode {
             telemetryA.addData("Transfer Mode", distanceToGoalFeet >= 7.0 ? "LONG (slow)" : "SHORT (fast)");
         }
         telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
-        telemetryA.addData("Distance Method", "Limelight AprilTag");
+        telemetryA.addData("Distance Method (Active)", "Coordinates");
+        telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
+        telemetryA.addData("Calculated Target RPM", "%.0f (RPM = 100*%.2f + 1150)", calculatedTargetRPM, distanceToGoalFeet);
+        
+        // Compare with Limelight if available
         if (aprilTagVisible) {
-            telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
-            telemetryA.addData("Calculated Target RPM", "%.0f (RPM = 100*%.2f + 1150)", calculatedTargetRPM, distanceToGoalFeet);
-        } else {
-            telemetryA.addData("Distance to Goal", "N/A - No AprilTag");
-            telemetryA.addData("Calculated Target RPM", "N/A");
+            double distanceDifference = Math.abs(distanceToGoalInches - limelightDistance);
+            telemetryA.addData("LL vs Coord Diff", "%.2f inches", distanceDifference);
+            if (distanceDifference < 6.0) {
+                telemetryA.addData("Agreement", "✓ GOOD (< 6\")");
+            } else {
+                telemetryA.addData("Agreement", "⚠️ Check calibration");
+            }
         }
         telemetryA.addData("Current RPM", "%.0f", avgVelocityRPM);
         telemetryA.addData("Right Motor RPM", "%.0f", shootrVelocityRPM);
