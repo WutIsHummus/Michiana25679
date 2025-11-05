@@ -237,44 +237,60 @@ public class FullTestingLimelight extends OpMode {
         // Get current position
         double currentX = poseUpdater.getPose().getX();
         double currentY = poseUpdater.getPose().getY();
-
-        // Calculate distance to target (119, 119)
-        double deltaX = targetX - currentX;
-        double deltaY = targetY - currentY;
-        double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        
-        // Calculate angle to target relative to field (0 degrees = east, 90 = north)
-        double angleToTargetField = Math.atan2(deltaY, deltaX);
-        
-        // Calculate angle relative to robot (turret angle needed)
-        // Subtract robot heading to get relative angle
         double currentHeading = poseUpdater.getPose().getHeading();
-        double turretAngle = angleToTargetField - currentHeading;
         
-        // Normalize angle to [-PI, PI]
-        while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
-        while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
+        // ==================== LIMELIGHT APRILTAG DISTANCE & ANGLE ====================
+        double distance = 0;  // Will be calculated from Limelight
+        double turretAngleDegrees = 0;
+        double clampedTurretAngle = 0;
+        double servoPosition = turretCenterPosition;
+        boolean aprilTagVisible = false;
         
-        // Convert to degrees
-        double turretAngleDegrees = Math.toDegrees(turretAngle);
-        
-        // Calculate servo position
-        // Clamp angle to valid range
-        double clampedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
-        
-        // Convert angle to servo position (FLIPPED)
-        double servoPosition;
-        if (clampedAngle >= 0) {
-            // Positive angle = turn right
-            double servoRange = turretRightPosition - turretCenterPosition; // 0.235
-            servoPosition = turretCenterPosition + (clampedAngle / turretMaxAngle) * servoRange;
-        } else {
-            // Negative angle = turn left
-            double servoRange = turretCenterPosition - turretLeftPosition; // 0.235
-            servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
+        if (limelight != null) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.isValid()) {
+                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+                
+                if (!fiducialResults.isEmpty()) {
+                    // Find target AprilTag (or use first one if -1)
+                    LLResultTypes.FiducialResult targetTag = null;
+                    for (LLResultTypes.FiducialResult fr : fiducialResults) {
+                        if (GOAL_APRILTAG_ID == -1 || fr.getFiducialId() == GOAL_APRILTAG_ID) {
+                            targetTag = fr;
+                            break;
+                        }
+                    }
+                    
+                    if (targetTag != null) {
+                        aprilTagVisible = true;
+                        
+                        // Get angles from Limelight
+                        double tx = targetTag.getTargetXDegrees();  // Horizontal angle
+                        double ty = targetTag.getTargetYDegrees();  // Vertical angle
+                        
+                        // Calculate distance using trigonometry
+                        double angleToTarget = limelightMountAngle + ty;
+                        if (Math.abs(angleToTarget) > 0.5) {
+                            double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
+                            distance = horizontalDistance;  // Distance in inches
+                        }
+                        
+                        // Use tx for turret angle (negate for correct direction)
+                        turretAngleDegrees = -tx;
+                        clampedTurretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
+                        
+                        // Convert angle to servo position
+                        if (clampedTurretAngle >= 0) {
+                            servoPosition = turretCenterPosition + (clampedTurretAngle / turretMaxAngle) * (turretRightPosition - turretCenterPosition);
+                        } else {
+                            servoPosition = turretCenterPosition - (Math.abs(clampedTurretAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
+                        }
+                    }
+                }
+            }
         }
         
-        // Set servo positions
+        // Set turret servos
         turret1.setPosition(servoPosition);
         turret2.setPosition(servoPosition);
         
