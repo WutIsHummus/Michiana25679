@@ -118,6 +118,9 @@ public class FullTesting extends OpMode {
     
     // RPM tolerance for "at target" detection
     public static double RPM_TOLERANCE = 100.0;
+    
+    // Voltage compensation (always on)
+    private static final double NOMINAL_VOLTAGE = 12.0;
 
     /**
      * This initializes the PoseUpdater, the mecanum drive motors, and the FTC Dashboard telemetry.
@@ -462,8 +465,13 @@ public class FullTesting extends OpMode {
             // Clamp
             shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
             
-            shootr.setPower(shooterPower);
-            shootl.setPower(shooterPower);
+            // Voltage compensation (always on): power * (currentVoltage / 12V)
+            double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
+            double compensatedPower = shooterPower * (voltage / NOMINAL_VOLTAGE);
+            compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
+            
+            shootr.setPower(compensatedPower);
+            shootl.setPower(compensatedPower);
         } else {
             shootr.setPower(0);
             shootl.setPower(0);
@@ -558,7 +566,7 @@ public class FullTesting extends OpMode {
                         break;
                     case 7: // Shot 3: Push
                         transferStatus = "Shot 3/3: Pushing";
-                        launchgate.setPosition(0.8);
+            launchgate.setPosition(0.8);
                         if (transferTimer.seconds() > 0.2) {
                             transferState = 8;
                             transferTimer.reset();
@@ -575,7 +583,7 @@ public class FullTesting extends OpMode {
                         }
                         break;
                 }
-            } else {
+        } else {
                 // SHORT RANGE: Run intakes continuously, push 3x rapidly
                 switch (transferState) {
                     case 0: // Start intakes
@@ -678,13 +686,25 @@ public class FullTesting extends OpMode {
         telemetryA.addData("Right Motor RPM", "%.0f", shootrVelocityRPM);
         telemetryA.addData("Left Motor RPM", "%.0f", shootlVelocityRPM);
         telemetryA.addData("Error (RPM)", "%.0f", calculatedTargetRPM - avgVelocityRPM);
-        telemetryA.addData("Shooter Power", "%.3f", shooterPower);
+        
+        double currentVoltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
+        double compensationFactor = currentVoltage / NOMINAL_VOLTAGE;
+        
+        telemetryA.addData("Battery Voltage", "%.2f V", currentVoltage);
+        telemetryA.addData("Voltage Comp", "×%.3f", compensationFactor);
+        telemetryA.addData("Shooter Power (calc)", "%.3f", shooterPower);
+        
+        if (shooterOn) {
+            double compensatedPower = shooterPower * compensationFactor;
+            telemetryA.addData("Actual Motor Power", "%.3f", compensatedPower);
+        }
+        
         if (shooterOn) {
             telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
             telemetryA.addData("Additional FF", "%.4f (kS=%.4f + kV*TPS=%.4f)", 
-                additionalFF, kS * Math.signum(targetTPS), kV * targetTPS);
+                additionalFF, currentKS * Math.signum(targetTPS), currentKV * targetTPS);
             telemetryA.addData("F Term Contribution", "%.4f (F*setpoint = %.4f*%.1f)", 
-                f * targetTPS, f, targetTPS);
+                currentF * targetTPS, currentF, targetTPS);
         }
         telemetryA.addData("Front Intake", gamepad1.right_bumper ? "RUNNING" : "STOPPED");
         telemetryA.addData("Back Intake", gamepad1.left_bumper ? "RUNNING" : "STOPPED");
