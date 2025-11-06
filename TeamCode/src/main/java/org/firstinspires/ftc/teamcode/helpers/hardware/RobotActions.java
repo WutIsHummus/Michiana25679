@@ -110,7 +110,8 @@ public class RobotActions {
     public static double LONG_RANGE_THRESHOLD_FEET = 7.0;  // Fixed RPM beyond this distance
     
     // Hood positions
-    public static double HOOD_SHORT_RANGE = 0.54;     // < 6 feet
+    public static double HOOD_SHORT_RANGE = 0.54;
+    public static double HOOODAUTO = 0.49;// < 6 feet
     public static double HOOD_LONG_RANGE = 0.45;      // >= 6 feet
     
     // Goal coordinates
@@ -204,7 +205,7 @@ public class RobotActions {
                 shooter.stop()
         );
     }
-    
+
     /**
      * PID-based shooting action - spins to target RPM using PID control
      * @param targetRPM Target RPM for shooter
@@ -275,15 +276,38 @@ public class RobotActions {
         // Execute shooting sequence
         return aimAndShoot(targetRPM, hoodPosition, turretAngleDegrees);
     }
-    
-    /**
-     * REGRESSION-BASED THREE-BALL SEQUENCE
-     * Calculates RPM, aims turret, and shoots 3 balls
-     * 
-     * @param robotX Current robot X position (inches)
-     * @param robotY Current robot Y position (inches)
-     * @param robotHeading Current robot heading (radians)
-     */
+
+
+    public Action threeBallabsoluteclose(double distance, double turretangle) {
+        // Calculate distance to goal
+        double distanceInches = distance;
+        double distanceFeet = distanceInches / 12.0;
+
+        // Calculate RPM using regression
+        double targetRPM;
+        if (distanceFeet >= LONG_RANGE_THRESHOLD_FEET) {
+            targetRPM = FAR_SHOOTING_RPM_MAX;  // Fixed RPM for long range
+        } else {
+            targetRPM = RPM_SLOPE * distanceFeet + RPM_INTERCEPT;
+            targetRPM = Math.max(1250.0, Math.min(FAR_SHOOTING_RPM_MAX, targetRPM));
+        }
+        // Field angle to goal
+        double turretAngleDegrees = turretangle;
+
+        // Normalize to -180 to 180
+        while (turretAngleDegrees > 180) turretAngleDegrees -= 360;
+        while (turretAngleDegrees < -180) turretAngleDegrees += 360;
+
+        // Determine hood position and range type
+        double hoodPosition = HOOODAUTO;
+        boolean isLongRange = distanceFeet >= LONG_RANGE_THRESHOLD_FEET;
+
+        // Execute sequence with turret aiming first
+        return new SequentialAction(
+                turret.setAngle(turretAngleDegrees),
+                threeBallSequence(targetRPM, hoodPosition, isLongRange)
+        );
+    }
     public Action threeBallFromPosition(double robotX, double robotY, double robotHeading) {
         // Calculate distance to goal
         double deltaX = GOAL_X - robotX;
@@ -299,7 +323,7 @@ public class RobotActions {
             targetRPM = RPM_SLOPE * distanceFeet + RPM_INTERCEPT;
             targetRPM = Math.max(1250.0, Math.min(FAR_SHOOTING_RPM_MAX, targetRPM));
         }
-        
+
         // Calculate turret angle
         double angleToGoal = Math.atan2(deltaY, deltaX);  // Field angle to goal
         double turretAngleDegrees = Math.toDegrees(angleToGoal - robotHeading);
@@ -318,7 +342,7 @@ public class RobotActions {
                 threeBallSequence(targetRPM, hoodPosition, isLongRange)
         );
     }
-    
+
     /**
      * DISTANCE-BASED SHOOTING - Robot-relative coordinates
      * Much easier than field coordinates!
@@ -403,7 +427,7 @@ public class RobotActions {
     /**
      * SPIN UP SHOOTER FOR DISTANCE - Just spins up, doesn't shoot
      * Calculates RPM from distance, sets hood, NO turret aiming or firing
-     * 
+     *
      * @param distanceFeet Distance to target in feet
      */
     public Action spinUpForDistance(double distanceFeet) {
@@ -516,11 +540,12 @@ public class RobotActions {
                     new SequentialAction(
                             hood.setPosition(hoodPosition),
                             shooter.waitForSpeed(targetRPM),
-                            // Ball 1
-                            intakeFront.run(),
                             intakeBack.run(),
-                            launch.fire(),
                             new SleepAction(0.2),
+                            launch.fire(),
+                            new SleepAction(0.1),
+                            intakeFront.run(),
+                            new SleepAction(0.1),
                             launch.reset(),
                             intakeFront.stop(),
                             intakeBack.stop(),
@@ -560,19 +585,21 @@ public class RobotActions {
                             launch.fire(),
                             new SleepAction(0.2),
                             launch.reset(),
-                            new SleepAction(0.3),
+                            new SleepAction(0.2),
                             // Ball 2
                             launch.fire(),
                             new SleepAction(0.2),
                             launch.reset(),
-                            new SleepAction(0.3),
+                            new SleepAction(0.2),
                             // Ball 3
                             launch.fire(),
                             new SleepAction(0.2),
                             launch.reset(),
+                            launch.fire(),
+                            new SleepAction(0.2),
+                            launch.reset(),
                             intakeFront.stop(),
-                            intakeBack.stop(),
-                            shooter.stop()  // This stops the PID too
+                            intakeBack.stop()// This stops the PID too
                     )
             );
         }
@@ -654,7 +681,14 @@ public class RobotActions {
                 pidActive = false;
             });
         }
-        
+
+        // --- Add inside Shooter class ---
+        public double getCurrentRPM() {
+            // Only shootr has the encoder; convert ticks/sec -> RPM
+            double ticksPerSec = Math.abs(shootr.getVelocity());
+            return (ticksPerSec / TICKS_PER_REV) * 60.0;
+        }
+
         public Action spinUpSlow() {
             return new InstantAction(() -> {
                 shootr.setPower(0.7);
@@ -673,7 +707,7 @@ public class RobotActions {
                 }
             });
         }
-        
+
         /**
          * Spin to target RPM using PID control - returns immediately, runs in background
          */
