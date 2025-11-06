@@ -701,8 +701,9 @@ public class RobotActions {
     public class Shooter {
         private PIDFController pidfController = null;
         private double currentTargetRPM = 0;
-        private boolean pidActive = false;
-        private long lastPIDCallTime = 0;  // Prevent multiple simultaneous PID calls
+        private volatile boolean pidActive = false;  // Use volatile for thread-safety
+        private long lastPIDCallTime = 0;
+        private Action currentPIDAction = null;  // Track the current PID action
         
         public Action spinUp() {
             return new InstantAction(() -> {
@@ -755,7 +756,15 @@ public class RobotActions {
          * @param isLongRange True for long range (>=6ft), false for short range (<6ft)
          */
         public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange) {
-            return new Action() {
+            // If there's already a PID action running, stop it first
+            if (pidActive && currentPIDAction != null) {
+                pidActive = false;
+                if (pidfController != null) {
+                    pidfController.reset();
+                }
+            }
+            
+            Action newAction = new Action() {
                 private boolean initialized = false;
                 private double currentP, currentI, currentD, currentF, currentKV, currentKS, currentIZone;
                 
@@ -859,6 +868,9 @@ public class RobotActions {
                     return false; // Keep running (never completes on its own)
                 }
             };
+            
+            currentPIDAction = newAction;
+            return newAction;
         }
         
         /**
