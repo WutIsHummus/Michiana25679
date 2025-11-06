@@ -79,21 +79,23 @@ public class RobotActions {
     public final Hood hood;
     public final Turret turret;
     
-    // PID Constants - Short Range
+    // PID Constants - Short Range (< 6 feet)
     public static double p = 0.002;
     public static double i = 0.0;
     public static double d = 0.0001;
     public static double f = 0.00084;
     public static double kV = 0.0008;
     public static double kS = 0.01;
+    public static double I_ZONE = 250.0;
     
-    // PID Constants - Long Range
+    // PID Constants - Long Range (>= 6 feet)
     public static double pLong = 0.01;
     public static double iLong = 0.0;
     public static double dLong = 0.0001;
     public static double fLong = 0.00084;
     public static double kVLong = 0.0008;
     public static double kSLong = 0.01;
+    public static double I_ZONE_LONG = 250.0;
     
     // Motor constants
     public static double TICKS_PER_REV = 28.0;
@@ -108,6 +110,7 @@ public class RobotActions {
     public static double RPM_INTERCEPT = 1150.0;      // Base RPM
     public static double FAR_SHOOTING_RPM_MAX = 1950.0;  // Max RPM cap
     public static double LONG_RANGE_THRESHOLD_FEET = 7.0;  // Fixed RPM beyond this distance
+    public static double PID_THRESHOLD_FEET = 6.0;    // Switch PID/hood at 6 feet (matches other files)
     
     // Hood positions
     public static double HOOD_SHORT_RANGE = 0.54;
@@ -239,6 +242,30 @@ public class RobotActions {
     }
     
     /**
+     * Complete shooting sequence with PID control and range info
+     * @param targetRPM Target shooter RPM
+     * @param hoodPosition Hood servo position
+     * @param turretAngle Turret angle in degrees
+     * @param isLongRange Whether this is long range (affects PID selection)
+     */
+    public Action aimAndShootWithRange(double targetRPM, double hoodPosition, double turretAngle, boolean isLongRange) {
+        return new ParallelAction(
+                // PID runs continuously in parallel with range info
+                shooter.spinToRPMWithRange(targetRPM, true, isLongRange),
+                // Shooting sequence runs alongside PID
+                new SequentialAction(
+                        hood.setPosition(hoodPosition),
+                        turret.setAngle(turretAngle),
+                        shooter.waitForSpeed(targetRPM),
+                        launch.fire(),
+                        new SleepAction(0.2),
+                        launch.reset(),
+                        shooter.stop()  // This stops the PID too
+                )
+        );
+    }
+    
+    /**
      * REGRESSION-BASED SHOOTING - Calculate RPM from distance
      * Automatically aims turret, sets hood, spins up shooter, and fires
      * 
@@ -270,11 +297,12 @@ public class RobotActions {
         while (turretAngleDegrees > 180) turretAngleDegrees -= 360;
         while (turretAngleDegrees < -180) turretAngleDegrees += 360;
         
-        // Determine hood position
-        double hoodPosition = (distanceFeet >= 6.0) ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE;
+        // Determine hood position and PID range
+        boolean isLongRange = distanceFeet >= PID_THRESHOLD_FEET;
+        double hoodPosition = isLongRange ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE;
         
-        // Execute shooting sequence
-        return aimAndShoot(targetRPM, hoodPosition, turretAngleDegrees);
+        // Execute shooting sequence with range info
+        return aimAndShootWithRange(targetRPM, hoodPosition, turretAngleDegrees, isLongRange);
     }
 
 
@@ -300,7 +328,7 @@ public class RobotActions {
 
         // Determine hood position and range type
         double hoodPosition = HOOODAUTO;
-        boolean isLongRange = distanceFeet >= LONG_RANGE_THRESHOLD_FEET;
+        boolean isLongRange = distanceFeet >= PID_THRESHOLD_FEET;
 
         // Execute sequence with turret aiming first
         return new SequentialAction(
@@ -333,8 +361,8 @@ public class RobotActions {
         while (turretAngleDegrees < -180) turretAngleDegrees += 360;
         
         // Determine hood position and range type
-        double hoodPosition = (distanceFeet >= 6.0) ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE;
-        boolean isLongRange = distanceFeet >= LONG_RANGE_THRESHOLD_FEET;
+        boolean isLongRange = distanceFeet >= PID_THRESHOLD_FEET;
+        double hoodPosition = isLongRange ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE;
         
         // Execute sequence with turret aiming first
         return new SequentialAction(
@@ -440,13 +468,14 @@ public class RobotActions {
             targetRPM = Math.max(1250.0, Math.min(FAR_SHOOTING_RPM_MAX, targetRPM));
         }
         
-        // Determine hood position
-        double hoodPosition = (distanceFeet >= 6.0) ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE;
+        // Determine hood position and range type
+        boolean isLongRange = distanceFeet >= PID_THRESHOLD_FEET;
+        double hoodPosition = isLongRange ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE;
         
         // Set hood and spin up shooter (no turret, no shooting)
         return new SequentialAction(
                 hood.setPosition(hoodPosition),
-                shooter.spinToRPM(targetRPM, true)
+                shooter.spinToRPMWithRange(targetRPM, true, isLongRange)
         );
     }
     
@@ -673,6 +702,7 @@ public class RobotActions {
         private PIDFController pidfController = null;
         private double currentTargetRPM = 0;
         private boolean pidActive = false;
+        private long lastPIDCallTime = 0;  // Prevent multiple simultaneous PID calls
         
         public Action spinUp() {
             return new InstantAction(() -> {
@@ -710,23 +740,57 @@ public class RobotActions {
 
         /**
          * Spin to target RPM using PID control - returns immediately, runs in background
+         * @deprecated Use spinToRPMWithRange instead for proper PID selection
          */
         public Action spinToRPM(double targetRPM, boolean useVoltageCompensation) {
+            // Fallback: use RPM threshold to guess range (not ideal but maintains compatibility)
+            boolean isLongRange = targetRPM >= 1700;
+            return spinToRPMWithRange(targetRPM, useVoltageCompensation, isLongRange);
+        }
+        
+        /**
+         * Spin to target RPM using PID control with explicit range selection
+         * @param targetRPM Target RPM for shooter
+         * @param useVoltageCompensation Enable voltage compensation
+         * @param isLongRange True for long range (>=6ft), false for short range (<6ft)
+         */
+        public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange) {
             return new Action() {
                 private boolean initialized = false;
+                private double currentP, currentI, currentD, currentF, currentKV, currentKS, currentIZone;
                 
                 @Override
                 public boolean run(@NonNull TelemetryPacket packet) {
+                    // Prevent multiple simultaneous PID calls
+                    long currentTime = System.nanoTime();
+                    if (initialized && (currentTime - lastPIDCallTime) < 5_000_000) {  // 5ms minimum interval
+                        return false;  // Skip this call, too soon
+                    }
+                    lastPIDCallTime = currentTime;
+                    
                     if (!initialized) {
-                        // Determine if long range based on RPM
-                        boolean isLongRange = targetRPM >= 1700;
-                        
-                        // Initialize PIDF controller with appropriate constants
+                        // Use appropriate PIDF values based on distance (EXACTLY like FullTesting)
                         if (isLongRange) {
-                            pidfController = new PIDFController(pLong, iLong, dLong, fLong);
+                            currentP = pLong;
+                            currentI = iLong;
+                            currentD = dLong;
+                            currentF = fLong;
+                            currentKV = kVLong;
+                            currentKS = kSLong;
+                            currentIZone = I_ZONE_LONG;
                         } else {
-                            pidfController = new PIDFController(p, i, d, f);
+                            currentP = p;
+                            currentI = i;
+                            currentD = d;
+                            currentF = f;
+                            currentKV = kV;
+                            currentKS = kS;
+                            currentIZone = I_ZONE;
                         }
+                        
+                        // Initialize PIDF controller
+                        pidfController = new PIDFController(currentP, currentI, currentD, currentF);
+                        pidfController.setIntegrationBounds(-currentIZone, currentIZone);
                         
                         currentTargetRPM = targetRPM;
                         pidActive = true;
@@ -737,37 +801,59 @@ public class RobotActions {
                         return true; // Done
                     }
                     
-                    // Calculate current RPM
-                    double avgVelocity = (Math.abs(shootr.getVelocity()) + Math.abs(shootl.getVelocity())) / 2.0;
-                    double avgVelocityRPM = (avgVelocity / TICKS_PER_REV) * 60.0;
+                    // Convert target RPM to ticks per second
                     double targetTPS = (currentTargetRPM / 60.0) * TICKS_PER_REV;
                     
-                    // Calculate PIDF output
-                    double pidfOutput = pidfController.calculate(avgVelocity, targetTPS);
+                    // Read current velocities
+                    double vR = Math.abs(shootr.getVelocity());
+                    double vL = Math.abs(shootl.getVelocity());
+                    double vAvg = 0.5 * (vR + vL);
                     
-                    // Add feedforward
+                    // Convert to RPM for display
+                    double avgVelocityRPM = (vAvg / TICKS_PER_REV) * 60.0;
+                    
+                    double shooterPower = 0;
+                    double pidfOutput = 0;
+                    double additionalFF = 0;
+                    
+                    // PIDF control (F term is built-in and multiplied by setpoint)
+                    pidfOutput = pidfController.calculate(vAvg, targetTPS);
+                    
+                    // Additional feedforward using kV and kS (EXACTLY like FullTesting line 457)
                     double sgn = Math.signum(targetTPS);
-                    double additionalFF = (Math.abs(targetTPS) > 1e-6) ? 
-                        (kS * sgn + kV * targetTPS) : 0.0;
+                    additionalFF = (Math.abs(targetTPS) > 1e-6) ? (currentKS * sgn + currentKV * targetTPS) : 0.0;
                     
-                    double shooterPower = pidfOutput + additionalFF;
-                    shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
+                    // Total power (PIDF output already includes F*setpoint)
+                    shooterPower = pidfOutput + additionalFF;
                     
-                    // Voltage compensation
-                    if (useVoltageCompensation && voltageSensor != null) {
-                        double voltage = voltageSensor.getVoltage();
-                        shooterPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
-                        shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
+                    // Safety: prevent overshoot (EXACTLY like FullTesting line 464)
+                    if (avgVelocityRPM >= currentTargetRPM && shooterPower > 0) {
+                        shooterPower = Math.min(shooterPower, 0.5);
                     }
                     
-                    // Set motor power
-                    shootr.setPower(shooterPower);
-                    shootl.setPower(-shooterPower);
+                    // Clamp
+                    shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
+                    
+                    // Voltage compensation (EXACTLY like FullTesting line 472)
+                    if (useVoltageCompensation && voltageSensor != null) {
+                        double voltage = voltageSensor.getVoltage();
+                        double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
+                        compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
+                        
+                        shootr.setPower(compensatedPower);
+                        shootl.setPower(compensatedPower);
+                    } else {
+                        shootr.setPower(shooterPower);
+                        shootl.setPower(shooterPower);
+                    }
                     
                     // Add telemetry
                     packet.put("Target RPM", currentTargetRPM);
                     packet.put("Current RPM", avgVelocityRPM);
-                    packet.put("Power", shooterPower);
+                    packet.put("PIDF Output", pidfOutput);
+                    packet.put("Additional FF", additionalFF);
+                    packet.put("Total Power", shooterPower);
+                    packet.put("PID Range", isLongRange ? "LONG" : "SHORT");
                     packet.put("At Speed", Math.abs(avgVelocityRPM - currentTargetRPM) < RPM_TOLERANCE);
                     
                     return false; // Keep running (never completes on its own)

@@ -263,8 +263,8 @@ public class AutoShootLong extends OpMode {
                     
                 case 1: // Start intakes
                     shootStatus = "Starting intakes...";
-                    intakefront.setPower(-1.0);
-                    intakeback.setPower(-1.0);
+                    intakefront.setPower(1.0);
+                    intakeback.setPower(1.0);
                     if (shootTimer.seconds() > 0.1) {
                         shootState = 2;
                         shootTimer.reset();
@@ -409,6 +409,10 @@ public class AutoShootLong extends OpMode {
         if (shooting || gamepad1.right_trigger > 0.1) {
             telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
             telemetryA.addData("Additional FF", "%.4f", additionalFF);
+            telemetryA.addData("Active P", currentP);
+            telemetryA.addData("Active I", currentI);
+            telemetryA.addData("Active D", currentD);
+            telemetryA.addData("Active F", currentF);
         }
         
         telemetryA.addData("Right Motor TPS", "%.1f", vR);

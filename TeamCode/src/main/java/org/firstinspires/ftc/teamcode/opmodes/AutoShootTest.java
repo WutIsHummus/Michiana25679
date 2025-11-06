@@ -370,7 +370,9 @@ public class AutoShootTest extends OpMode {
         
         // ==================== SHOOTER VELOCITY CONTROL ====================
         // Determine if we're shooting long range (>= 6 feet)
-        boolean isLongRange = distanceToGoalFeet >= 6.0;
+        // CRITICAL FIX: Use the appropriate distance based on the current mode
+        double effectiveDistance = useLongRangeMode ? distanceToGoalFeet : PRESET_DISTANCE_FEET;
+        boolean isLongRange = effectiveDistance >= 6.0;
         
         // Use appropriate PIDF values based on distance
         double currentP = isLongRange ? pLong : p;
@@ -456,6 +458,10 @@ public class AutoShootTest extends OpMode {
         if (shooting || gamepad1.right_trigger > 0.1) {
             telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
             telemetryA.addData("Additional FF", "%.4f", additionalFF);
+            telemetryA.addData("Active P", currentP);
+            telemetryA.addData("Active I", currentI);
+            telemetryA.addData("Active D", currentD);
+            telemetryA.addData("Active F", currentF);
         }
         
         telemetryA.addData("Right Motor TPS", "%.1f", vR);
