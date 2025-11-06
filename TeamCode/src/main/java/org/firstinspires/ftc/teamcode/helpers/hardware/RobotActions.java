@@ -746,9 +746,15 @@ public class RobotActions {
     public class Shooter {
         private PIDFController pidfController = null;
         private double currentTargetRPM = 0;
-        private volatile boolean pidActive = false;  // Use volatile for thread-safety
-        private long lastPIDCallTime = 0;
-        private Action currentPIDAction = null;  // Track the current PID action
+        private volatile boolean pidActive = false;
+        private Action currentPIDAction = null;
+        
+        // RPM monitoring (exposed for telemetry)
+        public double lastRecordedRPM = 0;
+        public double lastTargetRPM = 0;
+        public double lastPower = 0;
+        public double lastPIDFOutput = 0;
+        public double lastAdditionalFF = 0;
         
         public Action spinUp() {
             return new InstantAction(() -> {
@@ -758,11 +764,21 @@ public class RobotActions {
             });
         }
 
-        // --- Add inside Shooter class ---
+        /**
+         * Get current shooter RPM (reads from motors)
+         */
         public double getCurrentRPM() {
-            // Only shootr has the encoder; convert ticks/sec -> RPM
-            double ticksPerSec = Math.abs(shootr.getVelocity());
-            return (ticksPerSec / TICKS_PER_REV) * 60.0;
+            double vR = shootr.getVelocity();
+            double vL = shootl.getVelocity();
+            double vAvg = 0.5 * (vR + vL);
+            return (vAvg / TICKS_PER_REV) * 60.0;
+        }
+        
+        /**
+         * Get last recorded RPM from PID loop (doesn't query motors)
+         */
+        public double getLastRecordedRPM() {
+            return lastRecordedRPM;
         }
 
         public Action spinUpSlow() {
@@ -801,17 +817,17 @@ public class RobotActions {
          * @param isLongRange True for long range (>=6ft), false for short range (<6ft)
          */
         public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange) {
-            // If already running at the same target RPM, don't restart - just return existing action
+            // CRITICAL: If already running at same RPM, return existing action (prevents stacking)
             if (pidActive && currentPIDAction != null && Math.abs(currentTargetRPM - targetRPM) < 10) {
-                return new InstantAction(() -> {}); // Do nothing, already spinning at target
+                return currentPIDAction; // Return existing action, don't create new one!
             }
             
-            // If there's a PID action running at a DIFFERENT RPM, stop it first
-            if (pidActive && currentPIDAction != null) {
+            // If different RPM, stop existing action first
+            if (pidActive && pidfController != null) {
                 pidActive = false;
-                if (pidfController != null) {
-                    pidfController.reset();
-                }
+                pidfController.reset();
+                shootr.setPower(0);
+                shootl.setPower(0);
             }
             
             Action newAction = new Action() {
@@ -820,15 +836,8 @@ public class RobotActions {
                 
                 @Override
                 public boolean run(@NonNull TelemetryPacket packet) {
-                    // Prevent multiple simultaneous PID calls
-                    long currentTime = System.nanoTime();
-                    if (initialized && (currentTime - lastPIDCallTime) < 5_000_000) {  // 5ms minimum interval
-                        return false;  // Skip this call, too soon
-                    }
-                    lastPIDCallTime = currentTime;
-                    
                     if (!initialized) {
-                        // Use appropriate PID values based on distance
+                        // Use appropriate PID values based on distance (EXACTLY like FullTesting line 418-425)
                         if (isLongRange) {
                             currentP = pLong;
                             currentI = iLong;
@@ -847,7 +856,7 @@ public class RobotActions {
                             currentIZone = I_ZONE;
                         }
                         
-                        // Initialize official FTCLib PIDF controller (F=0 since we use kV manually)
+                        // Initialize PIDF controller (EXACTLY like FullTesting line 428-429)
                         pidfController = new PIDFController(currentP, currentI, currentD, currentF);
                         pidfController.setIntegrationBounds(-currentIZone, currentIZone);
                         
@@ -860,51 +869,57 @@ public class RobotActions {
                         return true; // Done
                     }
                     
-                    // Convert target RPM to ticks per second
+                    // Convert target RPM to ticks per second (EXACTLY like FullTesting line 435)
                     double targetTPS = (currentTargetRPM / 60.0) * TICKS_PER_REV;
                     
-                    // Read current velocities
-                    double vR = Math.abs(shootr.getVelocity());
-                    double vL = Math.abs(shootl.getVelocity());
+                    // Read current velocities (EXACTLY like FullTesting line 438-440)
+                    double vR = shootr.getVelocity();
+                    double vL = shootl.getVelocity();
                     double vAvg = 0.5 * (vR + vL);
                     
-                    // Convert to RPM for display
+                    // Convert to RPM for display (EXACTLY like FullTesting line 443-445)
                     double avgVelocityRPM = (vAvg / TICKS_PER_REV) * 60.0;
                     
                     double shooterPower = 0;
                     double pidfOutput = 0;
                     double additionalFF = 0;
                     
-                    // PIDF control (F term is built-in and multiplied by setpoint)
+                    // PIDF control (EXACTLY like FullTesting line 453)
                     pidfOutput = pidfController.calculate(vAvg, targetTPS);
                     
-                    // Additional feedforward using kV and kS (F=0, so we use kV manually)
+                    // Additional feedforward (EXACTLY like FullTesting line 456-457)
                     double sgn = Math.signum(targetTPS);
                     additionalFF = (Math.abs(targetTPS) > 1e-6) ? (currentKS * sgn + currentKV * targetTPS) : 0.0;
                     
-                    // Total power (PIDF output already includes F*setpoint)
+                    // Total power (EXACTLY like FullTesting line 461)
                     shooterPower = pidfOutput + additionalFF;
                     
-                    // Safety: prevent overshoot (EXACTLY like FullTesting line 464)
+                    // Safety: prevent overshoot (EXACTLY like FullTesting line 464-466)
                     if (avgVelocityRPM >= currentTargetRPM && shooterPower > 0) {
                         shooterPower = Math.min(shooterPower, 0.5);
                     }
                     
-                    // Clamp
+                    // Clamp (EXACTLY like FullTesting line 469)
                     shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
                     
-                    // Voltage compensation (EXACTLY like FullTesting line 472)
+                    // Voltage compensation (EXACTLY like FullTesting line 472-474)
+                    double compensatedPower = shooterPower;
                     if (useVoltageCompensation && voltageSensor != null) {
                         double voltage = voltageSensor.getVoltage();
-                        double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
+                        compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
                         compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
-                        
-                        shootr.setPower(compensatedPower);
-                        shootl.setPower(compensatedPower);
-                    } else {
-                        shootr.setPower(shooterPower);
-                        shootl.setPower(shooterPower);
                     }
+                    
+                    // Set motor power ONCE per loop (EXACTLY like FullTesting line 476-477)
+                    shootr.setPower(compensatedPower);
+                    shootl.setPower(compensatedPower);
+                    
+                    // Record values for monitoring
+                    lastRecordedRPM = avgVelocityRPM;
+                    lastTargetRPM = currentTargetRPM;
+                    lastPower = shooterPower;
+                    lastPIDFOutput = pidfOutput;
+                    lastAdditionalFF = additionalFF;
                     
                     // Add telemetry
                     packet.put("Target RPM", currentTargetRPM);
@@ -912,6 +927,7 @@ public class RobotActions {
                     packet.put("PIDF Output", pidfOutput);
                     packet.put("Additional FF", additionalFF);
                     packet.put("Total Power", shooterPower);
+                    packet.put("Compensated Power", compensatedPower);
                     packet.put("PID Range", isLongRange ? "LONG" : "SHORT");
                     packet.put("At Speed", Math.abs(avgVelocityRPM - currentTargetRPM) < RPM_TOLERANCE);
                     
