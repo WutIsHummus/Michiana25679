@@ -67,6 +67,14 @@ public class FullTestingLimelight extends OpMode {
     // AprilTag ID for goal detection
     public static int GOAL_APRILTAG_ID = -1;  // -1 for any tag, or specific ID for goal
     
+    // AprilTag field positions (center of field = 0,0 in Limelight coordinate system)
+    // Update these based on FTC Decode field specifications
+    // These are in INCHES from field center
+    public static double TAG_11_FIELD_X = 0.0;     // X position from field center (inches)
+    public static double TAG_11_FIELD_Y = 60.0;    // Y position from field center (inches) - example
+    public static double TAG_12_FIELD_X = 60.0;    // Example for another tag
+    public static double TAG_12_FIELD_Y = 0.0;
+    
     // Limelight camera offset from robot center (configure in LL web UI AND here for reference)
     // These should match what's set in Limelight Settings -> Robot
     public static double LL_FORWARD_INCHES = 5.5;      // 14.5 - 9 = 5.5 inches forward
@@ -79,6 +87,13 @@ public class FullTestingLimelight extends OpMode {
     public static double LL_PITCH_DEG = 19.0;          // Camera tilt angle (degrees)
     public static double LL_ROLL_DEG = 0.0;            // Camera roll (usually 0)
     public static double LL_YAW_DEG = 0.0;             // Camera yaw (usually 0)
+    
+    // NOTE: Limelight botpose uses CENTER of field as (0,0)
+    // PedroPathing/Pinpoint may use a corner - coordinate transform may be needed
+    
+    // Turret smoothing to prevent jerking
+    public static double TURRET_SMOOTHING_FACTOR = 0.3;  // 0 = no smoothing, 1 = instant
+    private double lastTurretAngle = 0;
     
     // Height measurements
     public static double aprilTagHeight = 30.0; // AprilTag height in inches
@@ -211,14 +226,14 @@ public class FullTestingLimelight extends OpMode {
         }
         
         telemetryA.addLine("Full Testing Limelight - MegaTag Position");
+        telemetryA.addLine("NOTE: Limelight (0,0) = CENTER of field");
         telemetryA.addLine("LIMELIGHT SETUP (Web UI -> Settings -> Robot):");
         telemetryA.addData("  LL Forward", "%.4f meters (%.1f in)", LL_FORWARD_METERS, LL_FORWARD_INCHES);
         telemetryA.addData("  LL Right", "%.4f meters (%.1f in)", LL_RIGHT_METERS, LL_RIGHT_INCHES);
         telemetryA.addData("  LL Up", "%.4f meters (%.1f in)", LL_UP_METERS, LL_UP_INCHES);
         telemetryA.addData("  LL Pitch", "%.1f degrees", LL_PITCH_DEG);
-        telemetryA.addLine("Also Required:");
-        telemetryA.addLine("  - Upload FTC field map to Limelight");
-        telemetryA.addLine("  - Enable 3D in AprilTag pipeline");
+        telemetryA.addLine("Turret smoothing to prevent jerking");
+        telemetryA.addData("  Smoothing Factor", "%.2f (tune on dashboard)", TURRET_SMOOTHING_FACTOR);
         telemetryA.addLine("");
         telemetryA.addLine("Gamepad 1 Controls:");
         telemetryA.addLine("  - Right Stick: Mecanum drive (Y/X)");
@@ -274,11 +289,16 @@ public class FullTestingLimelight extends OpMode {
         boolean aprilTagVisible = false;
         int detectedTagId = -1;
         
-        // Limelight's estimate of robot position on field
+        // Limelight's estimate of robot position on field (center = 0,0)
         double limelightRobotX = 0;
         double limelightRobotY = 0;
         double limelightRobotHeading = 0;
         boolean botposeAvailable = false;
+        
+        // Robot position RELATIVE to detected AprilTag
+        double relativeToTagX = 0;
+        double relativeToTagY = 0;
+        double relativeToTagDistance = 0;
         
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
@@ -331,6 +351,28 @@ public class FullTestingLimelight extends OpMode {
                         
                         // Calculate turret angle from tx
                         limelightTurretAngle = -tx;
+                        
+                        // Calculate robot position RELATIVE to this specific AprilTag
+                        // If we have botpose and know the tag's field position
+                        if (botposeAvailable) {
+                            double tagFieldX = 0;
+                            double tagFieldY = 0;
+                            
+                            // Get the tag's field position based on ID
+                            if (detectedTagId == 11) {
+                                tagFieldX = TAG_11_FIELD_X;
+                                tagFieldY = TAG_11_FIELD_Y;
+                            } else if (detectedTagId == 12) {
+                                tagFieldX = TAG_12_FIELD_X;
+                                tagFieldY = TAG_12_FIELD_Y;
+                            }
+                            // Add more tags as needed
+                            
+                            // Calculate robot position relative to this tag
+                            relativeToTagX = limelightRobotX - tagFieldX;
+                            relativeToTagY = limelightRobotY - tagFieldY;
+                            relativeToTagDistance = Math.sqrt(relativeToTagX * relativeToTagX + relativeToTagY * relativeToTagY);
+                        }
                     }
                 }
             }
@@ -343,8 +385,13 @@ public class FullTestingLimelight extends OpMode {
         double servoPosition;
         
         if (aprilTagVisible) {
-            // Use Limelight tx angle for turret aiming
-            turretAngleDegrees = limelightTurretAngle;
+            // Use Limelight tx angle for turret aiming with smoothing to prevent jerking
+            double targetAngle = limelightTurretAngle;
+            
+            // Apply exponential smoothing: smoothed = smoothed + alpha * (target - smoothed)
+            turretAngleDegrees = lastTurretAngle + TURRET_SMOOTHING_FACTOR * (targetAngle - lastTurretAngle);
+            lastTurretAngle = turretAngleDegrees;
+            
             clampedTurretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
             
             // Convert angle to servo position
@@ -358,6 +405,7 @@ public class FullTestingLimelight extends OpMode {
             turretAngleDegrees = 0;
             clampedTurretAngle = 0;
             servoPosition = turretCenterPosition;
+            lastTurretAngle = 0;  // Reset smoothing
         }
         
         turret1.setPosition(servoPosition);
@@ -811,8 +859,22 @@ public class FullTestingLimelight extends OpMode {
             telemetryA.addData("", "");
             telemetryA.addLine("=== APRILTAG INFO ===");
             telemetryA.addData("Tag ID", detectedTagId);
-            telemetryA.addData("Distance to Tag", "%.2f inches (%.2f feet)", limelightDistance, limelightDistance / 12.0);
+            telemetryA.addData("Distance to Tag (trig)", "%.2f inches (%.2f feet)", limelightDistance, limelightDistance / 12.0);
             telemetryA.addData("Angle to Tag (tx)", "%.2f degrees", limelightTurretAngle);
+            
+            if (botposeAvailable && relativeToTagDistance > 0) {
+                telemetryA.addData("", "");
+                telemetryA.addLine("=== ROBOT RELATIVE TO TAG " + detectedTagId + " ===");
+                telemetryA.addData("Relative X", "%.2f inches", relativeToTagX);
+                telemetryA.addData("Relative Y", "%.2f inches", relativeToTagY);
+                telemetryA.addData("Distance (from botpose)", "%.2f inches", relativeToTagDistance);
+                
+                // Compare distance methods
+                if (limelightDistance > 0) {
+                    double distDiff = Math.abs(relativeToTagDistance - limelightDistance);
+                    telemetryA.addData("Trig vs Botpose Diff", "%.2f inches", distDiff);
+                }
+            }
         }
         telemetryA.addData("", "");
         
