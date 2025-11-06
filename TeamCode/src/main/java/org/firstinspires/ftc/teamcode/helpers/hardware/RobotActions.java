@@ -217,15 +217,19 @@ public class RobotActions {
      * @param turretAngle Turret angle in degrees
      */
     public Action aimAndShoot(double targetRPM, double hoodPosition, double turretAngle) {
-        return new SequentialAction(
-                hood.setPosition(hoodPosition),
-                turret.setAngle(turretAngle),
+        return new ParallelAction(
+                // PID runs continuously in parallel
                 shooter.spinToRPM(targetRPM, true),
-                shooter.waitForSpeed(targetRPM),
-                launch.fire(),
-                new SleepAction(0.2),
-                launch.reset(),
-                shooter.stop()
+                // Shooting sequence runs alongside PID
+                new SequentialAction(
+                        hood.setPosition(hoodPosition),
+                        turret.setAngle(turretAngle),
+                        shooter.waitForSpeed(targetRPM),
+                        launch.fire(),
+                        new SleepAction(0.2),
+                        launch.reset(),
+                        shooter.stop()  // This stops the PID too
+                )
         );
     }
     
@@ -420,63 +424,71 @@ public class RobotActions {
      */
     public Action threeBallSequence(double targetRPM, double hoodPosition, boolean isLongRange) {
         if (isLongRange) {
-            return new SequentialAction(
-                    hood.setPosition(hoodPosition),
+            return new ParallelAction(
+                    // PID runs continuously in parallel
                     shooter.spinToRPM(targetRPM, true),
-                    shooter.waitForSpeed(targetRPM),
-                    // Ball 1
-                    intakeFront.run(),
-                    intakeBack.run(),
-                    launch.fire(),
-                    new SleepAction(0.2),
-                    launch.reset(),
-                    intakeFront.stop(),
-                    intakeBack.stop(),
-                    new SleepAction(0.3),
-                    // Ball 2
-                    intakeFront.run(),
-                    intakeBack.run(),
-                    launch.fire(),
-                    new SleepAction(0.2),
-                    launch.reset(),
-                    intakeFront.stop(),
-                    intakeBack.stop(),
-                    new SleepAction(0.3),
-                    // Ball 3
-                    intakeFront.run(),
-                    intakeBack.run(),
-                    launch.fire(),
-                    new SleepAction(0.2),
-                    launch.reset(),
-                    intakeFront.stop(),
-                    intakeBack.stop(),
-                    shooter.stop()
+                    // Shooting sequence runs alongside PID
+                    new SequentialAction(
+                            hood.setPosition(hoodPosition),
+                            shooter.waitForSpeed(targetRPM),
+                            // Ball 1
+                            intakeFront.run(),
+                            intakeBack.run(),
+                            launch.fire(),
+                            new SleepAction(0.2),
+                            launch.reset(),
+                            intakeFront.stop(),
+                            intakeBack.stop(),
+                            new SleepAction(0.3),
+                            // Ball 2
+                            intakeFront.run(),
+                            intakeBack.run(),
+                            launch.fire(),
+                            new SleepAction(0.2),
+                            launch.reset(),
+                            intakeFront.stop(),
+                            intakeBack.stop(),
+                            new SleepAction(0.3),
+                            // Ball 3
+                            intakeFront.run(),
+                            intakeBack.run(),
+                            launch.fire(),
+                            new SleepAction(0.2),
+                            launch.reset(),
+                            intakeFront.stop(),
+                            intakeBack.stop(),
+                            shooter.stop()  // This stops the PID too
+                    )
             );
         } else {
-            return new SequentialAction(
-                    hood.setPosition(hoodPosition),
+            return new ParallelAction(
+                    // PID runs continuously in parallel
                     shooter.spinToRPM(targetRPM, true),
-                    shooter.waitForSpeed(targetRPM),
-                    intakeFront.run(),
-                    intakeBack.run(),
-                    new SleepAction(0.1),
-                    // Ball 1
-                    launch.fire(),
-                    new SleepAction(0.2),
-                    launch.reset(),
-                    new SleepAction(0.3),
-                    // Ball 2
-                    launch.fire(),
-                    new SleepAction(0.2),
-                    launch.reset(),
-                    new SleepAction(0.3),
-                    // Ball 3
-                    launch.fire(),
-                    new SleepAction(0.2),
-                    launch.reset(),
-                    intakeFront.stop(),
-                    intakeBack.stop(),
-                    shooter.stop()
+                    // Shooting sequence runs alongside PID
+                    new SequentialAction(
+                            hood.setPosition(hoodPosition),
+                            shooter.waitForSpeed(targetRPM),
+                            intakeFront.run(),
+                            intakeBack.run(),
+                            new SleepAction(0.1),
+                            // Ball 1
+                            launch.fire(),
+                            new SleepAction(0.2),
+                            launch.reset(),
+                            new SleepAction(0.3),
+                            // Ball 2
+                            launch.fire(),
+                            new SleepAction(0.2),
+                            launch.reset(),
+                            new SleepAction(0.3),
+                            // Ball 3
+                            launch.fire(),
+                            new SleepAction(0.2),
+                            launch.reset(),
+                            intakeFront.stop(),
+                            intakeBack.stop(),
+                            shooter.stop()  // This stops the PID too
+                    )
             );
         }
     }
