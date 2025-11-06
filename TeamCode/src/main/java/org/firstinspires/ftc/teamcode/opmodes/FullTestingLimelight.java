@@ -61,8 +61,8 @@ public class FullTestingLimelight extends OpMode {
     public static double targetY = 128.0;
     
     // Goal zone coordinates (for RPM calculation)
-    public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
-    public static double goalZoneY = 121.0; // Goal zone Y coordinate in inches
+    public static double goalZoneX = 110.0; // Goal zone X coordinate in inches
+    public static double goalZoneY = 116.0; // Goal zone Y coordinate in inches
     
     // AprilTag ID for goal detection
     public static int GOAL_APRILTAG_ID = -1;  // -1 for any tag, or specific ID for goal

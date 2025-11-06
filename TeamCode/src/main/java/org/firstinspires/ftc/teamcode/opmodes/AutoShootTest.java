@@ -302,8 +302,8 @@ public class AutoShootTest extends OpMode {
                     
                 case 1: // Start intakes
                     shootStatus = "Starting intakes...";
-                    intakefront.setPower(-1.0);
-                    intakeback.setPower(-1.0);
+                    intakefront.setPower(1.0);
+                    intakeback.setPower(1.0);
                     if (shootTimer.seconds() > 0.1) {
                         shootState = 2;
                         shootTimer.reset();
