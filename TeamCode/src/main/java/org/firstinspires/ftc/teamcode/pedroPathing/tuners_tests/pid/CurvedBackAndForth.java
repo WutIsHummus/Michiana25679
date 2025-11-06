@@ -90,14 +90,7 @@ public class CurvedBackAndForth extends OpMode {
     @Override
     public void init() {
         follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
-
-        Servo ptor,ptol, sweeper;
-        ptor           = hardwareMap.get(Servo.class, "ptor");
-        sweeper = hardwareMap.get(Servo.class, "sweeper");
-        ptol           = hardwareMap.get(Servo.class, "ptol");
-        ptol.setPosition(0.44);
-        ptor.setPosition(0.60);
-        sweeper.setPosition(0.67);
+        
 
         forwards = new Path(new BezierCurve(new Point(0,0, Point.CARTESIAN), new Point(Math.abs(DISTANCE),0, Point.CARTESIAN), new Point(Math.abs(DISTANCE),DISTANCE, Point.CARTESIAN)));
         backwards = new Path(new BezierCurve(new Point(Math.abs(DISTANCE),DISTANCE, Point.CARTESIAN), new Point(Math.abs(DISTANCE),0, Point.CARTESIAN), new Point(0,0, Point.CARTESIAN)));
