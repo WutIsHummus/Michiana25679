@@ -465,9 +465,9 @@ public class FullTesting extends OpMode {
             // Clamp
             shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
             
-            // Voltage compensation (always on): power * (currentVoltage / 12V)
+            // Voltage compensation (always on): power * (12V / currentVoltage)
             double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
-            double compensatedPower = shooterPower * (voltage / NOMINAL_VOLTAGE);
+            double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
             
             shootr.setPower(compensatedPower);
@@ -688,10 +688,10 @@ public class FullTesting extends OpMode {
         telemetryA.addData("Error (RPM)", "%.0f", calculatedTargetRPM - avgVelocityRPM);
         
         double currentVoltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
-        double compensationFactor = currentVoltage / NOMINAL_VOLTAGE;
+        double compensationFactor = NOMINAL_VOLTAGE / currentVoltage;
         
         telemetryA.addData("Battery Voltage", "%.2f V", currentVoltage);
-        telemetryA.addData("Voltage Comp", "×%.3f", compensationFactor);
+        telemetryA.addData("Voltage Comp", "×%.3f (12V/%.2fV)", compensationFactor, currentVoltage);
         telemetryA.addData("Shooter Power (calc)", "%.3f", shooterPower);
         
         if (shooterOn) {
