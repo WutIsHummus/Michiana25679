@@ -83,18 +83,18 @@ public class RobotActions {
     public static double p = 0.002;
     public static double i = 0.0;
     public static double d = 0.0001;
-    public static double f = 0.00084;
-    public static double kV = 0.0008;
-    public static double kS = 0.01;
+    public static double f = 0.0;          // NOT USED - using kV instead
+    public static double kV = 0.00084;     // Velocity feedforward (replaces F term)
+    public static double kS = 0.01;        // Static friction compensation
     public static double I_ZONE = 250.0;
     
     // PID Constants - Long Range (>= 6 feet)
     public static double pLong = 0.01;
     public static double iLong = 0.0;
     public static double dLong = 0.0001;
-    public static double fLong = 0.00084;
-    public static double kVLong = 0.0008;
-    public static double kSLong = 0.01;
+    public static double fLong = 0.0;      // NOT USED - using kV instead
+    public static double kVLong = 0.00084; // Velocity feedforward (replaces F term)
+    public static double kSLong = 0.01;    // Static friction compensation
     public static double I_ZONE_LONG = 250.0;
     
     // Motor constants
@@ -783,7 +783,7 @@ public class RobotActions {
                     lastPIDCallTime = currentTime;
                     
                     if (!initialized) {
-                        // Use appropriate PIDF values based on distance (EXACTLY like FullTesting)
+                        // Use appropriate PID values based on distance
                         if (isLongRange) {
                             currentP = pLong;
                             currentI = iLong;
@@ -802,7 +802,7 @@ public class RobotActions {
                             currentIZone = I_ZONE;
                         }
                         
-                        // Initialize PIDF controller
+                        // Initialize official FTCLib PIDF controller (F=0 since we use kV manually)
                         pidfController = new PIDFController(currentP, currentI, currentD, currentF);
                         pidfController.setIntegrationBounds(-currentIZone, currentIZone);
                         
@@ -833,7 +833,7 @@ public class RobotActions {
                     // PIDF control (F term is built-in and multiplied by setpoint)
                     pidfOutput = pidfController.calculate(vAvg, targetTPS);
                     
-                    // Additional feedforward using kV and kS (EXACTLY like FullTesting line 457)
+                    // Additional feedforward using kV and kS (F=0, so we use kV manually)
                     double sgn = Math.signum(targetTPS);
                     additionalFF = (Math.abs(targetTPS) > 1e-6) ? (currentKS * sgn + currentKV * targetTPS) : 0.0;
                     
