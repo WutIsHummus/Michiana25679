@@ -24,17 +24,25 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
  * REGRESSION-BASED SHOOTING EXAMPLES:
  * ====================================
  * 
- * 1. SINGLE SHOT (Auto-calculates RPM, aims turret):
+ * 1. SPIN UP ONLY (No aiming, no shooting):
+ *    actions.spinUpForDistance(5.5);             // From distance in feet
+ *    actions.spinUpFromFollower(follower);       // From current position
+ *    actions.spinUpFromPose(poseUpdater);        // From current position
+ *    actions.spinUpFromPosition(x, y);           // From coordinates
+ * 
+ * 2. SINGLE SHOT (Auto-calculates RPM, aims turret):
  *    actions.shootFromPose(poseUpdater);
  *    actions.shootFromFollower(follower);
+ *    actions.shootFromPosition(x, y, heading);
  * 
- * 2. THREE-BALL SEQUENCE (Auto-calculates RPM, aims turret):
+ * 3. THREE-BALL SEQUENCE (Auto-calculates RPM, aims turret):
  *    actions.threeBallFromPose(poseUpdater);
  *    actions.threeBallFromFollower(follower);
+ *    actions.threeBallFromPosition(x, y, heading);
  * 
- * 3. MANUAL CONTROL:
- *    actions.aimAndShoot(1500, 0.54, 45.0);  // RPM, hood, turret angle
- *    actions.threeBallSequence(1800, 0.45, true);  // RPM, hood, isLongRange
+ * 4. MANUAL CONTROL:
+ *    actions.aimAndShoot(1500, 0.54, 45.0);      // RPM, hood, turret angle
+ *    actions.threeBallSequence(1800, 0.45, true); // RPM, hood, isLongRange
  * 
  * RPM REGRESSION FORMULA:
  * =======================
@@ -301,6 +309,63 @@ public class RobotActions {
                 turret.setAngle(turretAngleDegrees),
                 threeBallSequence(targetRPM, hoodPosition, isLongRange)
         );
+    }
+    
+    /**
+     * SPIN UP SHOOTER FOR DISTANCE - Just spins up, doesn't shoot
+     * Calculates RPM from distance, sets hood, NO turret aiming or firing
+     * 
+     * @param distanceFeet Distance to target in feet
+     */
+    public Action spinUpForDistance(double distanceFeet) {
+        // Calculate RPM using regression
+        double targetRPM;
+        if (distanceFeet >= LONG_RANGE_THRESHOLD_FEET) {
+            targetRPM = FAR_SHOOTING_RPM_MAX;
+        } else {
+            targetRPM = RPM_SLOPE * distanceFeet + RPM_INTERCEPT;
+            targetRPM = Math.max(1250.0, Math.min(FAR_SHOOTING_RPM_MAX, targetRPM));
+        }
+        
+        // Determine hood position
+        double hoodPosition = (distanceFeet >= 6.0) ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE;
+        
+        // Set hood and spin up shooter (no turret, no shooting)
+        return new SequentialAction(
+                hood.setPosition(hoodPosition),
+                shooter.spinToRPM(targetRPM, true)
+        );
+    }
+    
+    /**
+     * SPIN UP FROM POSITION - Calculates distance automatically
+     * 
+     * @param robotX Current robot X position (inches)
+     * @param robotY Current robot Y position (inches)
+     */
+    public Action spinUpFromPosition(double robotX, double robotY) {
+        double deltaX = GOAL_X - robotX;
+        double deltaY = GOAL_Y - robotY;
+        double distanceInches = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        double distanceFeet = distanceInches / 12.0;
+        
+        return spinUpForDistance(distanceFeet);
+    }
+    
+    /**
+     * SPIN UP FROM CURRENT POSITION - Works with PoseUpdater
+     */
+    public Action spinUpFromPose(PoseUpdater poseUpdater) {
+        Pose currentPose = poseUpdater.getPose();
+        return spinUpFromPosition(currentPose.getX(), currentPose.getY());
+    }
+    
+    /**
+     * SPIN UP FROM CURRENT POSITION - Works with Follower
+     */
+    public Action spinUpFromFollower(Follower follower) {
+        Pose currentPose = follower.getPose();
+        return spinUpFromPosition(currentPose.getX(), currentPose.getY());
     }
     
     /**
