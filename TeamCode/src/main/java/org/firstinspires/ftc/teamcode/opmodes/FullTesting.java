@@ -56,8 +56,11 @@ public class FullTesting extends OpMode {
     private Servo reargate, launchgate, hood1;
     private PIDFController shooterPID;
 
-    // Goal zone coordinates - Single target for BOTH turret aiming AND RPM calculation
-    // This is the point on the field where you want to shoot (usually the goal/basket)
+    // Target coordinates for turret aiming
+    public static double targetX = 128.0;
+    public static double targetY = 120.0;
+    
+    // Goal zone coordinates (for RPM calculation)
     public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
     public static double goalZoneY = 121.0; // Goal zone Y coordinate in inches
     
@@ -242,18 +245,18 @@ public class FullTesting extends OpMode {
         double currentX = poseUpdater.getPose().getX();
         double currentY = poseUpdater.getPose().getY();
 
-        // Calculate distance and angle to goal zone
-        double deltaX = goalZoneX - currentX;
-        double deltaY = goalZoneY - currentY;
+        // Calculate distance and angle to target (for turret aiming)
+        double deltaX = targetX - currentX;
+        double deltaY = targetY - currentY;
         double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
         
-        // Calculate angle to goal zone relative to field (0 degrees = east, 90 = north)
-        double angleToGoalField = Math.atan2(deltaY, deltaX);
+        // Calculate angle to target relative to field (0 degrees = east, 90 = north)
+        double angleToTargetField = Math.atan2(deltaY, deltaX);
         
         // Calculate angle relative to robot (turret angle needed)
         // Subtract robot heading to get relative angle
         double currentHeading = poseUpdater.getPose().getHeading();
-        double turretAngle = angleToGoalField - currentHeading;
+        double turretAngle = angleToTargetField - currentHeading;
         
         // Normalize angle to [-PI, PI]
         while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
@@ -659,8 +662,8 @@ public class FullTesting extends OpMode {
         telemetryA.addData("heading (deg)", Math.toDegrees(currentHeading));
         telemetryA.addData("", ""); // Empty line
         telemetryA.addLine("=== AIMING ===");
-        telemetryA.addData("Goal Zone", "(%.1f, %.1f)", goalZoneX, goalZoneY);
-        telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distance, distance/12.0);
+        telemetryA.addData("Turret Target", "(%.1f, %.1f)", targetX, targetY);
+        telemetryA.addData("Distance to Target", "%.2f inches", distance);
         telemetryA.addData("Turret Angle", "%.2f degrees", turretAngleDegrees);
         telemetryA.addData("Turret Servo Position", "%.3f", servoPosition);
         if (turretAngleDegrees < -turretMaxAngle || turretAngleDegrees > turretMaxAngle) {
@@ -682,6 +685,8 @@ public class FullTesting extends OpMode {
             telemetryA.addData("Transfer Mode", distanceToGoalFeet >= 7.0 ? "LONG (slow)" : "SHORT (fast)");
         }
         telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
+        telemetryA.addData("Goal Zone (RPM calc)", "(%.1f, %.1f)", goalZoneX, goalZoneY);
+        telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
         telemetryA.addData("Calculated Target RPM", "%.0f (RPM = 100*%.2f + 1150)", calculatedTargetRPM, distanceToGoalFeet);
         telemetryA.addData("Current RPM", "%.0f", avgVelocityRPM);
         telemetryA.addData("Right Motor RPM", "%.0f", shootrVelocityRPM);
