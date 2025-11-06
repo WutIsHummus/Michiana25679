@@ -42,6 +42,9 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         reargate   = hardwareMap.get(Servo.class, "reargate");
         launchgate = hardwareMap.get(Servo.class, "launchgate");
+        
+        // Set motor directions
+        shootl.setDirection(DcMotor.Direction.REVERSE);
 
         for (DcMotor m : new DcMotor[]{intakefront, intakeback, shootr, shootl}) {
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
