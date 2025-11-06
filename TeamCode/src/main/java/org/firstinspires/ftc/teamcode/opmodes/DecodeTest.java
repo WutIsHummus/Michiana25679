@@ -47,7 +47,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         actions = new RobotActions(intakefront, intakeback, shootr, shootl, launchgate, reargate);
 
-        // Starting position
+        // Starting position (must match first path's starting point)
         follower.setStartingPose(new Pose(24.0, 126.0, Math.toRadians(144)));
 
         buildPathChains();
@@ -63,9 +63,19 @@ public class DecodeTest extends PathChainAutoOpMode {
 
     @Override
     public void loop() {
-        super.loop();
+        // Check if all tasks complete - stop to prevent issues
+        if (currentTaskIndex >= tasks.size()) {
+            telemetry.addLine("✓ All tasks complete!");
+            telemetry.addData("Total Tasks", tasks.size());
+            telemetry.update();
+            // Stop the OpMode
+            requestOpModeStop();
+            return;
+        }
+        
+        super.loop();  // This already calls runTasks() internally
         follower.update();
-        runTasks();
+        // Don't call runTasks() again - it's already called by super.loop()!
 
         telemetry.addData("Task Index", currentTaskIndex + "/" + tasks.size());
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
@@ -110,10 +120,20 @@ public class DecodeTest extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
+        // Verify paths are built before adding to task list
+        if (path1 == null || path2 == null || path3 == null) {
+            telemetry.addLine("ERROR: Paths not initialized!");
+            telemetry.update();
+            return;
+        }
+
         // addPath(path, waitSeconds)
         addPath(path1, 1.0);
         addPath(path2, 1.0);
         addPath(path3, 1.0);
+        
+        telemetry.addLine("✓ Task list built: " + tasks.size() + " tasks");
+        telemetry.update();
     }
 
     @Override
@@ -133,7 +153,13 @@ public class DecodeTest extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, true);
+        if (task.pathChain == null) {
+            telemetry.addLine("ERROR: Null path in task!");
+            telemetry.update();
+            return;
+        }
+        // Start the path - removed the 'true' parameter which may cause issues
+        follower.followPath((PathChain) task.pathChain);
     }
 
     @Override
