@@ -309,11 +309,11 @@ public class RobotActions {
     /**
      * INSTANT AUTO SHOOT - Shoots immediately at specified distance
      * Perfect for autonomous - just call this and it shoots automatically!
+     * NO turret movement - just spins up, waits for speed, and shoots
      * 
      * @param distanceInches Distance to target in inches (e.g., 39 for 3.25 feet)
-     * @param turretAngleDegrees Turret angle in degrees
      */
-    public Action autoShootOneBall(double distanceInches, double turretAngleDegrees) {
+    public Action autoShootOneBall(double distanceInches) {
         // Calculate distance to goal
         double distanceFeet = distanceInches / 12.0;
 
@@ -330,9 +330,8 @@ public class RobotActions {
         boolean isLongRange = distanceFeet >= PID_THRESHOLD_FEET;
         double hoodPosition = (distanceFeet >= PID_THRESHOLD_FEET) ? HOOD_LONG_RANGE : HOOODAUTO;
 
-        // Execute automatic shooting sequence
+        // Execute automatic shooting sequence (NO turret movement)
         return new SequentialAction(
-                turret.setAngle(turretAngleDegrees),
                 hood.setPosition(hoodPosition),
                 new ParallelAction(
                         shooter.spinToRPMWithRange(targetRPM, true, isLongRange),

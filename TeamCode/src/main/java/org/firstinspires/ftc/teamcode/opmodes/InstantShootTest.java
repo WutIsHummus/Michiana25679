@@ -72,7 +72,7 @@ public class InstantShootTest extends ActionOpMode {
         telemetryA.addLine("Instant Shoot Test Initialized");
         telemetryA.addLine("==============================");
         telemetryA.addLine("Will shoot ONE ball from 36 inches (3 feet)");
-        telemetryA.addLine("Turret at 96° (straight ahead)");
+        telemetryA.addLine("NO turret movement - just spin & shoot");
         telemetryA.addLine("");
         telemetryA.addLine("Press START to shoot automatically!");
         telemetryA.update();
@@ -81,7 +81,7 @@ public class InstantShootTest extends ActionOpMode {
     @Override
     public void start() {
         // As soon as you press START, shoot automatically!
-        run(actions.autoShootOneBall(36, 96.0));
+        run(actions.autoShootOneBall(36));  // 36 inches = 3 feet
         hasStarted = true;
     }
 
@@ -96,11 +96,10 @@ public class InstantShootTest extends ActionOpMode {
         telemetryA.addData("Status", hasStarted ? "SHOOTING!" : "Waiting for START...");
         telemetryA.addData("Shooter RPM", "%.0f", shooterRPM);
         telemetryA.addData("Distance", "36 inches (3.0 feet)");
-        telemetryA.addData("Turret Angle", "96°");
         telemetryA.addLine("");
         telemetryA.addLine("Sequence:");
-        telemetryA.addLine("1. Aim turret → 2. Set hood → 3. Spin up");
-        telemetryA.addLine("4. Wait for speed → 5. Start intakes → 6. Fire!");
+        telemetryA.addLine("1. Set hood → 2. Spin up → 3. Wait for speed");
+        telemetryA.addLine("4. Start intakes → 5. Fire! → 6. Done");
         telemetryA.update();
     }
     
