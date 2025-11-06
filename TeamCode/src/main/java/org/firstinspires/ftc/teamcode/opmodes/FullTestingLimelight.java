@@ -67,13 +67,21 @@ public class FullTestingLimelight extends OpMode {
     // AprilTag ID for goal detection
     public static int GOAL_APRILTAG_ID = -1;  // -1 for any tag, or specific ID for goal
     
-    // AprilTag field positions (center of field = 0,0 in Limelight coordinate system)
-    // Update these based on FTC Decode field specifications
-    // These are in INCHES from field center
-    public static double TAG_11_FIELD_X = 0.0;     // X position from field center (inches)
-    public static double TAG_11_FIELD_Y = 60.0;    // Y position from field center (inches) - example
-    public static double TAG_12_FIELD_X = 60.0;    // Example for another tag
-    public static double TAG_12_FIELD_Y = 0.0;
+    // AprilTag field positions in LIMELIGHT coordinates (center of field = 0,0)
+    // Field is 144" x 144", so corners are at ±72" from center
+    // These positions are in INCHES from field center
+    // Top-left structure AprilTag (near PedroPathing 12, 144)
+    public static double TAG_11_FIELD_X = -60.0;   // ~60" left of center
+    public static double TAG_11_FIELD_Y = 72.0;    // ~72" up from center (top edge)
+    
+    // Top-right structure AprilTag (near PedroPathing 132, 144)
+    public static double TAG_12_FIELD_X = 60.0;    // ~60" right of center
+    public static double TAG_12_FIELD_Y = 72.0;    // ~72" up from center (top edge)
+    
+    // Add more tags here based on actual field specifications
+    // Convert from PedroPathing (corner origin) to Limelight (center origin):
+    // limelightX = pedroX - 72
+    // limelightY = pedroY - 72
     
     // Limelight camera offset from robot center (configure in LL web UI AND here for reference)
     // These should match what's set in Limelight Settings -> Robot
@@ -307,16 +315,23 @@ public class FullTestingLimelight extends OpMode {
                 // This requires: 1) Robot offset configured in LL web UI, 2) Field map uploaded
                 org.firstinspires.ftc.robotcore.external.navigation.Pose3D botpose = result.getBotpose();
                 if (botpose != null && botpose.getPosition() != null) {
-                    double rawX = botpose.getPosition().x;  // meters
-                    double rawY = botpose.getPosition().y;  // meters
+                    double rawX = botpose.getPosition().x;  // meters (Limelight center-origin)
+                    double rawY = botpose.getPosition().y;  // meters (Limelight center-origin)
                     double rawZ = botpose.getPosition().z;  // meters
                     
                     // Check if we have valid (non-zero) data
                     if (Math.abs(rawX) > 0.001 || Math.abs(rawY) > 0.001 || Math.abs(rawZ) > 0.001) {
                         botposeAvailable = true;
-                        // Convert from meters to inches
-                        limelightRobotX = rawX * 39.3701;
-                        limelightRobotY = rawY * 39.3701;
+                        // Convert from Limelight coordinates (center origin) to inches
+                        double limelightX_inches = rawX * 39.3701;  // Limelight coords in inches
+                        double limelightY_inches = rawY * 39.3701;
+                        
+                        // Convert to PedroPathing/Pinpoint coordinates (corner origin at bottom-left)
+                        // PedroPathing: (0,0) = bottom-left, (72,72) = center
+                        // Limelight: (0,0) = center
+                        // Conversion: pedroX = limelightX + 72, pedroY = limelightY + 72
+                        limelightRobotX = limelightX_inches + 72.0;  // Now in PedroPathing coords
+                        limelightRobotY = limelightY_inches + 72.0;  // Now in PedroPathing coords
                         limelightRobotHeading = botpose.getOrientation().getYaw();  // degrees
                     }
                 }
@@ -355,22 +370,26 @@ public class FullTestingLimelight extends OpMode {
                         // Calculate robot position RELATIVE to this specific AprilTag
                         // If we have botpose and know the tag's field position
                         if (botposeAvailable) {
-                            double tagFieldX = 0;
-                            double tagFieldY = 0;
+                            double tagFieldX_Limelight = 0;  // In Limelight coords (center origin)
+                            double tagFieldY_Limelight = 0;
                             
-                            // Get the tag's field position based on ID
+                            // Get the tag's field position based on ID (in Limelight coords)
                             if (detectedTagId == 11) {
-                                tagFieldX = TAG_11_FIELD_X;
-                                tagFieldY = TAG_11_FIELD_Y;
+                                tagFieldX_Limelight = TAG_11_FIELD_X;
+                                tagFieldY_Limelight = TAG_11_FIELD_Y;
                             } else if (detectedTagId == 12) {
-                                tagFieldX = TAG_12_FIELD_X;
-                                tagFieldY = TAG_12_FIELD_Y;
+                                tagFieldX_Limelight = TAG_12_FIELD_X;
+                                tagFieldY_Limelight = TAG_12_FIELD_Y;
                             }
                             // Add more tags as needed
                             
-                            // Calculate robot position relative to this tag
-                            relativeToTagX = limelightRobotX - tagFieldX;
-                            relativeToTagY = limelightRobotY - tagFieldY;
+                            // Convert tag position to PedroPathing coords for consistent calculation
+                            double tagFieldX_Pedro = tagFieldX_Limelight + 72.0;
+                            double tagFieldY_Pedro = tagFieldY_Limelight + 72.0;
+                            
+                            // Calculate robot position relative to this tag (in inches)
+                            relativeToTagX = limelightRobotX - tagFieldX_Pedro;
+                            relativeToTagY = limelightRobotY - tagFieldY_Pedro;
                             relativeToTagDistance = Math.sqrt(relativeToTagX * relativeToTagX + relativeToTagY * relativeToTagY);
                         }
                     }
