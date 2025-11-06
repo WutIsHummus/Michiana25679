@@ -306,6 +306,52 @@ public class RobotActions {
     }
 
 
+    /**
+     * INSTANT AUTO SHOOT - Shoots immediately at specified distance
+     * Perfect for autonomous - just call this and it shoots automatically!
+     * 
+     * @param distanceInches Distance to target in inches (e.g., 39 for 3.25 feet)
+     * @param turretAngleDegrees Turret angle in degrees
+     */
+    public Action autoShootOneBall(double distanceInches, double turretAngleDegrees) {
+        // Calculate distance to goal
+        double distanceFeet = distanceInches / 12.0;
+
+        // Calculate RPM using regression
+        double targetRPM;
+        if (distanceFeet >= LONG_RANGE_THRESHOLD_FEET) {
+            targetRPM = FAR_SHOOTING_RPM_MAX;
+        } else {
+            targetRPM = RPM_SLOPE * distanceFeet + RPM_INTERCEPT;
+            targetRPM = Math.max(1250.0, Math.min(FAR_SHOOTING_RPM_MAX, targetRPM));
+        }
+
+        // Determine hood position and range type
+        boolean isLongRange = distanceFeet >= PID_THRESHOLD_FEET;
+        double hoodPosition = (distanceFeet >= PID_THRESHOLD_FEET) ? HOOD_LONG_RANGE : HOOODAUTO;
+
+        // Execute automatic shooting sequence
+        return new SequentialAction(
+                turret.setAngle(turretAngleDegrees),
+                hood.setPosition(hoodPosition),
+                new ParallelAction(
+                        shooter.spinToRPMWithRange(targetRPM, true, isLongRange),
+                        new SequentialAction(
+                                shooter.waitForSpeed(targetRPM),
+                                intakeFront.run(),
+                                intakeBack.run(),
+                                new SleepAction(0.1),
+                                launch.fire(),
+                                new SleepAction(0.3),
+                                launch.reset(),
+                                intakeFront.stop(),
+                                intakeBack.stop(),
+                                shooter.stop()
+                        )
+                )
+        );
+    }
+
     public Action threeBallabsoluteclose(double distance, double turretangle) {
         // Calculate distance to goal
         double distanceInches = distance;
