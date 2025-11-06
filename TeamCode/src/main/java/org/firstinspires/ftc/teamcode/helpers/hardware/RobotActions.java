@@ -21,35 +21,39 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 /**
  * RobotActions - Reusable shooting and intake actions for FTC
  * 
- * REGRESSION-BASED SHOOTING EXAMPLES:
- * ====================================
+ * EASIEST WAY - DISTANCE-BASED (No coordinates needed!):
+ * ======================================================
  * 
- * 1. SPIN UP ONLY (No aiming, no shooting):
+ * actions.shootAtDistance(48, 0, follower);        // Shoot 48" straight ahead
+ * actions.shootAtDistance(60, 45, follower);       // Shoot 60" at 45° left
+ * actions.shootAtDistance(36, -90, follower);      // Shoot 36" at 90° right
+ * actions.threeBallAtDistance(48, 0, follower);    // 3 balls, 48" straight ahead
+ * 
+ * ALSO WORKS WITH:
+ * - Follower: actions.shootAtDistance(48, 0, follower)
+ * - PoseUpdater: actions.shootAtDistance(48, 0, poseUpdater)
+ * 
+ * OTHER SHOOTING METHODS:
+ * =======================
+ * 
+ * 1. SPIN UP ONLY:
  *    actions.spinUpForDistance(5.5);             // From distance in feet
  *    actions.spinUpFromFollower(follower);       // From current position
- *    actions.spinUpFromPose(poseUpdater);        // From current position
- *    actions.spinUpFromPosition(x, y);           // From coordinates
  * 
- * 2. SINGLE SHOT (Auto-calculates RPM, aims turret):
- *    actions.shootFromPose(poseUpdater);
- *    actions.shootFromFollower(follower);
- *    actions.shootFromPosition(x, y, heading);
+ * 2. FIELD COORDINATE SHOOTING:
+ *    actions.shootFromPose(poseUpdater);         // To goal zone
+ *    actions.shootFromFollower(follower);        // To goal zone
+ *    actions.shootFromPosition(x, y, heading);   // Manual coordinates
  * 
- * 3. THREE-BALL SEQUENCE (Auto-calculates RPM, aims turret):
- *    actions.threeBallFromPose(poseUpdater);
- *    actions.threeBallFromFollower(follower);
- *    actions.threeBallFromPosition(x, y, heading);
- * 
- * 4. MANUAL CONTROL:
+ * 3. MANUAL CONTROL:
  *    actions.aimAndShoot(1500, 0.54, 45.0);      // RPM, hood, turret angle
- *    actions.threeBallSequence(1800, 0.45, true); // RPM, hood, isLongRange
  * 
  * RPM REGRESSION FORMULA:
  * =======================
  * - Distance < 7 feet: RPM = 100 * feet + 1150 (max 1950)
  * - Distance >= 7 feet: RPM = 1950 (fixed)
  * - Hood: 0.54 (short range), 0.45 (long range)
- * - Turret: Auto-calculated from robot position
+ * - Turret: Auto-calculated
  * 
  * All constants are @Config tunable on FTC Dashboard!
  */
@@ -313,6 +317,87 @@ public class RobotActions {
                 turret.setAngle(turretAngleDegrees),
                 threeBallSequence(targetRPM, hoodPosition, isLongRange)
         );
+    }
+    
+    /**
+     * DISTANCE-BASED SHOOTING - Robot-relative coordinates
+     * Much easier than field coordinates!
+     * 
+     * @param distanceInches Distance to target (e.g., 48 for 48 inches away)
+     * @param angleDegrees Angle relative to robot (0 = straight ahead, 90 = left, -90 = right)
+     * @param robotX Current robot X (inches)
+     * @param robotY Current robot Y (inches)
+     * @param robotHeading Current robot heading (radians)
+     */
+    public Action shootAtDistance(double distanceInches, double angleDegrees, 
+                                   double robotX, double robotY, double robotHeading) {
+        // Convert robot-relative polar coordinates to field coordinates
+        double angleRadians = Math.toRadians(angleDegrees);
+        double fieldAngle = robotHeading + angleRadians;
+        
+        double targetX = robotX + distanceInches * Math.cos(fieldAngle);
+        double targetY = robotY + distanceInches * Math.sin(fieldAngle);
+        
+        // Use existing field-coordinate shooting
+        return shootFromPosition(targetX, targetY, robotHeading);
+    }
+    
+    /**
+     * DISTANCE-BASED THREE-BALL - Robot-relative
+     * 
+     * @param distanceInches Distance to target
+     * @param angleDegrees Angle relative to robot (0 = straight ahead)
+     * @param robotX Current robot X (inches)
+     * @param robotY Current robot Y (inches)  
+     * @param robotHeading Current robot heading (radians)
+     */
+    public Action threeBallAtDistance(double distanceInches, double angleDegrees,
+                                       double robotX, double robotY, double robotHeading) {
+        // Convert robot-relative polar coordinates to field coordinates
+        double angleRadians = Math.toRadians(angleDegrees);
+        double fieldAngle = robotHeading + angleRadians;
+        
+        double targetX = robotX + distanceInches * Math.cos(fieldAngle);
+        double targetY = robotY + distanceInches * Math.sin(fieldAngle);
+        
+        // Use existing field-coordinate shooting
+        return threeBallFromPosition(targetX, targetY, robotHeading);
+    }
+    
+    /**
+     * DISTANCE-BASED - Works with Follower
+     * Example: actions.shootAtDistance(48, 0, follower) = Shoot 48" straight ahead
+     */
+    public Action shootAtDistance(double distanceInches, double angleDegrees, Follower follower) {
+        Pose pose = follower.getPose();
+        return shootAtDistance(distanceInches, angleDegrees, pose.getX(), pose.getY(), pose.getHeading());
+    }
+    
+    /**
+     * DISTANCE-BASED - Works with PoseUpdater
+     * Example: actions.shootAtDistance(48, 0, poseUpdater) = Shoot 48" straight ahead
+     */
+    public Action shootAtDistance(double distanceInches, double angleDegrees, PoseUpdater poseUpdater) {
+        Pose pose = poseUpdater.getPose();
+        return shootAtDistance(distanceInches, angleDegrees, pose.getX(), pose.getY(), pose.getHeading());
+    }
+    
+    /**
+     * DISTANCE-BASED THREE-BALL - Works with Follower  
+     * Example: actions.threeBallAtDistance(48, 0, follower) = Shoot 3 balls 48" straight ahead
+     */
+    public Action threeBallAtDistance(double distanceInches, double angleDegrees, Follower follower) {
+        Pose pose = follower.getPose();
+        return threeBallAtDistance(distanceInches, angleDegrees, pose.getX(), pose.getY(), pose.getHeading());
+    }
+    
+    /**
+     * DISTANCE-BASED THREE-BALL - Works with PoseUpdater
+     * Example: actions.threeBallAtDistance(48, 0, poseUpdater) = Shoot 3 balls 48" straight ahead
+     */
+    public Action threeBallAtDistance(double distanceInches, double angleDegrees, PoseUpdater poseUpdater) {
+        Pose pose = poseUpdater.getPose();
+        return threeBallAtDistance(distanceInches, angleDegrees, pose.getX(), pose.getY(), pose.getHeading());
     }
     
     /**

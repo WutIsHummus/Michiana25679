@@ -120,17 +120,16 @@ public class AutoShootRegression extends OpMode {
             telemetry.update();
             
             // ========================================
-            // THIS IS THE KEY PART!
+            // DISTANCE-BASED SHOOTING - SUPER EASY!
             // ========================================
-            // Create the shooting action - it will:
-            // 1. Calculate distance to goal
-            // 2. Calculate RPM using regression (100*feet + 1150)
-            // 3. Aim turret automatically
-            // 4. Set hood position
-            // 5. Spin up with PID
-            // 6. Shoot 3 balls
+            // Just say "shoot 48 inches straight ahead"!
+            // (48, 0) = 48 inches at 0 degrees (straight)
             // ========================================
-            currentAction = actions.threeBallFromFollower(follower);
+            currentAction = actions.threeBallAtDistance(48, 0, follower);
+            
+            // OR use goal-based shooting:
+            // currentAction = actions.threeBallFromFollower(follower);
+            
             shootingActionStarted = true;
         }
         
