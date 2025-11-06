@@ -106,6 +106,9 @@ public class FullTesting extends OpMode {
     private static final double RPM_SLOPE = 100.0;  // m in y = mx + b
     private static final double RPM_INTERCEPT = 1150.0;  // b in y = mx + b
     
+    // Far shooting RPM cap (for distances >= 7 feet)
+    public static double FAR_SHOOTING_RPM_MAX = 1950.0;  // Reduced from 2100
+    
     // Auto-shoot state machine
     private boolean lastA = false;
     private boolean lastLeftTrigger = false;
@@ -399,13 +402,13 @@ public class FullTesting extends OpMode {
         double distanceToGoalFeet = distanceToGoalInches / 12.0;  // Convert inches to feet
         
         // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
-        // Calculate target RPM: use formula up to 7 feet, then cap at 2100 RPM
+        // Calculate target RPM: use formula up to 7 feet, then cap at FAR_SHOOTING_RPM_MAX
         double calculatedTargetRPM;
         if (distanceToGoalFeet >= 7.0) {
-            calculatedTargetRPM = 2100.0;  // Fixed RPM for 7+ feet
+            calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;  // Fixed RPM for 7+ feet
         } else {
             calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-            calculatedTargetRPM = Math.max(1250.0, Math.min(2100.0, calculatedTargetRPM));
+            calculatedTargetRPM = Math.max(1250.0, Math.min(FAR_SHOOTING_RPM_MAX, calculatedTargetRPM));
         }
         
         // Determine if we're shooting long range (>= 6 feet)

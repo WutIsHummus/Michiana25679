@@ -99,8 +99,12 @@ public class FullTestingLimelight extends OpMode {
     // NOTE: Limelight botpose uses CENTER of field as (0,0)
     // PedroPathing/Pinpoint may use a corner - coordinate transform may be needed
     
-    // Turret smoothing to prevent jerking
-    public static double TURRET_SMOOTHING_FACTOR = 0.3;  // 0 = no smoothing, 1 = instant
+    // Turret smoothing to prevent jerking/oscillation
+    public static int TURRET_AVERAGE_SAMPLES = 10;        // Number of samples to average (10 = ~200ms at 50Hz)
+    public static double TURRET_DEADBAND_DEGREES = 2.0;   // Deadband - don't move if within this angle
+    private double[] turretAngleBuffer = new double[20];  // Buffer for averaging (max size)
+    private int bufferIndex = 0;
+    private int bufferSize = 0;
     private double lastTurretAngle = 0;
     
     // Height measurements
@@ -240,8 +244,10 @@ public class FullTestingLimelight extends OpMode {
         telemetryA.addData("  LL Right", "%.4f meters (%.1f in)", LL_RIGHT_METERS, LL_RIGHT_INCHES);
         telemetryA.addData("  LL Up", "%.4f meters (%.1f in)", LL_UP_METERS, LL_UP_INCHES);
         telemetryA.addData("  LL Pitch", "%.1f degrees", LL_PITCH_DEG);
-        telemetryA.addLine("Turret smoothing to prevent jerking");
-        telemetryA.addData("  Smoothing Factor", "%.2f (tune on dashboard)", TURRET_SMOOTHING_FACTOR);
+        telemetryA.addLine("Turret Anti-Oscillation (Moving Average):");
+        telemetryA.addData("  Samples Averaged", "%d (~%.0fms)", TURRET_AVERAGE_SAMPLES, TURRET_AVERAGE_SAMPLES * 20.0);
+        telemetryA.addData("  Deadband", "%.1f° (hold if within)", TURRET_DEADBAND_DEGREES);
+        telemetryA.addData("  Buffer Status", "%d/%d samples", bufferSize, TURRET_AVERAGE_SAMPLES);
         telemetryA.addLine("");
         telemetryA.addLine("Gamepad 1 Controls:");
         telemetryA.addLine("  - Right Stick: Mecanum drive (Y/X)");
@@ -429,9 +435,31 @@ public class FullTestingLimelight extends OpMode {
         while (targetAngle > 180) targetAngle -= 360;
         while (targetAngle < -180) targetAngle += 360;
         
-        // Apply exponential smoothing to prevent jerking
-        turretAngleDegrees = lastTurretAngle + TURRET_SMOOTHING_FACTOR * (targetAngle - lastTurretAngle);
-        lastTurretAngle = turretAngleDegrees;
+        // Add to circular buffer for moving average
+        int samplesToUse = Math.min(TURRET_AVERAGE_SAMPLES, turretAngleBuffer.length);
+        turretAngleBuffer[bufferIndex] = targetAngle;
+        bufferIndex = (bufferIndex + 1) % samplesToUse;
+        if (bufferSize < samplesToUse) {
+            bufferSize++;
+        }
+        
+        // Calculate moving average - this filters out oscillations!
+        double sum = 0;
+        for (int i = 0; i < bufferSize; i++) {
+            sum += turretAngleBuffer[i];
+        }
+        double averagedAngle = sum / bufferSize;
+        
+        // Apply deadband to the averaged value
+        double angleDiff = averagedAngle - lastTurretAngle;
+        if (Math.abs(angleDiff) < TURRET_DEADBAND_DEGREES) {
+            // Within deadband - HOLD POSITION (no movement)
+            turretAngleDegrees = lastTurretAngle;
+        } else {
+            // Outside deadband - use the averaged angle
+            turretAngleDegrees = averagedAngle;
+            lastTurretAngle = averagedAngle;
+        }
         
         clampedTurretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
         
