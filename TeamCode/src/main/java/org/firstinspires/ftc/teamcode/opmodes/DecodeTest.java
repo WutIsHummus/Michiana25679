@@ -79,13 +79,25 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Shooter RPM telemetry (requires getCurrentRPM() in Shooter class)
         double shooterRPM = actions.shooter.getCurrentRPM();
+        
+        // Debug: Show individual motor velocities
+        double vR = shootr.getVelocity();
+        double vL = shootl.getVelocity();
+        double rpmR = (vR / 28.0) * 60.0;
+        double rpmL = (vL / 28.0) * 60.0;
 
         telemetry.addData("Task Index", currentTaskIndex + "/" + tasks.size());
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
         telemetry.addData("T Value", follower.getCurrentTValue());
         telemetry.addData("PathActive", isPathActive());
         telemetry.addData("Busy", follower.isBusy());
-        telemetry.addData("Shooter RPM", "%.0f", shooterRPM);
+        telemetry.addData("", "");
+        telemetry.addLine("=== SHOOTER DEBUG ===");
+        telemetry.addData("Shooter RPM (avg)", "%.0f", shooterRPM);
+        telemetry.addData("Right Motor RPM", "%.0f", rpmR);
+        telemetry.addData("Left Motor RPM", "%.0f", rpmL);
+        telemetry.addData("Right Motor TPS (raw)", "%.1f", vR);
+        telemetry.addData("Left Motor TPS (raw)", "%.1f", vL);
         telemetry.update();
     }
 
