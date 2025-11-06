@@ -859,55 +859,69 @@ public class FullTestingLimelight extends OpMode {
         }
 
 
-        telemetryA.addLine("=== PEDROPATHING/PINPOINT COORDINATES ===");
-        telemetryA.addData("X (Odometry)", "%.2f inches", currentX);
-        telemetryA.addData("Y (Odometry)", "%.2f inches", currentY);
-        telemetryA.addData("Heading (Odometry)", "%.1f° (%.3f rad)", Math.toDegrees(currentHeading), currentHeading);
+        // ============================================================
+        // LOCALIZATION COMPARISON - PINPOINT vs LIMELIGHT
+        // ============================================================
+        telemetryA.addData("", "");
+        telemetryA.addLine("╔════════════════════════════════════════════╗");
+        telemetryA.addLine("║    ROBOT POSITION COMPARISON               ║");
+        telemetryA.addLine("╚════════════════════════════════════════════╝");
         telemetryA.addData("", "");
         
-        telemetryA.addLine("=== LIMELIGHT MEGATAG BOTPOSE ===");
+        // PINPOINT/PEDROPATHING POSITION
+        telemetryA.addLine("📍 PINPOINT ODOMETRY (Ground Truth):");
+        telemetryA.addData("  X Position", "%.2f inches", currentX);
+        telemetryA.addData("  Y Position", "%.2f inches", currentY);
+        telemetryA.addData("  Heading", "%.1f degrees", Math.toDegrees(currentHeading));
+        telemetryA.addData("", "");
         
-        // Show raw botpose data from Limelight
-        if (limelight != null) {
-            LLResult result = limelight.getLatestResult();
-            if (result != null && result.isValid()) {
-                org.firstinspires.ftc.robotcore.external.navigation.Pose3D botpose = result.getBotpose();
-                if (botpose != null && botpose.getPosition() != null) {
-                    telemetryA.addData("Botpose Raw X", "%.3f m (%.1f in)", botpose.getPosition().x, botpose.getPosition().x * 39.3701);
-                    telemetryA.addData("Botpose Raw Y", "%.3f m (%.1f in)", botpose.getPosition().y, botpose.getPosition().y * 39.3701);
-                    telemetryA.addData("Botpose Yaw", "%.1f°", botpose.getOrientation().getYaw());
-                }
-            }
-        }
+        // LIMELIGHT POSITION
+        telemetryA.addLine("📷 LIMELIGHT MEGATAG LOCALIZATION:");
+        telemetryA.addData("  Status", botposeAvailable ? "✓ ACTIVE" : "❌ NOT AVAILABLE");
         
-        telemetryA.addData("Robot Pose Available", botposeAvailable ? "✓ YES" : "❌ NO");
         if (botposeAvailable) {
-            telemetryA.addData("X (Limelight)", "%.2f inches", limelightRobotX);
-            telemetryA.addData("Y (Limelight)", "%.2f inches", limelightRobotY);
-            telemetryA.addData("Heading (Limelight)", "%.1f°", limelightRobotHeading);
+            telemetryA.addData("  X Position", "%.2f inches", limelightRobotX);
+            telemetryA.addData("  Y Position", "%.2f inches", limelightRobotY);
+            telemetryA.addData("  Heading", "%.1f degrees", limelightRobotHeading);
             telemetryA.addData("", "");
             
-            // Calculate difference from PedroPathing odometry
+            // DIFFERENCE CALCULATION
             double deltaX = limelightRobotX - currentX;
             double deltaY = limelightRobotY - currentY;
             double deltaHeading = limelightRobotHeading - Math.toDegrees(currentHeading);
             double positionError = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
             
-            telemetryA.addLine("=== ODOMETRY vs LIMELIGHT ===");
-            telemetryA.addData("Position Error", "%.2f inches", positionError);
-            telemetryA.addData("ΔX (LL - Odo)", "%.2f in", deltaX);
-            telemetryA.addData("ΔY (LL - Odo)", "%.2f in", deltaY);
-            telemetryA.addData("ΔHeading (LL - Odo)", "%.1f°", deltaHeading);
-        } else {
-            telemetryA.addData("⚠️ Botpose is Zero", "Setup needed:");
-            telemetryA.addLine("  1. LL Web UI -> Settings -> Robot");
-            telemetryA.addLine("     Set Forward/Right/Up offset (meters)");
-            telemetryA.addLine("  2. Upload FTC field map to Limelight");
-            telemetryA.addLine("  3. Enable 3D in AprilTag pipeline");
-            if (aprilTagVisible) {
-                telemetryA.addData("  Tag " + detectedTagId + " detected", "but no field map");
+            telemetryA.addLine("📊 DIFFERENCE (Limelight - Pinpoint):");
+            telemetryA.addData("  Total Error", "%.2f inches", positionError);
+            telemetryA.addData("  ΔX", "%+.2f inches", deltaX);
+            telemetryA.addData("  ΔY", "%+.2f inches", deltaY);
+            telemetryA.addData("  ΔHeading", "%+.1f degrees", deltaHeading);
+            
+            // Quality indicator
+            String quality;
+            if (positionError < 3.0) {
+                quality = "✓ EXCELLENT (<3 in)";
+            } else if (positionError < 6.0) {
+                quality = "⚠ GOOD (3-6 in)";
+            } else if (positionError < 12.0) {
+                quality = "⚠ FAIR (6-12 in)";
+            } else {
+                quality = "❌ POOR (>12 in)";
             }
+            telemetryA.addData("  Agreement", quality);
+        } else {
+            telemetryA.addLine("  ⚠️ No Position Data Available");
+            if (aprilTagVisible) {
+                telemetryA.addData("  Tag Detected", "ID %d (but no botpose)", detectedTagId);
+            } else {
+                telemetryA.addLine("  No AprilTags in view");
+            }
+            telemetryA.addLine("  Check Limelight setup:");
+            telemetryA.addLine("    - Robot offset configured?");
+            telemetryA.addLine("    - Field map uploaded?");
+            telemetryA.addLine("    - 3D mode enabled?");
         }
+        telemetryA.addData("", "");
         
         if (aprilTagVisible) {
             telemetryA.addData("", "");
