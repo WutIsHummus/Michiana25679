@@ -336,33 +336,43 @@ public class FullTestingLimelight extends OpMode {
             }
         }
         
-        // ==================== COORDINATE-BASED TURRET CONTROL (Original Logic) ====================
-        // Turret control - aim at target point
-        double angleToTargetField = Math.atan2(targetY - currentY, targetX - currentX);
-        
-        // Subtract robot heading to get relative angle
-        double turretAngle = angleToTargetField - currentHeading;
-        
-        // Normalize to -180 to 180 degrees
-        while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
-        while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
-        
-        double turretAngleDegrees = Math.toDegrees(turretAngle);
-        double clampedTurretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
-        
-        // Convert angle to servo position
+        // ==================== LIMELIGHT-BASED TURRET CONTROL ====================
+        // Use Limelight data for aiming if AprilTag is visible, otherwise center turret
+        double turretAngleDegrees;
+        double clampedTurretAngle;
         double servoPosition;
-        if (clampedTurretAngle >= 0) {
-            servoPosition = turretCenterPosition + (clampedTurretAngle / turretMaxAngle) * (turretRightPosition - turretCenterPosition);
+        
+        if (aprilTagVisible) {
+            // Use Limelight tx angle for turret aiming
+            turretAngleDegrees = limelightTurretAngle;
+            clampedTurretAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
+            
+            // Convert angle to servo position
+            if (clampedTurretAngle >= 0) {
+                servoPosition = turretCenterPosition + (clampedTurretAngle / turretMaxAngle) * (turretRightPosition - turretCenterPosition);
+            } else {
+                servoPosition = turretCenterPosition - (Math.abs(clampedTurretAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
+            }
         } else {
-            servoPosition = turretCenterPosition - (Math.abs(clampedTurretAngle) / turretMaxAngle) * (turretCenterPosition - turretLeftPosition);
+            // No AprilTag - center the turret
+            turretAngleDegrees = 0;
+            clampedTurretAngle = 0;
+            servoPosition = turretCenterPosition;
         }
         
         turret1.setPosition(servoPosition);
         turret2.setPosition(servoPosition);
         
-        // Calculate distance to target (for display)
-        double distance = Math.sqrt(Math.pow(targetX - currentX, 2) + Math.pow(targetY - currentY, 2));
+        // Use Limelight distance if available, otherwise use coordinate-based
+        double distance;
+        if (aprilTagVisible && limelightDistance > 0) {
+            distance = limelightDistance;  // Use Limelight distance
+        } else {
+            // Fallback to coordinate-based distance
+            double deltaX = targetX - currentX;
+            double deltaY = targetY - currentY;
+            distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        }
         
         // ===== SHOOTER CONTROL =====
         // Intake controls - split between bumpers
@@ -474,10 +484,22 @@ public class FullTestingLimelight extends OpMode {
         // Shooter velocity control - Hold Right Trigger OR auto-shoot active
         boolean shooterOn = gamepad1.right_trigger > 0.1 || shooting;
         
-        // Calculate distance to goal zone for RPM calculation (COORDINATE-BASED)
-        double deltaGoalX = goalZoneX - currentX;
-        double deltaGoalY = goalZoneY - currentY;
-        double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
+        // Use Limelight distance for shooting if available, otherwise fallback to coordinates
+        double distanceToGoalInches;
+        String distanceSource;
+        
+        if (aprilTagVisible && limelightDistance > 0) {
+            // Use Limelight distance (ACTIVE)
+            distanceToGoalInches = limelightDistance;
+            distanceSource = "Limelight AprilTag";
+        } else {
+            // Fallback to coordinate-based distance
+            double deltaGoalX = goalZoneX - currentX;
+            double deltaGoalY = goalZoneY - currentY;
+            distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
+            distanceSource = "Coordinates (Fallback)";
+        }
+        
         double distanceToGoalFeet = distanceToGoalInches / 12.0;  // Convert inches to feet
         
         // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
@@ -547,9 +569,9 @@ public class FullTestingLimelight extends OpMode {
             // Clamp
             shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
             
-            // Voltage compensation (always on): power * (currentVoltage / 12V)
+            // Voltage compensation (always on): power * (12V / currentVoltage)
             double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
-            double compensatedPower = shooterPower * (voltage / NOMINAL_VOLTAGE);
+            double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
             
             shootr.setPower(compensatedPower);
@@ -816,30 +838,19 @@ public class FullTestingLimelight extends OpMode {
             telemetryA.addData("Transfer Mode", distanceToGoalFeet >= 7.0 ? "LONG (slow)" : "SHORT (fast)");
         }
         telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
-        telemetryA.addData("Distance Method (Active)", "Coordinates");
+        telemetryA.addData("Distance Source", distanceSource);
         telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
         telemetryA.addData("Calculated Target RPM", "%.0f (RPM = 100*%.2f + 1150)", calculatedTargetRPM, distanceToGoalFeet);
-        
-        // Compare with Limelight if available
-        if (aprilTagVisible) {
-            double distanceDifference = Math.abs(distanceToGoalInches - limelightDistance);
-            telemetryA.addData("LL vs Coord Diff", "%.2f inches", distanceDifference);
-            if (distanceDifference < 6.0) {
-                telemetryA.addData("Agreement", "✓ GOOD (< 6\")");
-            } else {
-                telemetryA.addData("Agreement", "⚠️ Check calibration");
-            }
-        }
         telemetryA.addData("Current RPM", "%.0f", avgVelocityRPM);
         telemetryA.addData("Right Motor RPM", "%.0f", shootrVelocityRPM);
         telemetryA.addData("Left Motor RPM", "%.0f", shootlVelocityRPM);
         telemetryA.addData("Error (RPM)", "%.0f", calculatedTargetRPM - avgVelocityRPM);
         
         double currentVoltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
-        double compensationFactor = currentVoltage / NOMINAL_VOLTAGE;
+        double compensationFactor = NOMINAL_VOLTAGE / currentVoltage;  // 12 / voltage
         
         telemetryA.addData("Battery Voltage", "%.2f V", currentVoltage);
-        telemetryA.addData("Voltage Comp", "×%.3f", compensationFactor);
+        telemetryA.addData("Voltage Comp", "×%.3f (12V/%.2fV)", compensationFactor, currentVoltage);
         telemetryA.addData("Shooter Power (calc)", "%.3f", shooterPower);
         
         if (shooterOn) {
