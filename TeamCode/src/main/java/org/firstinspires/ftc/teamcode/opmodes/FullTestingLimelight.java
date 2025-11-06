@@ -303,10 +303,12 @@ public class FullTestingLimelight extends OpMode {
         boolean aprilTagVisible = false;
         int detectedTagId = -1;
         
-        // Limelight's estimate of robot position on field (center = 0,0)
-        double limelightRobotX = 0;
-        double limelightRobotY = 0;
+        // Limelight's estimate of robot position
+        double limelightRobotX = 0;          // In PINPOINT coordinates (converted)
+        double limelightRobotY = 0;          // In PINPOINT coordinates (converted)
         double limelightRobotHeading = 0;
+        double limelightRawX = 0;            // Raw Limelight coordinates (center-origin)
+        double limelightRawY = 0;            // Raw Limelight coordinates (center-origin)
         boolean botposeAvailable = false;
         
         // Robot position RELATIVE to detected AprilTag
@@ -329,15 +331,19 @@ public class FullTestingLimelight extends OpMode {
                     if (Math.abs(rawX) > 0.001 || Math.abs(rawY) > 0.001 || Math.abs(rawZ) > 0.001) {
                         botposeAvailable = true;
                         // Convert from Limelight coordinates (center origin) to inches
-                        double limelightX_inches = rawX * 39.3701;  // Limelight coords in inches
-                        double limelightY_inches = rawY * 39.3701;
+                        limelightRawX = rawX * 39.3701;  // Limelight native coords in inches
+                        limelightRawY = rawY * 39.3701;  // Limelight native coords in inches
                         
-                        // Convert to PedroPathing/Pinpoint coordinates (corner origin at bottom-left)
-                        // PedroPathing: (0,0) = bottom-left, (72,72) = center
-                        // Limelight: (0,0) = center
-                        // Conversion: pedroX = limelightX + 72, pedroY = limelightY + 72
-                        limelightRobotX = limelightX_inches + 72.0;  // Now in PedroPathing coords
-                        limelightRobotY = limelightY_inches + 72.0;  // Now in PedroPathing coords
+                        // ═══════════════════════════════════════════════════════════
+                        // COORDINATE CONVERSION: Limelight → Pinpoint
+                        // ═══════════════════════════════════════════════════════════
+                        // Limelight uses field CENTER as origin (0,0)
+                        // Pinpoint uses BOTTOM-LEFT corner as origin (0,0)
+                        // Field is 144" × 144", so center is at (72, 72) in Pinpoint coords
+                        // Conversion: pinpoint = limelight + 72
+                        // ═══════════════════════════════════════════════════════════
+                        limelightRobotX = limelightRawX + 72.0;  // CONVERTED to Pinpoint coords
+                        limelightRobotY = limelightRawY + 72.0;  // CONVERTED to Pinpoint coords
                         limelightRobotHeading = botpose.getOrientation().getYaw();  // degrees
                     }
                 }
@@ -875,14 +881,21 @@ public class FullTestingLimelight extends OpMode {
         telemetryA.addData("  Heading", "%.1f degrees", Math.toDegrees(currentHeading));
         telemetryA.addData("", "");
         
-        // LIMELIGHT POSITION
-        telemetryA.addLine("📷 LIMELIGHT MEGATAG LOCALIZATION:");
+        // LIMELIGHT POSITION (CONVERTED TO PINPOINT COORDS)
+        telemetryA.addLine("📷 LIMELIGHT (Converted to Pinpoint Format):");
         telemetryA.addData("  Status", botposeAvailable ? "✓ ACTIVE" : "❌ NOT AVAILABLE");
         
         if (botposeAvailable) {
-            telemetryA.addData("  X Position", "%.2f inches", limelightRobotX);
-            telemetryA.addData("  Y Position", "%.2f inches", limelightRobotY);
+            telemetryA.addData("  X Position", "%.2f inches (Pinpoint)", limelightRobotX);
+            telemetryA.addData("  Y Position", "%.2f inches (Pinpoint)", limelightRobotY);
             telemetryA.addData("  Heading", "%.1f degrees", limelightRobotHeading);
+            telemetryA.addData("", "");
+            telemetryA.addLine("  🔄 Coordinate Conversion Details:");
+            telemetryA.addData("    Limelight Raw X", "%.2f in (center=0)", limelightRawX);
+            telemetryA.addData("    Limelight Raw Y", "%.2f in (center=0)", limelightRawY);
+            telemetryA.addData("    + Offset", "+72.0 inches");
+            telemetryA.addData("    = Pinpoint X", "%.2f in (corner=0)", limelightRobotX);
+            telemetryA.addData("    = Pinpoint Y", "%.2f in (corner=0)", limelightRobotY);
             telemetryA.addData("", "");
             
             // DIFFERENCE CALCULATION

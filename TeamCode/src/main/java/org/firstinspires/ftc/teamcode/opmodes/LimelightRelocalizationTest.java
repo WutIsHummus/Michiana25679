@@ -191,10 +191,11 @@ public class LimelightRelocalizationTest extends OpMode {
         
         if (lastLimelightPose != null) {
             telemetryA.addData("", "");
-            telemetryA.addLine("=== LAST LIMELIGHT POSE ===");
-            telemetryA.addData("X", "%.2f inches", lastLimelightPose.getX());
-            telemetryA.addData("Y", "%.2f inches", lastLimelightPose.getY());
+            telemetryA.addLine("=== LAST LIMELIGHT POSE (Pinpoint Format) ===");
+            telemetryA.addData("X", "%.2f inches (Pinpoint)", lastLimelightPose.getX());
+            telemetryA.addData("Y", "%.2f inches (Pinpoint)", lastLimelightPose.getY());
             telemetryA.addData("Heading", "%.1f°", Math.toDegrees(lastLimelightPose.getHeading()));
+            telemetryA.addLine("  (Already converted from Limelight center-origin)");
             
             if (lastOdometryPose != null) {
                 double deltaX = currentX - lastOdometryPose.getX();
@@ -219,11 +220,18 @@ public class LimelightRelocalizationTest extends OpMode {
                 
                 Pose3D botpose = result.getBotpose();
                 if (botpose != null && botpose.getPosition() != null) {
-                    telemetryA.addData("Botpose X", "%.2f m (%.1f in)", 
-                        botpose.getPosition().x, botpose.getPosition().x * 39.3701);
-                    telemetryA.addData("Botpose Y", "%.2f m (%.1f in)", 
-                        botpose.getPosition().y, botpose.getPosition().y * 39.3701);
-                    telemetryA.addData("Botpose Yaw", "%.1f°", botpose.getOrientation().getYaw());
+                    double rawX = botpose.getPosition().x * 39.3701;  // Limelight coords (center origin)
+                    double rawY = botpose.getPosition().y * 39.3701;
+                    double pinpointX = rawX + 72.0;  // Converted to Pinpoint (corner origin)
+                    double pinpointY = rawY + 72.0;
+                    
+                    telemetryA.addLine("  Raw Limelight (center=0):");
+                    telemetryA.addData("    X", "%.2f inches", rawX);
+                    telemetryA.addData("    Y", "%.2f inches", rawY);
+                    telemetryA.addLine("  Converted to Pinpoint (corner=0):");
+                    telemetryA.addData("    X", "%.2f inches (+72)", pinpointX);
+                    telemetryA.addData("    Y", "%.2f inches (+72)", pinpointY);
+                    telemetryA.addData("  Yaw", "%.1f°", botpose.getOrientation().getYaw());
                 } else {
                     telemetryA.addData("Botpose", "❌ Not available");
                 }
@@ -265,8 +273,19 @@ public class LimelightRelocalizationTest extends OpMode {
         }
         
         // Extract position from botpose (in meters, convert to inches)
-        double limelightX = botpose.getPosition().x * 39.3701;  // meters to inches
-        double limelightY = botpose.getPosition().y * 39.3701;  // meters to inches
+        double limelightRawX = botpose.getPosition().x * 39.3701;  // meters to inches (Limelight coords)
+        double limelightRawY = botpose.getPosition().y * 39.3701;  // meters to inches (Limelight coords)
+        
+        // ═══════════════════════════════════════════════════════════
+        // COORDINATE CONVERSION: Limelight → Pinpoint
+        // ═══════════════════════════════════════════════════════════
+        // Limelight uses field CENTER as origin (0,0)
+        // Pinpoint uses BOTTOM-LEFT corner as origin (0,0)
+        // Field is 144" × 144", so center is at (72, 72) in Pinpoint coords
+        // Conversion: pinpoint = limelight + 72
+        // ═══════════════════════════════════════════════════════════
+        double limelightX = limelightRawX + 72.0;  // CONVERTED to Pinpoint coords
+        double limelightY = limelightRawY + 72.0;  // CONVERTED to Pinpoint coords
         double limelightHeading = Math.toRadians(botpose.getOrientation().getYaw());  // degrees to radians
         
         // Store poses for comparison
