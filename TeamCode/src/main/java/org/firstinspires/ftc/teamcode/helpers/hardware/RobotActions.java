@@ -155,7 +155,7 @@ public class RobotActions {
     public Action startIntake() {
         return new ParallelAction(
                 intakeFront.run(),
-                intakeBack.run()
+                intakeBack.runSlow()
         );
     }
     

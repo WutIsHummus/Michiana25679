@@ -57,12 +57,12 @@ public class FullTesting extends OpMode {
     private PIDFController shooterPID;
 
     // Target coordinates for distance calculation
-    public static double targetX = 128.0;
-    public static double targetY = 128.0;
+    public static double targetX = 128;
+    public static double targetY = 120;
     
     // Goal zone coordinates (for RPM calculation)
-    public static double goalZoneX = 115.0; // Goal zone X coordinate in inches
-    public static double goalZoneY = 121.0; // Goal zone Y coordinate in inches
+    public static double goalZoneX = 110.0; // Goal zone X coordinate in inches
+    public static double goalZoneY = 116.0; // Goal zone Y coordinate in inches
     
     // Height measurements
     public static double aprilTagHeight = 30.0; // AprilTag height in inches
@@ -404,7 +404,7 @@ public class FullTesting extends OpMode {
         // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
         // Calculate target RPM: use formula up to 7 feet, then cap at FAR_SHOOTING_RPM_MAX
         double calculatedTargetRPM;
-        if (distanceToGoalFeet >= 7.0) {
+        if (distanceToGoalFeet >= 9.0) {
             calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;  // Fixed RPM for 7+ feet
         } else {
             calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
