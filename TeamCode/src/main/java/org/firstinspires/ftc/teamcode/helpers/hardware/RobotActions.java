@@ -756,7 +756,12 @@ public class RobotActions {
          * @param isLongRange True for long range (>=6ft), false for short range (<6ft)
          */
         public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange) {
-            // If there's already a PID action running, stop it first
+            // If already running at the same target RPM, don't restart - just return existing action
+            if (pidActive && currentPIDAction != null && Math.abs(currentTargetRPM - targetRPM) < 10) {
+                return new InstantAction(() -> {}); // Do nothing, already spinning at target
+            }
+            
+            // If there's a PID action running at a DIFFERENT RPM, stop it first
             if (pidActive && currentPIDAction != null) {
                 pidActive = false;
                 if (pidfController != null) {
