@@ -75,6 +75,7 @@ public class DecodeTest extends PathChainAutoOpMode {
     public void loop() {
         super.loop();
         follower.update();
+        run(actions.holdShooterAtRPMclose(1475,30));
         runTasks();
 
         // Shooter RPM telemetry (requires getCurrentRPM() in Shooter class)
@@ -110,7 +111,7 @@ public class DecodeTest extends PathChainAutoOpMode {
                         new Pose(49.0, 96.0)))
                 .setLinearHeadingInterpolation(Math.toRadians(144), Math.toRadians(134))
                 // Spin up for 39 in (3.25 ft) at the start of the first path
-                .addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                //.addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
                 .build();
 
         // Path 2: (49,96) -> (16,84) control (81.6779913,79.9763863) | 142° -> 180°
@@ -130,7 +131,7 @@ public class DecodeTest extends PathChainAutoOpMode {
                         new Pose(49.0, 96.0)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(142))
                 // Re-spin to 39 in if needed
-                .addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                //.addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
@@ -161,7 +162,7 @@ public class DecodeTest extends PathChainAutoOpMode {
                         new Pose(49.0, 96.0)))
                 .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(142))
                 // Re-spin to 39 in if needed
-                .addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                //.addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
@@ -217,8 +218,7 @@ public class DecodeTest extends PathChainAutoOpMode {
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
-                                actions.threeBallabsoluteclose(39, 96.0)
-                        )
+                        actions.launch3()                        )
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -231,8 +231,7 @@ public class DecodeTest extends PathChainAutoOpMode {
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
-                                actions.threeBallabsoluteclose(39, 96.0)
-                        )
+                        actions.launch3()                        )
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);

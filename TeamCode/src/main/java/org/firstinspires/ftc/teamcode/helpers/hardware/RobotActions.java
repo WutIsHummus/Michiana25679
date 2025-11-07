@@ -191,10 +191,10 @@ public class RobotActions {
                 launch.reset()
         );
     }
-    
+
+
     public Action rapidFire() {
         return new SequentialAction(
-                shooter.spinUp(),
                 intakeFront.run(),
                 intakeBack.run(),
                 new SleepAction(0.5),
@@ -208,6 +208,37 @@ public class RobotActions {
                 shooter.stop()
         );
     }
+    public Action launch3() {
+        return new SequentialAction(
+                intakeBack.run(),
+                new SleepAction(0.1),
+                launch.fire(),
+                intakeFront.run(),
+                new SleepAction(0.1),
+                launch.reset(),
+                new SleepAction(0.2),
+                launch.fire(),
+                new SleepAction(0.2),
+                launch.reset(),
+                new SleepAction(0.2),
+                launch.fire(),
+                new SleepAction(0.2),
+                launch.reset(),
+                new SleepAction(0.2),
+                launch.fire(),
+                new SleepAction(0.2),
+                launch.reset(),
+                shooter.stop()
+        );
+    }
+
+
+
+
+
+
+
+
 
     /**
      * PID-based shooting action - spins to target RPM using PID control
@@ -465,20 +496,6 @@ public class RobotActions {
      * DISTANCE-BASED - Works with Follower
      * Example: actions.shootAtDistance(48, 0, follower) = Shoot 48" straight ahead
      */
-    public Action shootAtDistance(double distanceInches, double angleDegrees, Follower follower) {
-        Pose pose = follower.getPose();
-        return shootAtDistance(distanceInches, angleDegrees, pose.getX(), pose.getY(), pose.getHeading());
-    }
-    
-    /**
-     * DISTANCE-BASED - Works with PoseUpdater
-     * Example: actions.shootAtDistance(48, 0, poseUpdater) = Shoot 48" straight ahead
-     */
-    public Action shootAtDistance(double distanceInches, double angleDegrees, PoseUpdater poseUpdater) {
-        Pose pose = poseUpdater.getPose();
-        return shootAtDistance(distanceInches, angleDegrees, pose.getX(), pose.getY(), pose.getHeading());
-    }
-    
     /**
      * DISTANCE-BASED THREE-BALL - Works with Follower  
      * Example: actions.threeBallAtDistance(48, 0, follower) = Shoot 3 balls 48" straight ahead
@@ -492,11 +509,6 @@ public class RobotActions {
      * DISTANCE-BASED THREE-BALL - Works with PoseUpdater
      * Example: actions.threeBallAtDistance(48, 0, poseUpdater) = Shoot 3 balls 48" straight ahead
      */
-    public Action threeBallAtDistance(double distanceInches, double angleDegrees, PoseUpdater poseUpdater) {
-        Pose pose = poseUpdater.getPose();
-        return threeBallAtDistance(distanceInches, angleDegrees, pose.getX(), pose.getY(), pose.getHeading());
-    }
-    
     /**
      * SPIN UP SHOOTER FOR DISTANCE - Just spins up, doesn't shoot
      * Calculates RPM from distance, sets hood, NO turret aiming or firing
@@ -523,88 +535,7 @@ public class RobotActions {
                 shooter.spinToRPMWithRange(targetRPM, true, isLongRange)
         );
     }
-    
-    /**
-     * SPIN UP FROM POSITION - Calculates distance automatically
-     * 
-     * @param robotX Current robot X position (inches)
-     * @param robotY Current robot Y position (inches)
-     */
-    public Action spinUpFromPosition(double robotX, double robotY) {
-        double deltaX = GOAL_X - robotX;
-        double deltaY = GOAL_Y - robotY;
-        double distanceInches = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-        double distanceFeet = distanceInches / 12.0;
-        
-        return spinUpForDistance(distanceFeet);
-    }
-    
-    /**
-     * SPIN UP FROM CURRENT POSITION - Works with PoseUpdater
-     */
-    public Action spinUpFromPose(PoseUpdater poseUpdater) {
-        Pose currentPose = poseUpdater.getPose();
-        return spinUpFromPosition(currentPose.getX(), currentPose.getY());
-    }
-    
-    /**
-     * SPIN UP FROM CURRENT POSITION - Works with Follower
-     */
-    public Action spinUpFromFollower(Follower follower) {
-        Pose currentPose = follower.getPose();
-        return spinUpFromPosition(currentPose.getX(), currentPose.getY());
-    }
-    
-    /**
-     * SHOOT FROM CURRENT POSITION - Works with PoseUpdater
-     * Uses regression to calculate RPM, aims turret automatically
-     * 
-     * @param poseUpdater Your robot's PoseUpdater
-     */
-    public Action shootFromPose(PoseUpdater poseUpdater) {
-        Pose currentPose = poseUpdater.getPose();
-        return shootFromPosition(currentPose.getX(), currentPose.getY(), currentPose.getHeading());
-    }
-    
-    /**
-     * SHOOT FROM CURRENT POSITION - Works with Follower
-     * Uses regression to calculate RPM, aims turret automatically
-     * 
-     * @param follower Your robot's Follower
-     */
-    public Action shootFromFollower(Follower follower) {
-        Pose currentPose = follower.getPose();
-        return shootFromPosition(currentPose.getX(), currentPose.getY(), currentPose.getHeading());
-    }
-    
-    /**
-     * THREE-BALL SEQUENCE FROM CURRENT POSITION - Works with PoseUpdater
-     * Uses regression to calculate RPM, aims turret, shoots 3 balls
-     * 
-     * @param poseUpdater Your robot's PoseUpdater
-     */
-    public Action threeBallFromPose(PoseUpdater poseUpdater) {
-        Pose currentPose = poseUpdater.getPose();
-        return threeBallFromPosition(currentPose.getX(), currentPose.getY(), currentPose.getHeading());
-    }
-    
-    /**
-     * THREE-BALL SEQUENCE FROM CURRENT POSITION - Works with Follower
-     * Uses regression to calculate RPM, aims turret, shoots 3 balls
-     * 
-     * @param follower Your robot's Follower
-     */
-    public Action threeBallFromFollower(Follower follower) {
-        Pose currentPose = follower.getPose();
-        return threeBallFromPosition(currentPose.getX(), currentPose.getY(), currentPose.getHeading());
-    }
-    
-    /**
-     * Three-ball rapid fire with PID control
-     * @param targetRPM Target shooter RPM
-     * @param hoodPosition Hood servo position
-     * @param isLongRange Use long range timing if true
-     */
+
     public Action threeBallSequence(double targetRPM, double hoodPosition, boolean isLongRange) {
         if (isLongRange) {
             return new ParallelAction(
@@ -678,24 +609,7 @@ public class RobotActions {
             );
         }
     }
-    
-    public Action intakeAndLaunch() {
-        return new SequentialAction(
-                intakeBack.run(),
-                intakeFront.run(),
-                launch.fire(),
-                new SleepAction(0.2),
-                launch.reset(),
-                new SleepAction(0.2),
-                launch.fire(),
-                new SleepAction(0.2),
-                launch.reset(),
-                new SleepAction(0.2),
-                launch.fire(),
-                new SleepAction(0.2),
-                launch.reset()
-        );
-    }
+
     
     public Action safePositions() {
         return new ParallelAction(
@@ -742,7 +656,24 @@ public class RobotActions {
             return new InstantAction(() -> intakeback.setPower(0.0));
         }
     }
-    
+    public Action holdShooterAtRPMclose(double targetRPM, double holdSeconds) {
+        return new SequentialAction(
+                // Set hood down
+                hood.setPosition(HOOD_LONG_RANGE),
+
+                // Run PIDF control while holding for specified time
+                new ParallelAction(
+                        shooter.spinToRPMWithRange(targetRPM, true, false),
+                        new SequentialAction(
+                                shooter.waitForSpeed(targetRPM),
+                                new SleepAction(holdSeconds)
+                        )
+                ),
+
+                // Stop shooter after hold
+                shooter.stop()
+        );
+    }
     public class Shooter {
         private PIDFController pidfController = null;
         private double currentTargetRPM = 0;
@@ -785,6 +716,16 @@ public class RobotActions {
         }
 
         /**
+         * Hold shooter at a target RPM for a specified time with PIDF control.
+         * Hood stays down (long-range position). Voltage compensation is always on.
+         *
+         * @param targetRPM Shooter speed in RPM
+         * @param holdSeconds Duration to hold that speed (seconds)
+         */
+
+
+
+        /**
          * Spin to target RPM using PID control - returns immediately, runs in background
          * @deprecated Use spinToRPMWithRange instead for proper PID selection
          */
@@ -801,12 +742,7 @@ public class RobotActions {
          * @param isLongRange True for long range (>=6ft), false for short range (<6ft)
          */
         public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange) {
-            // If already running at the same target RPM, don't restart - just return existing action
-            if (pidActive && currentPIDAction != null && Math.abs(currentTargetRPM - targetRPM) < 10) {
-                return new InstantAction(() -> {}); // Do nothing, already spinning at target
-            }
-            
-            // If there's a PID action running at a DIFFERENT RPM, stop it first
+            // If there's already a PID action running, stop it first
             if (pidActive && currentPIDAction != null) {
                 pidActive = false;
                 if (pidfController != null) {
