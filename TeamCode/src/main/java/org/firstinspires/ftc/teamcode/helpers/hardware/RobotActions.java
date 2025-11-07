@@ -681,6 +681,13 @@ public class RobotActions {
         private long lastPIDCallTime = 0;
         private Action currentPIDAction = null;  // Track the current PID action
         
+        // RPM monitoring (exposed for telemetry)
+        public double lastRecordedRPM = 0;
+        public double lastTargetRPM = 0;
+        public double lastPower = 0;
+        public double lastPIDFOutput = 0;
+        public double lastAdditionalFF = 0;
+        
         public Action spinUp() {
             return new InstantAction(() -> {
                 shootr.setPower(1.0);
@@ -689,11 +696,21 @@ public class RobotActions {
             });
         }
 
-        // --- Add inside Shooter class ---
+        /**
+         * Get current shooter RPM (reads from motors)
+         */
         public double getCurrentRPM() {
-            // Only shootr has the encoder; convert ticks/sec -> RPM
-            double ticksPerSec = Math.abs(shootr.getVelocity());
-            return (ticksPerSec / TICKS_PER_REV) * 60.0;
+            double vR = shootr.getVelocity();
+            double vL = shootl.getVelocity();
+            double vAvg = 0.5 * (vR + vL);
+            return (vAvg / TICKS_PER_REV) * 60.0;
+        }
+        
+        /**
+         * Get last recorded RPM from PID loop (doesn't query motors)
+         */
+        public double getLastRecordedRPM() {
+            return lastRecordedRPM;
         }
 
         public Action spinUpSlow() {
@@ -841,6 +858,13 @@ public class RobotActions {
                         shootr.setPower(shooterPower);
                         shootl.setPower(shooterPower);
                     }
+                    
+                    // Record values for monitoring (for telemetry access)
+                    lastRecordedRPM = avgVelocityRPM;
+                    lastTargetRPM = currentTargetRPM;
+                    lastPower = shooterPower;
+                    lastPIDFOutput = pidfOutput;
+                    lastAdditionalFF = additionalFF;
                     
                     // Add telemetry
                     packet.put("Target RPM", currentTargetRPM);
