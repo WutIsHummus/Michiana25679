@@ -79,22 +79,22 @@ public class RobotActions {
     public final Hood hood;
     public final Turret turret;
     
-    // PID Constants - Short Range (< 6 feet)
+    // PID Constants - Short Range (< 6 feet) - EXACT COPY from FullTesting
     public static double p = 0.002;
     public static double i = 0.0;
     public static double d = 0.0001;
-    public static double f = 0.0;          // NOT USED - using kV instead
-    public static double kV = 0.00084;     // Velocity feedforward (replaces F term)
-    public static double kS = 0.01;        // Static friction compensation
+    public static double f = 0.00084;
+    public static double kV = 0.0008;
+    public static double kS = 0.01;
     public static double I_ZONE = 250.0;
     
-    // PID Constants - Long Range (>= 6 feet)
+    // PID Constants - Long Range (>= 6 feet) - EXACT COPY from FullTesting
     public static double pLong = 0.01;
     public static double iLong = 0.0;
     public static double dLong = 0.0001;
-    public static double fLong = 0.0;      // NOT USED - using kV instead
-    public static double kVLong = 0.00084; // Velocity feedforward (replaces F term)
-    public static double kSLong = 0.01;    // Static friction compensation
+    public static double fLong = 0.00084;
+    public static double kVLong = 0.0008;
+    public static double kSLong = 0.01;
     public static double I_ZONE_LONG = 250.0;
     
     // Motor constants

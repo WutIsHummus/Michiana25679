@@ -89,33 +89,54 @@ public class InstantShootTest extends ActionOpMode {
     public void loop() {
         super.loop();
         
-        // Get shooter RPM for telemetry (from last recorded PID loop)
-        double shooterRPM = actions.shooter.getLastRecordedRPM();
-        double targetRPM = actions.shooter.lastTargetRPM;
-        double power = actions.shooter.lastPower;
-        double pidfOutput = actions.shooter.lastPIDFOutput;
-        double additionalFF = actions.shooter.lastAdditionalFF;
+        // Get REAL-TIME shooter velocities directly from motors
+        double vR = shootr.getVelocity();
+        double vL = shootl.getVelocity();
+        double vAvg = 0.5 * (vR + vL);
+        double rpmR = (vR / 28.0) * 60.0;
+        double rpmL = (vL / 28.0) * 60.0;
+        double avgRPM = (vAvg / 28.0) * 60.0;
+        
+        // Calculate target for 36 inches (3 feet)
+        double targetRPM = 100.0 * 3.0 + 1150.0;  // = 1450 RPM
+        double targetTPS = (targetRPM / 60.0) * 28.0;  // = 676.67 TPS
+        
+        // Calculate what feedforward SHOULD be
+        double fContribution = 0.00084 * targetTPS;  // F × setpoint
+        double kvContribution = 0.0008 * targetTPS;  // kV × setpoint  
+        double ksContribution = 0.01;  // kS
+        double totalFF = fContribution + kvContribution + ksContribution;
         
         telemetryA.addLine("=== INSTANT SHOOT TEST ===");
         telemetryA.addData("Status", hasStarted ? "SHOOTING!" : "Waiting for START...");
         telemetryA.addData("", "");
         
-        telemetryA.addLine("=== SHOOTER MONITORING ===");
-        telemetryA.addData("Target RPM", "%.0f", targetRPM);
-        telemetryA.addData("Current RPM", "%.0f", shooterRPM);
-        telemetryA.addData("Error RPM", "%.0f", targetRPM - shooterRPM);
+        telemetryA.addLine("=== REAL-TIME VELOCITY ===");
+        telemetryA.addData("Right Motor TPS (raw)", "%.1f", vR);
+        telemetryA.addData("Left Motor TPS (raw)", "%.1f", vL);
+        telemetryA.addData("Right Motor RPM", "%.0f", rpmR);
+        telemetryA.addData("Left Motor RPM", "%.0f", rpmL);
+        telemetryA.addData("Average RPM", "%.0f", avgRPM);
         telemetryA.addData("", "");
-        telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
-        telemetryA.addData("Additional FF", "%.4f", additionalFF);
-        telemetryA.addData("Total Power", "%.3f", power);
+        
+        telemetryA.addLine("=== TARGET ===");
+        telemetryA.addData("Target RPM", "%.0f", targetRPM);
+        telemetryA.addData("Target TPS", "%.1f", targetTPS);
+        telemetryA.addData("Error RPM", "%.0f", targetRPM - avgRPM);
+        telemetryA.addData("", "");
+        
+        telemetryA.addLine("=== FEEDFORWARD CALCULATION ===");
+        telemetryA.addData("F × TPS", "%.4f (F=%.5f)", fContribution, 0.00084);
+        telemetryA.addData("kV × TPS", "%.4f (kV=%.4f)", kvContribution, 0.0008);
+        telemetryA.addData("kS", "%.4f", ksContribution);
+        telemetryA.addData("Total FF", "%.4f", totalFF);
+        telemetryA.addData("⚠ WARNING", totalFF > 1.0 ? "FF > 1.0!" : "FF OK");
         telemetryA.addData("", "");
         
         telemetryA.addLine("=== SHOT INFO ===");
         telemetryA.addData("Distance", "36 inches (3.0 feet)");
         telemetryA.addLine("");
-        telemetryA.addLine("Sequence:");
-        telemetryA.addLine("1. Set hood → 2. Spin up → 3. Wait for speed");
-        telemetryA.addLine("4. Start intakes → 5. Fire! → 6. Done");
+        
         telemetryA.update();
     }
     
