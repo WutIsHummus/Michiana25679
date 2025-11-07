@@ -89,26 +89,12 @@ public class InstantShootTest extends ActionOpMode {
     public void loop() {
         super.loop();
         
-        // Get shooter RPM for telemetry (from last recorded PID loop)
-        double shooterRPM = actions.shooter.getLastRecordedRPM();
-        double targetRPM = actions.shooter.lastTargetRPM;
-        double power = actions.shooter.lastPower;
-        double pidfOutput = actions.shooter.lastPIDFOutput;
-        double additionalFF = actions.shooter.lastAdditionalFF;
+
         
         telemetryA.addLine("=== INSTANT SHOOT TEST ===");
         telemetryA.addData("Status", hasStarted ? "SHOOTING!" : "Waiting for START...");
         telemetryA.addData("", "");
-        
-        telemetryA.addLine("=== SHOOTER MONITORING ===");
-        telemetryA.addData("Target RPM", "%.0f", targetRPM);
-        telemetryA.addData("Current RPM", "%.0f", shooterRPM);
-        telemetryA.addData("Error RPM", "%.0f", targetRPM - shooterRPM);
-        telemetryA.addData("", "");
-        telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
-        telemetryA.addData("Additional FF", "%.4f", additionalFF);
-        telemetryA.addData("Total Power", "%.3f", power);
-        telemetryA.addData("", "");
+
         
         telemetryA.addLine("=== SHOT INFO ===");
         telemetryA.addData("Distance", "36 inches (3.0 feet)");

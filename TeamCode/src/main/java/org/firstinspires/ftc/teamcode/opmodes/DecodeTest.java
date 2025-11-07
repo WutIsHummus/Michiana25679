@@ -75,7 +75,7 @@ public class DecodeTest extends PathChainAutoOpMode {
     public void loop() {
         super.loop();
         follower.update();
-        run(actions.holdShooterAtRPMclose(1475,30));
+        run(actions.holdShooterAtRPMclose(800,30));
         runTasks();
 
         // Shooter RPM telemetry (requires getCurrentRPM() in Shooter class)
