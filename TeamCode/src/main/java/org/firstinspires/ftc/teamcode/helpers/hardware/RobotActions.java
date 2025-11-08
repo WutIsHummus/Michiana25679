@@ -167,11 +167,32 @@ public class RobotActions {
         hood = new Hood();
         turret = new Turret();
     }
+    public RobotActions(DcMotor intakefront, DcMotor intakeback, DcMotor shootr, DcMotor shootl,
+                        Servo launchgate, Servo reargate, Servo hood1, Servo Turret1, Servo turret2) {
+        this.intakefront = intakefront;
+        this.intakeback = intakeback;
+        this.shootr = (DcMotorEx) shootr;  // Cast to DcMotorEx
+        this.shootl = (DcMotorEx) shootl;
+        this.launchgate = launchgate;
+        this.reargate = reargate;
+        this.hood1 = null;
+        this.turret1 = null;
+        this.turret2 = null;
+        this.voltageSensor = null;
+
+        intakeFront = new IntakeFront();
+        intakeBack = new IntakeBack();
+        shooter = new Shooter();
+        launch = new LaunchGate();
+        rear = new RearGate();
+        hood = new Hood();
+        turret = new Turret();
+    }
     
     public Action startIntake() {
         return new ParallelAction(
-                intakeFront.run(),
-                intakeBack.runSlow()
+                intakeFront.run()
+                //intakeBack.runSlow()
         );
     }
     
@@ -228,7 +249,8 @@ public class RobotActions {
                 launch.fire(),
                 new SleepAction(0.2),
                 launch.reset(),
-                shooter.stop()
+                intakeBack.stop()
+                //intakeFront.stop()
         );
     }
 

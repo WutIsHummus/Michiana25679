@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.acmerobotics.roadrunner.SequentialAction;
-import com.acmerobotics.roadrunner.SleepAction;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -18,18 +17,18 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMo
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
-@Autonomous(name = "DecodeTest")
-public class DecodeTest extends PathChainAutoOpMode {
+@Autonomous(name = "Farside15shootfarther")
+public class Farside15Ball extends PathChainAutoOpMode {
 
     private Follower follower;
 
     private DcMotor intakefront, intakeback;
     private DcMotorEx shootr, shootl;
-    private Servo reargate, launchgate;
+    private Servo reargate, launchgate, hood1, turret1, turret2;
 
     private RobotActions actions;
 
-    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10;
+    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11;
 
     @Override
     public void init() {
@@ -40,10 +39,12 @@ public class DecodeTest extends PathChainAutoOpMode {
         intakeback  = hardwareMap.get(DcMotor.class, "intakeback");
         shootr      = hardwareMap.get(DcMotorEx.class, "shootr");
         shootl      = hardwareMap.get(DcMotorEx.class, "shootl");
-
+        hood1 = hardwareMap.get(Servo.class, "hood 1");
+        turret1 = hardwareMap.get(Servo.class, "turret1");
+        turret2 = hardwareMap.get(Servo.class, "turret2");
         reargate   = hardwareMap.get(Servo.class, "reargate");
         launchgate = hardwareMap.get(Servo.class, "launchgate");
-        
+
         // Set motor directions
         shootl.setDirection(DcMotor.Direction.REVERSE);
 
@@ -52,14 +53,15 @@ public class DecodeTest extends PathChainAutoOpMode {
             m.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
+        hood1.setPosition(0.54);   // default hood position (close/auto)
+        turret1.setPosition(0.51); // center
+        turret2.setPosition(0.51);
 
-        actions = new RobotActions(intakefront, intakeback, shootr, shootl, launchgate, reargate);
-        // Preferred hood set; threeBallabsoluteclose() will set hood for close as needed
-        // Keep this if you want a default hood on init:
-        // actions.hood.setPosition(0.49);
+        actions = new RobotActions(intakefront, intakeback, shootr, shootl, launchgate, reargate, turret1, turret2, hood1);
 
-        // Start Point from the canvas: (24.460856, 125.920236) with heading ~142°
-        follower.setStartingPose(new Pose(24.460856, 125.920236, Math.toRadians(144)));
+        // === START POSE (from canvas) ===
+        // Start Point: X: 57.004431, Y: 9.146233; start heading ~90°
+        follower.setStartingPose(new Pose(57.004431, 9.146233, Math.toRadians(90)));
 
         buildPathChains();
         buildTaskList();
@@ -76,129 +78,123 @@ public class DecodeTest extends PathChainAutoOpMode {
     public void loop() {
         super.loop();
         follower.update();
-        run(actions.holdShooterAtRPMclose(1400,30));
+        run(actions.holdShooterAtRPMclose(1400, 30));
         runTasks();
 
-        // Shooter RPM telemetry (requires getCurrentRPM() in Shooter class)
+        // Shooter debug
         double shooterRPM = actions.shooter.getCurrentRPM();
-        
-        // Debug: Show individual motor velocities
         double vR = shootr.getVelocity();
         double vL = shootl.getVelocity();
         double rpmR = (vR / 28.0) * 60.0;
         double rpmL = (vL / 28.0) * 60.0;
 
-        telemetry.addData("Task Index", currentTaskIndex + "/" + tasks.size());
+        telemetry.addData("Task", currentTaskIndex + "/" + tasks.size());
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
-        telemetry.addData("T Value", follower.getCurrentTValue());
-        telemetry.addData("PathActive", isPathActive());
-        telemetry.addData("Busy", follower.isBusy());
-        telemetry.addData("", "");
+        telemetry.addData("T", follower.getCurrentTValue());
+        telemetry.addData("PathBusy", follower.isBusy());
         telemetry.addLine("=== SHOOTER DEBUG ===");
         telemetry.addData("Shooter RPM (avg)", "%.0f", shooterRPM);
-        telemetry.addData("Right Motor RPM", "%.0f", rpmR);
-        telemetry.addData("Left Motor RPM", "%.0f", rpmL);
-        telemetry.addData("Right Motor TPS (raw)", "%.1f", vR);
-        telemetry.addData("Left Motor TPS (raw)", "%.1f", vL);
+        telemetry.addData("Right RPM", "%.0f", rpmR);
+        telemetry.addData("Left RPM", "%.0f", rpmL);
+        telemetry.addData("Right TPS", "%.1f", vR);
+        telemetry.addData("Left TPS", "%.1f", vL);
         telemetry.update();
     }
 
     @Override
     protected void buildPathChains() {
-        // Path 1: (24.460856,125.920236) -> (49,96)  | heading 144° -> 134°
+        // Path 1: Start -> (49, 96) | heading 90° -> 134°
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(24.460856, 125.920236),
+                        new Pose(57.004431, 9.146233),
                         new Pose(49.0, 96.0)))
-                .setLinearHeadingInterpolation(Math.toRadians(144), Math.toRadians(134))
-                // Spin up for 39 in (3.25 ft) at the start of the first path
-                //.addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(134))
                 .build();
 
-        // Path 2: (49,96) -> (16,84) control (81.6779913,79.9763863) | 142° -> 180°
+        // Path 2: (49,96) -> (17.228951, 83.592319) via (81.677991, 79.976366) | 133° -> 180°
         path2 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(49.0, 96.0),
-                        new Pose(81.6779913, 79.9763863),
-                        new Pose(16.0, 84.0)))
-                .setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(180))
+                        new Pose(81.677991, 79.976366),
+                        new Pose(21, 83.592319)))
+                .setLinearHeadingInterpolation(Math.toRadians(134), Math.toRadians(180))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path 3: (16,84) -> (49,96) | 180° -> 142°
+        // Path 3: (17.228951,83.592319) -> (49,96) | 180° -> 134°
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(16.0, 84.0),
+                        new Pose(21, 83.592319),
                         new Pose(49.0, 96.0)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(142))
-                // Re-spin to 39 in if needed
-                //.addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(134))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
-        // Path 4: (49,96) -> (17,60) control (76.57311669,53.3884786) | 142° -> 180°
+        // Path 4: (49,96) -> (9.358936,55.515510) via (73.382570,55.090103) | 134° -> 180°
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(49.0, 96.0),
-                        new Pose(76.57311669, 53.3884786),
-                        new Pose(17.0, 65)))
-                .setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(180))
+                        new Pose(73.382570, 55.090103),
+                        new Pose(11, 55.515510)))
+                .setLinearHeadingInterpolation(Math.toRadians(134), Math.toRadians(180))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path 5: (17,60) -> (14.0384047,72.10635156) control (73,75) | 180° -> 90°
+        // Path 5: (9.358936,55.515510) -> (16.378139,72.106352) via (73,75) | 180° -> 90°
 
-        // Path 6: (14.0384,72.1063) -> (49,96) | 90° -> 142°
+        // Path 6: (16.378139,72.106352) -> (49,96) | 90° -> 133°
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(17, 65),
+                        new Pose(14, 55.515510),
                         new Pose(49.0, 96.0)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(142))
-                // Re-spin to 39 in if needed
-                //.addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(134))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
-        // Path 7: (49,96) -> (14.88921713,35.9468424) control (92.9512555,31.0546528) | 142° -> 180°
+        // Path 7: (49,96) -> (9.997046,34.883309) via (92.951256,31.054653) | 134° -> 180°
         path7 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(49.0, 96.0),
-                        new Pose(92.9512555, 31.0546528),
-                        new Pose(14.88921713, 35.9468424)))
-                .setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(180))
+                        new Pose(92.951256, 31.054653),
+                        new Pose(9.997046, 34.883309)))
+                .setLinearHeadingInterpolation(Math.toRadians(134), Math.toRadians(180))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path 8: (14.8892,35.9468) -> (48.7090103,95.9290989) | 180° -> 142°
+        // Path 8: (9.997046,34.883309) -> (48.709010,95.929099) | 180° -> 132°
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(14.88921713, 35.9468424),
-                        new Pose(48.7090103, 95.9290989)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(142))
-                // Re-spin to 39 in if needed
-                .addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                        new Pose(9.997046, 34.883309),
+                        new Pose(48.709010, 95.929099)))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(134))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
-        // Path 9: (48.7090,95.9291) -> (10.42245195,10.2097488) control (14.25110782,54.664897) | 142° -> 270°
+        // Path 9: (48.709010,95.929099) -> (10.422452,10.209749) via (19.143279,53.388479) | 134° -> 270°
         path9 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(48.7090103, 95.9290989),
-                        new Pose(14.25110782, 54.664897),
-                        new Pose(10.42245195, 10.2097488)))
-                .setLinearHeadingInterpolation(Math.toRadians(142), Math.toRadians(270))
+                        new Pose(48.709010, 95.929099),
+                        new Pose(19.143279, 53.388479),
+                        new Pose(10.422452, 10.209749)))
+                .setLinearHeadingInterpolation(Math.toRadians(134), Math.toRadians(270))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path 10: (10.42245,10.20975) -> (48.9217344,95.9290898) | 270° -> 142°
+        // Path 10: (10.422452,10.209749) -> (48.921713,95.929099) | 270° -> 134°
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(10.42245195, 10.2097488),
-                        new Pose(48.9217344, 95.9290898)))
-                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(142))
-                // Re-spin to 39 in if needed
-                .addParametricCallback(0, () -> run(actions.spinUpForDistance(3.25)))
+                        new Pose(10.422452, 10.209749),
+                        new Pose(48.921713, 95.929099)))
+                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(134))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
+                .build();
+
+        path11 = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Pose(38.2865858, 105.075332),
+
+                        new Pose(52, 120)))
+                .setLinearHeadingInterpolation(Math.toRadians(134), Math.toRadians(134))
                 .build();
     }
 
@@ -206,13 +202,13 @@ public class DecodeTest extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        // Shoot after path 1 (39 in)
-        PathChainTask path1Task = new PathChainTask(path1, 2)
+        // Shoot after path 1
+        PathChainTask path1Task = new PathChainTask(path1, 1.5)
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
-                                new SleepAction(0.5),
-                        actions.launch3()                        )
+                                actions.launch3()
+                        )
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -220,26 +216,27 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         addPath(path2, 0);
 
-        // Shoot after path 3 (39 in)
+        // Shoot after path 3
         PathChainTask path3Task = new PathChainTask(path3, 1.5)
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
-                        actions.launch3()                        )
+                                actions.launch3()
+                        )
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path3Task);
 
-        addPath(path4, 1);
-        addPath(path5, 0);
+        addPath(path4, 0);
+        //addPath(path5, 0);
 
-        // Shoot after path 6 (39 in)
+        // Shoot after path 6
         PathChainTask path6Task = new PathChainTask(path6, 1.5)
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
-                                actions.threeBallabsoluteclose(39, 96.0)
+                                actions.launch3()
                         )
                 )
                 .setMaxWaitTime(6.0)
@@ -248,12 +245,12 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         addPath(path7, 0);
 
-        // Shoot after path 8 (39 in)
+        // Shoot after path 8
         PathChainTask path8Task = new PathChainTask(path8, 1.5)
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
-                                actions.threeBallabsoluteclose(39, 96.0)
+                                actions.launch3()
                         )
                 )
                 .setMaxWaitTime(6.0)
@@ -262,17 +259,18 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         addPath(path9, 0);
 
-        // Shoot after path 10 (39 in)
+        // Shoot after path 10
         PathChainTask path10Task = new PathChainTask(path10, 1.5)
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
-                                actions.threeBallabsoluteclose(39, 96.0)
+                                actions.launch3()
                         )
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path10Task);
+        addPath(path11, 0);
     }
 
     @Override
@@ -289,6 +287,14 @@ public class DecodeTest extends PathChainAutoOpMode {
         follower.followPath((PathChain) task.pathChain, true);
     }
 
+    @Override
+    public void stop() {
+        try {
+            // follower.getPose() returns Pedro Pose
+            org.firstinspires.ftc.teamcode.opmodes.PoseStore.save(follower.getPose());
+        } catch (Exception ignored) {}
+        super.stop();
+    }
     @Override
     protected void startTurn(TurnTask task) {
         // Not used

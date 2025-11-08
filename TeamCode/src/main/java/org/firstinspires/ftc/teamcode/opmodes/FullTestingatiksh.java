@@ -4,7 +4,10 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDFController;
+import com.pedropathing.localization.PoseUpdater;
 import com.pedropathing.util.Constants;
+import com.pedropathing.util.DashboardPoseTracker;
+import com.pedropathing.util.Drawing;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -20,10 +23,6 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
 
-import com.pedropathing.localization.PoseUpdater;
-import com.pedropathing.util.DashboardPoseTracker;
-import com.pedropathing.util.Drawing;
-
 import java.util.List;
 
 //import pedropathing.constants.*;
@@ -37,8 +36,8 @@ import java.util.List;
  * @version 1.0, 5/6/2024
  */
 @Config
-@TeleOp(name = "1 - Cosmobots - RED")
-public class FullTesting extends OpMode {
+@TeleOp(name = "1 - NEXTGEN - RED")
+public class FullTestingatiksh extends OpMode {
     private PoseUpdater poseUpdater;
     private DashboardPoseTracker dashboardPoseTracker;
     private Telemetry telemetryA;
@@ -99,10 +98,7 @@ public class FullTesting extends OpMode {
     public static double kSLong = 0.01;
     public static double I_ZONE_LONG = 250.0;
     public static double hood1PositionLong = 0.45;
-
-    private boolean lastB = false;
-
-
+    
     // Linear regression for RPM calculation: RPM = 100 * (feet_from_goal) + 1150
     // where x is feet from goal zone, y is RPM
     // Formula: y = 100x + 1150
@@ -134,14 +130,6 @@ public class FullTesting extends OpMode {
     public static double SNAP_Y = 123.7003;
     public static double SNAP_HEADING_DEG = 359.0;
 
-    // --- Turret trim (adds to computed turret angle before mapping to servos) ---
-    public static double TRIM_STEP_DEG = 3.0;
-    public static double turretTrimDeg = 0.0;
-    private boolean lastDpadLeft = false;
-    private boolean lastDpadRight = false;
-
-
-
     /**
      * This initializes the PoseUpdater, the mecanum drive motors, and the FTC Dashboard telemetry.
      */
@@ -150,17 +138,7 @@ public class FullTesting extends OpMode {
         Constants.setConstants(FConstants.class, LConstants.class);
         poseUpdater = new PoseUpdater(hardwareMap);
         dashboardPoseTracker = new DashboardPoseTracker(poseUpdater);
-
-        try {
-            if (org.firstinspires.ftc.teamcode.opmodes.PoseStore.hasSaved()) {
-                poseUpdater.setPose(org.firstinspires.ftc.teamcode.opmodes.PoseStore.lastPose);
-            }
-        } catch (Exception ignored) {
-            // Pose restore failed — ignore and continue with live odometry
-        }
-
-
-
+        
         // Initialize drive motors
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
         fr = hardwareMap.get(DcMotorEx.class, "frontright");
@@ -237,7 +215,6 @@ public class FullTesting extends OpMode {
         telemetryA.addLine("Auto-transfer adapts to distance (fast <7ft, slow ≥7ft)");
         telemetryA.update();
 
-
         Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
         Drawing.sendPacket();
     }
@@ -248,30 +225,13 @@ public class FullTesting extends OpMode {
      */
     @Override
     public void loop() {
-
-        // --- Turret trim controls: D-pad LEFT = -3°, RIGHT = +3° (edge-triggered) ---
-        boolean dpadLeft  = gamepad1.dpad_left;
-        boolean dpadRight = gamepad1.dpad_right;
-
-        // --- B to reset turret trim (offset) to 0 ---
-        boolean bPressed = gamepad1.b;
-        if (bPressed && !lastB) {
-            turretTrimDeg = 0.0;   // reset offset
-        }
-        lastB = bPressed;
-
-        if (dpadRight && !lastDpadRight) {
-            turretTrimDeg += TRIM_STEP_DEG;
-        }
-        if (dpadLeft && !lastDpadLeft) {
-            turretTrimDeg -= TRIM_STEP_DEG;
-        }
-
-        lastDpadLeft  = dpadLeft;
-        lastDpadRight = dpadRight;
-
         poseUpdater.update();
         dashboardPoseTracker.update();
+
+        // Drive controls - matching VelocityFinder setup
+        double y = -gamepad1.right_stick_y;
+        double x = gamepad1.right_stick_x * 1.1;
+        double rx = gamepad1.left_stick_x;
 
         // --- snap-to-pose: gamepad1.x ---
         boolean xPressed = gamepad1.x;
@@ -281,11 +241,7 @@ public class FullTesting extends OpMode {
         }
         lastX = xPressed;
 
-        // Drive controls - matching VelocityFinder setup
-        double y = -gamepad1.right_stick_y;
-        double x = gamepad1.right_stick_x * 1.1;
-        double rx = gamepad1.left_stick_x;
-        
+
         double scale = 1;
         double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1.0);
         
@@ -321,7 +277,7 @@ public class FullTesting extends OpMode {
         while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
         
         // Convert to degrees
-        double turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
+        double turretAngleDegrees = Math.toDegrees(turretAngle);
         
         // Calculate servo position
         // Clamp angle to valid range
@@ -358,10 +314,7 @@ public class FullTesting extends OpMode {
         } else {
             intakefront.setPower(0);
         }
-
-
-
-
+        
         // ==================== AUTO-SHOOT CONTROL ====================
         // Detect A button press for auto-shoot sequence
         boolean currentA = gamepad1.a;
@@ -387,8 +340,8 @@ public class FullTesting extends OpMode {
                     
                 case 1: // Start intakes
                     shootStatus = "Starting intakes...";
-                    intakefront.setPower(-1.0);
-                    intakeback.setPower(-1.0);
+                    intakefront.setPower(11.0);
+                    intakeback.setPower(1.0);
                     if (shootTimer.seconds() > 0.1) {
                         shootState = 2;
                         shootTimer.reset();
@@ -567,8 +520,8 @@ public class FullTesting extends OpMode {
                 switch (transferState) {
                     case 0: // Shot 1: Intakes on
                         transferStatus = "Shot 1/3: Intakes on";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
+                        intakefront.setPower(1.0);
+                        intakeback.setPower(1.0);
                         if (transferTimer.seconds() > 0.1) {
                             transferState = 1;
                             transferTimer.reset();
@@ -594,8 +547,8 @@ public class FullTesting extends OpMode {
                         break;
                     case 3: // Shot 2: Intakes on
                         transferStatus = "Shot 2/3: Intakes on";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
+                        intakefront.setPower(1.0);
+                        intakeback.setPower(1.0);
                         if (transferTimer.seconds() > 0.1) {
                             transferState = 4;
                             transferTimer.reset();
@@ -621,8 +574,8 @@ public class FullTesting extends OpMode {
                         break;
                     case 6: // Shot 3: Intakes on
                         transferStatus = "Shot 3/3: Intakes on";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
+                        intakefront.setPower(1.0);
+                        intakeback.setPower(1.0);
                         if (transferTimer.seconds() > 0.1) {
                             transferState = 7;
                             transferTimer.reset();
@@ -652,8 +605,8 @@ public class FullTesting extends OpMode {
                 switch (transferState) {
                     case 0: // Start intakes
                         transferStatus = "Starting intakes...";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
+                        intakefront.setPower(1.0);
+                        intakeback.setPower(1.0);
                         if (transferTimer.seconds() > 0.1) {
                             transferState = 1;
                             transferTimer.reset();
@@ -785,8 +738,7 @@ public class FullTesting extends OpMode {
         telemetryA.addData("F", "%.6f (NEW - tune this!)", f);
         telemetryA.addData("kV", "%.6f (optional, can set to 0)", kV);
         telemetryA.addData("kS", "%.6f (optional, can set to 0)", kS);
-        telemetryA.addData("Snap Button (X)", xPressed ? "pressed" : "idle");
-
+        
         // Add Limelight data
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
