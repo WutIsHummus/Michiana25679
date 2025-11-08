@@ -117,21 +117,24 @@ public class ShortShootAuto extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        // Path 1 task: run path, then wait 20 seconds, then shoot
-        PathChainTask path1Task = new PathChainTask(path1, 20.0) // 20-second wait AFTER path
+        // Path 1 task: just run path, no shooting
+        addPath(path1, 0);
+
+        // Sleep for 20 seconds
+        addPath(null, 20.0); // null path = just wait
+
+        // Path 2: drive to shooting position, then shoot
+        PathChainTask path2Task = new PathChainTask(path2, 0.5) // minimal wait
                 .addWaitAction(
                         () -> true,
                         new SequentialAction(
                                 actions.launch3()   // fire 3 at 900 RPM
                         )
                 )
-                .setMaxWaitTime(25.0)  // safety cap
+                .setMaxWaitTime(5.0)  // safety cap
                 .setWaitCondition(() -> true);
 
-        tasks.add(path1Task);
-
-        // Then just drive Path 2 (no extra wait / shooting)
-        addPath(path2, 0);
+        tasks.add(path2Task);
     }
 
     @Override

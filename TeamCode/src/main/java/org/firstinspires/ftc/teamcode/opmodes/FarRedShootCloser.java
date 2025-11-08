@@ -120,7 +120,7 @@ public class FarRedShootCloser extends PathChainAutoOpMode {
                         new Pose(105.7134142, 105.288035),
                         new Pose(62.3220087, 79.9763663),
                         new Pose(120.8153169, 84.2304238)))
-                .setLinearHeadingInterpolation(Math.toRadians(47), Math.toRadians(0))
+                .setLinearHeadingInterpolation(Math.toRadians(46), Math.toRadians(0))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
@@ -137,7 +137,7 @@ public class FarRedShootCloser extends PathChainAutoOpMode {
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(105.5007386, 105.075332),
-                        new Pose(54.0265879, 49.34711964),
+                        new Pose(54.0265879, 49.34611964),
                         new Pose(134.48236042, 57.0044313)))
                 .setLinearHeadingInterpolation(Math.toRadians(46), Math.toRadians(0))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -149,7 +149,7 @@ public class FarRedShootCloser extends PathChainAutoOpMode {
                         new Pose(134.48236042, 57.0044313),
                         new Pose(98.26883309, 63.8109305),
                         new Pose(105.7134142, 105.288035)))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(47))
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(46))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
@@ -169,7 +169,7 @@ public class FarRedShootCloser extends PathChainAutoOpMode {
                         new Pose(134.00295424, 34.8833087),
                         new Pose(85.5066465, 55.8490158),
                         new Pose(105.5007386, 105.075332)))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(48))
+                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(46))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
@@ -177,7 +177,7 @@ public class FarRedShootCloser extends PathChainAutoOpMode {
         path8 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(105.5007386, 105.075332),
-                        new Pose(124.85672083, 53.3884786),
+                        new Pose(124.85672083, 53.3884686),
                         new Pose(133.57754805, 10.2097488)))
                 .setLinearHeadingInterpolation(Math.toRadians(46), Math.toRadians(270))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -187,7 +187,7 @@ public class FarRedShootCloser extends PathChainAutoOpMode {
         path9 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(133.57754805, 10.2097488),
-                        new Pose(94.65288036, 47.2200886),
+                        new Pose(94.65288036, 46.2200886),
                         new Pose(105.7134142, 105.075332)))
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(46))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
