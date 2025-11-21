@@ -135,6 +135,9 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     // RPM tolerance for "at target" detection
     public static double RPM_TOLERANCE = 100.0;
+    private boolean shootingconstant = true;
+    private boolean lastY = false;
+
 
     // Voltage compensation (always on)
     private static final double NOMINAL_VOLTAGE = 12.0;
@@ -456,8 +459,15 @@ public class CosmobotsBlueTeleop extends OpMode {
             }
         }
 
-        // Shooter velocity control - Hold Right Trigger OR auto-shoot active
-        boolean shooterOn = gamepad1.right_trigger > 0.1 || shooting;
+        // Shooter velocity control - controlled by shootingconstant (always true) OR auto-shoot active
+        boolean yPressed = gamepad1.y;
+
+// Toggle shootingconstant on rising edge of Y
+        if (yPressed && !lastY) {
+            shootingconstant = !shootingconstant;
+        }
+        lastY = yPressed;
+        boolean shooterOn = shootingconstant || shooting;
 
         // Calculate distance to goal zone for RPM calculation
         double deltaGoalX = goalZoneX - currentX;
@@ -545,177 +555,113 @@ public class CosmobotsBlueTeleop extends OpMode {
             shooterPID.reset();
         }
 
-        // ==================== AUTO-TRANSFER CONTROL (Left Trigger) ====================
+        // ==================== LEFT TRIGGER SIMPLE SEQUENCE ====================
         boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
 
-        // Check if shooter is at target velocity
-        boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
-
-        // Detect left trigger press for auto-transfer
-        if (currentLeftTrigger && !lastLeftTrigger && !autoTransfer && !shooting && shooterOn && atTargetSpeed) {
-            // Start auto-transfer sequence
+        // Detect left trigger press to start sequence
+        if (currentLeftTrigger && !lastLeftTrigger && !autoTransfer) {
             autoTransfer = true;
             transferState = 0;
             transferTimer.reset();
         }
         lastLeftTrigger = currentLeftTrigger;
 
-        // Run auto-transfer state machine
         String transferStatus = "Ready";
-        if (autoTransfer) {
-            boolean isLongRangeTransfer = distanceToGoalFeet >= 7.0;
 
-            if (isLongRangeTransfer) {
-                // LONG RANGE: Intakes on, push, intakes off, wait 0.3s, repeat 3x
-                switch (transferState) {
-                    case 0: // Shot 1: Intakes on
-                        transferStatus = "Shot 1/3: Intakes on";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
-                        if (transferTimer.seconds() > 0.1) {
-                            transferState = 1;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 1: // Shot 1: Push
-                        transferStatus = "Shot 1/3: Pushing";
-                        launchgate.setPosition(0.8);
-                        if (transferTimer.seconds() > 0.2) {
-                            transferState = 2;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 2: // Shot 1: Reset and intakes off
-                        transferStatus = "Shot 1/3: Reset";
-                        launchgate.setPosition(0.5);
-                        intakefront.setPower(0);
-                        intakeback.setPower(0);
-                        if (transferTimer.seconds() > 0.3) {
-                            transferState = 3;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 3: // Shot 2: Intakes on
-                        transferStatus = "Shot 2/3: Intakes on";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
-                        if (transferTimer.seconds() > 0.1) {
-                            transferState = 4;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 4: // Shot 2: Push
-                        transferStatus = "Shot 2/3: Pushing";
-                        launchgate.setPosition(0.8);
-                        if (transferTimer.seconds() > 0.2) {
-                            transferState = 5;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 5: // Shot 2: Reset and intakes off
-                        transferStatus = "Shot 2/3: Reset";
-                        launchgate.setPosition(0.5);
-                        intakefront.setPower(0);
-                        intakeback.setPower(0);
-                        if (transferTimer.seconds() > 0.3) {
-                            transferState = 6;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 6: // Shot 3: Intakes on
-                        transferStatus = "Shot 3/3: Intakes on";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
-                        if (transferTimer.seconds() > 0.1) {
-                            transferState = 7;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 7: // Shot 3: Push
-                        transferStatus = "Shot 3/3: Pushing";
-            launchgate.setPosition(0.8);
-                        if (transferTimer.seconds() > 0.2) {
-                            transferState = 8;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 8: // Shot 3: Final reset
-                        transferStatus = "Complete!";
-                        launchgate.setPosition(0.5);
-                        intakefront.setPower(0);
-                        intakeback.setPower(0);
-                        if (transferTimer.seconds() > 0.2) {
-                            autoTransfer = false;
-                            transferState = 0;
-                        }
-                        break;
-                }
-        } else {
-                // SHORT RANGE: Run intakes continuously, push 3x rapidly
-                switch (transferState) {
-                    case 0: // Start intakes
-                        transferStatus = "Starting intakes...";
-                        intakefront.setPower(-1.0);
-                        intakeback.setPower(-1.0);
-                        if (transferTimer.seconds() > 0.1) {
-                            transferState = 1;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 1: // Push 1
-                        transferStatus = "Firing 1/3";
-                        launchgate.setPosition(0.8);
-                        if (transferTimer.seconds() > 0.2) {
-                            transferState = 2;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 2: // Reset 1
-                        transferStatus = "Reset 1/3";
-                        launchgate.setPosition(0.5);
-                        if (transferTimer.seconds() > 0.3) {
-                            transferState = 3;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 3: // Push 2
-                        transferStatus = "Firing 2/3";
-                        launchgate.setPosition(0.8);
-                        if (transferTimer.seconds() > 0.2) {
-                            transferState = 4;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 4: // Reset 2
-                        transferStatus = "Reset 2/3";
-                        launchgate.setPosition(0.5);
-                        if (transferTimer.seconds() > 0.3) {
-                            transferState = 5;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 5: // Push 3
-                        transferStatus = "Firing 3/3";
-                        launchgate.setPosition(0.8);
-                        if (transferTimer.seconds() > 0.2) {
-                            transferState = 6;
-                            transferTimer.reset();
-                        }
-                        break;
-                    case 6: // Final reset and stop intakes
-                        transferStatus = "Complete!";
-                        launchgate.setPosition(0.5);
-                        intakefront.setPower(0);
-                        intakeback.setPower(0);
-                        if (transferTimer.seconds() > 0.2) {
-                            autoTransfer = false;
-                            transferState = 0;
-                        }
-                        break;
-                }
+        if (autoTransfer) {
+            switch (transferState) {
+
+                case 0: // FIRE 1 - open
+                    transferStatus = "Fire 1 OPEN";
+                    launchgate.setPosition(0.8);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.05) {
+                        transferState = 1;
+                        transferTimer.reset();
+                    }
+                    break;
+
+                case 1: // FIRE 1 - close
+                    transferStatus = "Fire 1 CLOSE";
+                    launchgate.setPosition(0.5);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.1) {
+                        transferState = 2;
+                        transferTimer.reset();
+                    }
+                    break;
+
+                case 2: // FIRE 2 - open
+                    transferStatus = "Fire 2 OPEN";
+                    launchgate.setPosition(0.8);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.05) {
+                        transferState = 3;
+                        transferTimer.reset();
+                    }
+                    break;
+
+                case 3: // FIRE 2 - close
+                    transferStatus = "Fire 2 CLOSE";
+                    launchgate.setPosition(0.5);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.1) {
+                        transferState = 4;
+                        transferTimer.reset();
+                    }
+                    break;
+
+                case 4: // FIRE 3 - open
+                    transferStatus = "Fire 3 OPEN";
+                    launchgate.setPosition(0.8);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.05) {
+                        transferState = 5;
+                        transferTimer.reset();
+                    }
+                    break;
+
+                case 5: // FIRE 3 - close
+                    transferStatus = "Fire 3 CLOSE";
+                    launchgate.setPosition(0.5);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.1) {
+                        transferState = 6;
+                        transferTimer.reset();
+                    }
+                    break;
+
+                case 6: // FIRE 4 - open
+                    transferStatus = "Fire 4 OPEN";
+                    launchgate.setPosition(0.8);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.05) {
+                        transferState = 7;
+                        transferTimer.reset();
+                    }
+                    break;
+
+                case 7: // FIRE 4 - close + end
+                    transferStatus = "Fire 4 CLOSE";
+                    launchgate.setPosition(0.5);
+                    intakeback.setPower(1);
+                    intakefront.setPower(1);
+                    if (transferTimer.seconds() > 0.1) {
+                        autoTransfer = false;
+                        transferState = 0;
+                    }
+                    break;
             }
+
         } else if (!currentLeftTrigger && !autoTransfer) {
-            // Manual launch gate control when not auto-transferring
+            // Manual launch gate default when not in sequence
             launchgate.setPosition(0.5);
         }
 
@@ -738,7 +684,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         telemetryA.addData("", ""); // Empty line
         telemetryA.addLine("=== Shooter Status ===");
         telemetryA.addData("Shooter", shooterOn ? "RUNNING" : "STOPPED");
-        telemetryA.addData("At Target Speed", atTargetSpeed ? "✓ YES" : "NO");
+        telemetryA.addData("At Target Speed", Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE ? "✓ YES" : "NO");
         if (shooting) {
             telemetryA.addData("Auto-Shoot", shootStatus);
             telemetryA.addData("State", shootState);
@@ -746,7 +692,6 @@ public class CosmobotsBlueTeleop extends OpMode {
         if (autoTransfer) {
             telemetryA.addData("Auto-Transfer", transferStatus);
             telemetryA.addData("Transfer State", transferState);
-            telemetryA.addData("Transfer Mode", distanceToGoalFeet >= 7.0 ? "LONG (slow)" : "SHORT (fast)");
         }
         telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
         telemetryA.addData("Goal Zone (RPM calc)", "(%.1f, %.1f)", goalZoneX, goalZoneY);
@@ -772,9 +717,9 @@ public class CosmobotsBlueTeleop extends OpMode {
         if (shooterOn) {
             telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
             telemetryA.addData("Additional FF", "%.4f (kS=%.4f + kV*TPS=%.4f)",
-                additionalFF, currentKS * Math.signum(targetTPS), currentKV * targetTPS);
+                    additionalFF, currentKS * Math.signum(targetTPS), currentKV * targetTPS);
             telemetryA.addData("F Term Contribution", "%.4f (F*setpoint = %.4f*%.1f)",
-                currentF * targetTPS, currentF, targetTPS);
+                    currentF * targetTPS, currentF, targetTPS);
         }
         telemetryA.addData("Front Intake", gamepad1.right_bumper ? "RUNNING" : "STOPPED");
         telemetryA.addData("Back Intake", gamepad1.left_bumper ? "RUNNING" : "STOPPED");
@@ -820,8 +765,8 @@ public class CosmobotsBlueTeleop extends OpMode {
 
                             // Diagonal distance from lens to center of AprilTag
                             double diagonalDistance = Math.sqrt(
-                                horizontalDistance * horizontalDistance +
-                                heightDifference * heightDifference
+                                    horizontalDistance * horizontalDistance +
+                                            heightDifference * heightDifference
                             );
 
                             // Convert horizontal angle to inches offset
@@ -889,4 +834,3 @@ public class CosmobotsBlueTeleop extends OpMode {
         br.setPower(0);
     }
 }
-
