@@ -34,7 +34,7 @@ public class FConstants {
                 0,
                 0.001,
                 0);
-        FollowerConstants.translationalPIDFFeedForward = 0.00;
+        FollowerConstants.translationalPIDFFeedForward = 0.02;
 
         FollowerConstants.useSecondaryTranslationalPID = false;
         FollowerConstants.secondaryTranslationalPIDFCoefficients.setCoefficients(0.12,
@@ -47,18 +47,18 @@ public class FConstants {
         FollowerConstants.secondaryHeadingPIDFCoefficients.setCoefficients(2.6,0,0.05,0);
 
         FollowerConstants.drivePIDFCoefficients.setCoefficients(0.004 ,0,0.001,0.6,0);
-        FollowerConstants.drivePIDFFeedForward = 0.02;
+        FollowerConstants.drivePIDFFeedForward = 0.05;
 
 
         FollowerConstants.useSecondaryDrivePID = false   ;
         FollowerConstants.secondaryDrivePIDFCoefficients.setCoefficients(0.32,0,0.005,0.6,0); // Not being used, @see useSecondaryDrivePID
 
-        FollowerConstants.zeroPowerAccelerationMultiplier = 4.75;
+        FollowerConstants.zeroPowerAccelerationMultiplier = 7.0;
         FollowerConstants.centripetalScaling = 0.00025;
 
         FollowerConstants.pathEndTimeoutConstraint = 75;
         FollowerConstants.pathEndTValueConstraint = 0.96;
-        FollowerConstants.pathEndVelocityConstraint = 3.2;
+        FollowerConstants.pathEndVelocityConstraint = 5.0;
         FollowerConstants.useVoltageCompensationInAuto = true;
         FollowerConstants.useVoltageCompensationInTeleOp = true;
         FollowerConstants.nominalVoltage = 13.7 ;
