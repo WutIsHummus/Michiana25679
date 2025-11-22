@@ -61,6 +61,10 @@ public class CosmobotsBlueTeleop extends OpMode {
     // Aim target for turret (mirrored X)
     public static double targetX = 144.0 - 128.0; // mirror of Red-side 128.0 → 16.0
     public static double targetY = 125.0;
+    // Low-power shooter mode (Right Trigger)
+    public static double LOW_POWER_RPM = 800.0;
+    public static double LOW_POWER_TRIGGER_THRESHOLD = 0.1;  // how hard you have to press RT
+
 
     // Goal zone coordinates (mirrored X)
     public static double goalZoneX = 144.0 - 116.0; // mirror of Red-side 116.0 → 28.0
@@ -92,20 +96,20 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double GEAR_RATIO = 1.0;
 
     // Short range PIDF (< 6 feet)
-    public static double p = 0.002;
+    public static double p = 0.0015;
     public static double i = 0.0;
-    public static double d = 0.0001;
-    public static double f = 0.00084;
+    public static double d = 0.0000;
+    public static double f = 0.0009;
     public static double kV = 0.0008;
     public static double kS = 0.01;
     public static double I_ZONE = 250.0;
     public static double hood1Position = 0.54;
 
     // Long range PIDF (>= 6 feet)
-    public static double pLong = 0.01;
+    public static double pLong = 0.005;
     public static double iLong = 0.0;
     public static double dLong = 0.0001;
-    public static double fLong = 0.00084;
+    public static double fLong = 0.00089;
     public static double kVLong = 0.0008;
     public static double kSLong = 0.01;
     public static double I_ZONE_LONG = 250.0;
@@ -117,8 +121,9 @@ public class CosmobotsBlueTeleop extends OpMode {
     // Linear regression for RPM calculation: RPM = 100 * (feet_from_goal) + 1150
     // where x is feet from goal zone, y is RPM
     // Formula: y = 100x + 1150
-    private static final double RPM_SLOPE = 100.0;  // m in y = mx + b
-    private static final double RPM_INTERCEPT = 1150.0;  // b in y = mx + b
+    private static final double RPM_SLOPE = 80.0;  // m in y = mx + b
+    private static final double RPM_INTERCEPT = 1050.0;  // b in y = mx + b (was 1150)
+    // b in y = mx + b
 
     // Far shooting RPM cap (for distances >= 7 feet)
     public static double FAR_SHOOTING_RPM_MAX = 1950.0;  // Reduced from 2100
@@ -138,6 +143,14 @@ public class CosmobotsBlueTeleop extends OpMode {
     private boolean shootingconstant = true;
     private boolean lastY = false;
 
+    // --- Hood regression (distance-based) ---
+    public static double HOOD_MIN_POS = 0.45;      // flattest shot (far)
+    public static double HOOD_MAX_POS = 0.54;      // highest arc (close)
+    public static double HOOD_MIN_DIST_FT = 0.5;   // start of interpolation range
+    public static double HOOD_MAX_DIST_FT = 7.0;   // end of interpolation range
+
+    // --- Turret backlash compensation for turret1 only ---
+    public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     // Voltage compensation (always on)
     private static final double NOMINAL_VOLTAGE = 12.0;
@@ -266,6 +279,8 @@ public class CosmobotsBlueTeleop extends OpMode {
             turretTrimDeg = 0.0;   // reset offset
         }
         lastB = bPressed;
+// Low-power mode: hold RT to force shooter to 800 RPM
+        boolean lowPowerMode = gamepad1.right_trigger > LOW_POWER_TRIGGER_THRESHOLD;
 
         if (dpadRight && !lastDpadRight) {
             turretTrimDeg += TRIM_STEP_DEG;
@@ -347,8 +362,14 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
 
         // Set servo positions
-        turret1.setPosition(servoPosition);
-        turret2.setPosition(servoPosition);
+        // Set servo positions with backlash compensation on turret1 only
+        double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
+// clamp to [0,1] so it never explodes
+        turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
+
+        turret1.setPosition(turret1Pos-0.01);
+        turret2.setPosition(servoPosition-0.01);
+
 
         // ===== SHOOTER CONTROL =====
         // Intake controls - split between bumpers
@@ -477,17 +498,28 @@ public class CosmobotsBlueTeleop extends OpMode {
 
         // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
         // Calculate target RPM: use formula up to 7 feet, then cap at FAR_SHOOTING_RPM_MAX
+        // Calculate target RPM
         double calculatedTargetRPM;
-        if (distanceToGoalFeet >= 9.0) {
-            calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;  // Fixed RPM for 7+ feet
+
+        if (lowPowerMode) {
+            // Low-power mode: fixed 800 RPM to reduce current draw
+            calculatedTargetRPM = LOW_POWER_RPM;
         } else {
-            calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-            calculatedTargetRPM = Math.max(1250.0, Math.min(FAR_SHOOTING_RPM_MAX, calculatedTargetRPM));
+            // Distance-based regression with clamp
+            if (distanceToGoalFeet >= 9.0) {
+                calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;  // far shooting RPM stays the same
+            } else {
+                calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
+                calculatedTargetRPM = Math.max(1150.0, Math.min(FAR_SHOOTING_RPM_MAX, calculatedTargetRPM));
+            }
         }
+
+
 
         // Determine if we're shooting long range (>= 6 feet)
         boolean isLongRange = distanceToGoalFeet >= 6.0;
 
+        // Use appropriate PIDF values based on distance
         // Use appropriate PIDF values based on distance
         double currentP = isLongRange ? pLong : p;
         double currentI = isLongRange ? iLong : i;
@@ -496,14 +528,25 @@ public class CosmobotsBlueTeleop extends OpMode {
         double currentKV = isLongRange ? kVLong : kV;
         double currentKS = isLongRange ? kSLong : kS;
         double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
-        double currentHood = isLongRange ? hood1PositionLong : hood1Position;
 
-        // Update PIDF coefficients
+// --- HOOD REGRESSION (distance-based between HOOD_MAX_POS and HOOD_MIN_POS) ---
+        double hoodT = (distanceToGoalFeet - HOOD_MIN_DIST_FT) / (HOOD_MAX_DIST_FT - HOOD_MIN_DIST_FT);
+// clamp 0–1
+        hoodT = Math.max(0.0, Math.min(1.0, hoodT));
+
+// interpolate: close (small distance) → HOOD_MAX_POS, far → HOOD_MIN_POS
+        double currentHoodPos = HOOD_MAX_POS + hoodT * (HOOD_MIN_POS - HOOD_MAX_POS);
+
+// clamp servo range just in case
+        currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
+
+// Update PIDF coefficients
         shooterPID.setPIDF(currentP, currentI, currentD, currentF);
         shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
 
-        // Set hood position based on distance
-        hood1.setPosition(currentHood);
+// Set hood position based on regression
+        hood1.setPosition(currentHoodPos);
+
 
         // Convert target RPM to ticks per second
         double targetTPS = rpmToTicksPerSec(calculatedTargetRPM);
@@ -679,6 +722,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         if (turretAngleDegrees < -turretMaxAngle || turretAngleDegrees > turretMaxAngle) {
             telemetryA.addData("WARNING", "Target out of turret range!");
         }
+        telemetryA.addData("Low Power Mode", lowPowerMode ? "RT: 800 RPM" : "OFF");
 
         // Add shooter telemetry
         telemetryA.addData("", ""); // Empty line
@@ -724,7 +768,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         telemetryA.addData("Front Intake", gamepad1.right_bumper ? "RUNNING" : "STOPPED");
         telemetryA.addData("Back Intake", gamepad1.left_bumper ? "RUNNING" : "STOPPED");
         telemetryA.addData("Launch Gate", gamepad1.left_trigger > 0.1 ? "FIRING" : "RESET");
-        telemetryA.addData("Hood Position", "%.2f", hood1Position);
+        telemetryA.addData("Hood Position", "%.2f", currentHoodPos);
         telemetryA.addData("", "");
         telemetryA.addLine("=== PIDF Tuning ===");
         telemetryA.addData("P", "%.6f", p);
