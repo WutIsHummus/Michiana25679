@@ -56,8 +56,8 @@ public class Test15ball extends PathChainAutoOpMode {
 
         // Servo init
         hood1.setPosition(0.48);
-        turret1.setPosition(0.26);
-        turret2.setPosition(0.26);
+        turret1.setPosition(0.29);
+        turret2.setPosition(0.265);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.5);
 
@@ -84,7 +84,7 @@ public class Test15ball extends PathChainAutoOpMode {
         follower.update();
 
         // keep shooter spun up (tune as needed)
-        run(actions.holdShooterAtRPMclose(1400, 30));
+        run(actions.holdShooterAtRPMclose(1350, 30));
 
         runTasks();
 
@@ -138,17 +138,18 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.421),
                         new Pose(41.903, 58.919),
-                        new Pose(14.889, 64.874)))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                        new Pose(11, 62)))
+                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(150))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
         // Path5: (14.889,64.874) -> (56.792,87.634), heading 180 -> 230 (STOP INTAKE)
         path5 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Pose(14.889, 64.874),
+                .addPath(new BezierCurve(
+                        new Pose(11, 62),
+                        new Pose(24, 60),
                         new Pose(56.792, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
+                .setLinearHeadingInterpolation(Math.toRadians(150), Math.toRadians(230))
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
