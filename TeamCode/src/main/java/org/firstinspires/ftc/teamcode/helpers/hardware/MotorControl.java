@@ -33,7 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
+// import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
 
 public class MotorControl {
 
@@ -271,7 +271,7 @@ public class MotorControl {
 
 
     public static class Lift extends ControlledDevice {
-        public CachingDcMotorEx motor2;
+        public DcMotorEx motor2;
         private boolean nothing = false;
         public static final double p = -0.015, i = 0, d = -0.0003;
         // public static final double GRAVITY_FEEDFORWARD = 0; // Not used in current update
@@ -282,8 +282,10 @@ public class MotorControl {
 
         public Lift(HardwareMap hardwareMap) {
             liftController = new PIDController(p, i, d);
-            motor = new CachingDcMotorEx(hardwareMap.get(DcMotorEx.class, "liftr"), 0.005);
-            motor2 = new CachingDcMotorEx(hardwareMap.get(DcMotorEx.class, "liftl"), 0.005);
+            // motor = new CachingDcMotorEx(hardwareMap.get(DcMotorEx.class, "liftr"), 0.005);
+            // motor2 = new CachingDcMotorEx(hardwareMap.get(DcMotorEx.class, "liftl"), 0.005);
+            motor = hardwareMap.get(DcMotorEx.class, "liftr");
+            motor2 = hardwareMap.get(DcMotorEx.class, "liftl");
             motor2.setDirection(DcMotorSimple.Direction.REVERSE);
             // Assuming RUN_WITHOUT_ENCODER as per original Extendo, adjust if Lift uses encoders differently
             motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);

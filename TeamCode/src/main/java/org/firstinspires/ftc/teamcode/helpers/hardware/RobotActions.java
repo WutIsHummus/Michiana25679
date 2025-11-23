@@ -11,8 +11,9 @@ import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
 import com.arcrobotics.ftclib.controller.PIDFController;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.localization.Pose;
-import com.pedropathing.localization.PoseUpdater;
+import com.pedropathing.geometry.Pose;
+// TODO: PoseUpdater removed in PedroPathing 2.0
+// import com.pedropathing.telemetry.PoseUpdater;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;

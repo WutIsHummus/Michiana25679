@@ -25,6 +25,14 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
     namespace = 'com.qualcomm.ftcrobotcontroller'
+    
+    sourceSets {
+        main {
+            java {
+                exclude '**/SensorOctoQuad*.java'
+            }
+        }
+    }
 }
 
 apply from: '../build.dependencies.gradle'

@@ -4,7 +4,6 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDFController;
-import com.pedropathing.util.Constants;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -17,12 +16,14 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 
-import com.pedropathing.localization.PoseUpdater;
-import com.pedropathing.util.DashboardPoseTracker;
-import com.pedropathing.util.Drawing;
+// TODO: PoseUpdater removed in PedroPathing 2.0
+// import com.pedropathing.telemetry.PoseUpdater;
+// import com.pedropathing.telemetry.DashboardPoseTracker;
+// import com.pedropathing.telemetry.Drawing;
 
 import java.util.List;
 
@@ -39,8 +40,7 @@ import java.util.List;
 @Config
 @TeleOp(name = "Full Testing Limelight")
 public class FullTestingLimelight extends OpMode {
-    private PoseUpdater poseUpdater;
-    private DashboardPoseTracker dashboardPoseTracker;
+    private Follower follower;  // Follower includes Pinpoint localization (PedroPathing 2.0)
     private Telemetry telemetryA;
 
     private DcMotorEx fl, fr, bl, br;
@@ -170,9 +170,21 @@ public class FullTestingLimelight extends OpMode {
      */
     @Override
     public void init() {
-        Constants.setConstants(FConstants.class, LConstants.class);
-        poseUpdater = new PoseUpdater(hardwareMap);
-        dashboardPoseTracker = new DashboardPoseTracker(poseUpdater);
+        // Initialize Follower with Pinpoint localizer (PedroPathing 2.0)
+        follower = Constants.createFollower(hardwareMap);
+        
+        // Try to restore saved pose
+        try {
+            if (org.firstinspires.ftc.teamcode.opmodes.PoseStore.hasSaved()) {
+                follower.setStartingPose(org.firstinspires.ftc.teamcode.opmodes.PoseStore.lastPose);
+            } else {
+                follower.setStartingPose(new Pose(0, 0, 0));
+            }
+        } catch (Exception ignored) {
+            follower.setStartingPose(new Pose(0, 0, 0));
+        }
+        
+        follower.startTeleopDrive();
         
         // Initialize drive motors
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
@@ -261,8 +273,12 @@ public class FullTestingLimelight extends OpMode {
         telemetryA.addLine("Auto-transfer adapts to distance (fast <7ft, slow ≥7ft)");
         telemetryA.update();
 
-        Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
-        Drawing.sendPacket();
+        // TODO: Drawing removed
+        // TODO: PoseUpdater removed
+        // TODO: PoseUpdater removed
+        // // // Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
+        // TODO: Drawing removed
+        // Drawing.sendPacket();
     }
 
     /**
@@ -271,8 +287,8 @@ public class FullTestingLimelight extends OpMode {
      */
     @Override
     public void loop() {
-        poseUpdater.update();
-        dashboardPoseTracker.update();
+        // Update Follower (which updates Pinpoint localization) - PedroPathing 2.0
+        follower.update();
 
         // Drive controls - matching VelocityFinder setup
         double y = -gamepad1.right_stick_y;
@@ -292,10 +308,11 @@ public class FullTestingLimelight extends OpMode {
         bl.setPower(blPower);
         br.setPower(brPower);
 
-        // Get current position
-        double currentX = poseUpdater.getPose().getX();
-        double currentY = poseUpdater.getPose().getY();
-        double currentHeading = poseUpdater.getPose().getHeading();
+        // Get current position from Follower (Pinpoint localization) - PedroPathing 2.0
+        Pose currentPose = follower.getPose();
+        double currentX = currentPose.getX();
+        double currentY = currentPose.getY();
+        double currentHeading = currentPose.getHeading();
         
         // ==================== LIMELIGHT FIELD POSITION & APRILTAG DISTANCE (For Display Only) ====================
         double limelightDistance = 0;
@@ -1088,9 +1105,14 @@ public class FullTestingLimelight extends OpMode {
         
         telemetryA.update();
 
-        Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
-        Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
-        Drawing.sendPacket();
+        // TODO: Drawing removed
+        // Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
+        // TODO: Drawing removed
+        // TODO: PoseUpdater removed
+        // TODO: PoseUpdater removed
+        // // // Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
+        // TODO: Drawing removed
+        // Drawing.sendPacket();
     }
     
     /**

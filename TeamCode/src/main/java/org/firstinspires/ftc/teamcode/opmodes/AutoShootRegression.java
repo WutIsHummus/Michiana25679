@@ -3,10 +3,10 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.roadrunner.Action;
 import com.pedropathing.follower.Follower;
-import com.pedropathing.localization.Pose;
-import com.pedropathing.pathgen.BezierCurve;
-import com.pedropathing.pathgen.PathChain;
-import com.pedropathing.pathgen.Point;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.geometry.BezierCurve;
+import com.pedropathing.paths.PathChain;
+import com.pedropathing.geometry.BezierPoint;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -15,8 +15,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 /**
  * AUTONOMOUS REGRESSION SHOOTING EXAMPLE
@@ -49,7 +48,7 @@ public class AutoShootRegression extends OpMode {
     @Override
     public void init() {
         // Initialize follower
-        follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
+        follower = Constants.createFollower(hardwareMap);
         
         // Initialize shooter hardware
         intakefront = hardwareMap.get(DcMotorEx.class, "intakefront");
@@ -87,9 +86,9 @@ public class AutoShootRegression extends OpMode {
         // Build path - drive to shooting position
         shootingPath = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Point(10, 10, Point.CARTESIAN),
-                        new Point(30, 50, Point.CARTESIAN),
-                        new Point(60, 80, Point.CARTESIAN)
+                        new Pose(10, 10, 0),
+                        new Pose(30, 50, 0),
+                        new Pose(60, 80, 0)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(45))
                 .build();

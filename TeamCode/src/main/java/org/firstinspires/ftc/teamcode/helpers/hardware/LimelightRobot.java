@@ -1,16 +1,15 @@
 package org.firstinspires.ftc.teamcode.helpers.hardware;
 
 import com.acmerobotics.dashboard.config.Config;
-import com.pedropathing.localization.Pose;
-import com.pedropathing.localization.PoseUpdater;
-import com.pedropathing.util.DashboardPoseTracker;
-import com.pedropathing.util.Drawing;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.follower.Follower;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 /**
  * LimelightRobot - Similar to BarrelRobot but uses Limelight for relocalization
@@ -20,8 +19,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 public class LimelightRobot {
     
     private Limelight3A limelight;
-    public PoseUpdater poseUpdater;
-    private DashboardPoseTracker dashboardPoseTracker;
+    public Follower follower;  // Follower includes Pinpoint localization (PedroPathing 2.0)
     
     private HardwareMap hardwareMap;
     private Telemetry telemetry;
@@ -34,20 +32,21 @@ public class LimelightRobot {
         this.hardwareMap = hardwareMap;
         this.telemetry = telemetry;
         
-        // Create PoseUpdater (like BarrelRobot creates follower)
-        poseUpdater = new PoseUpdater(hardwareMap);
-        dashboardPoseTracker = new DashboardPoseTracker(poseUpdater);
+        // Initialize Follower with Pinpoint localizer (PedroPathing 2.0)
+        follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(new Pose(0, 0, 0));
+        follower.startTeleopDrive();
         
         this.initLimelight();
     }
     
     /**
-     * Call this every loop - updates odometry and draws (NO auto-relocalization)
+     * Call this every loop - updates odometry (NO auto-relocalization)
+     * PedroPathing 2.0 - uses Follower for Pinpoint localization
      */
     public void onTick() {
-        poseUpdater.update();
-        dashboardPoseTracker.update();
-        drawCurrentAndHistory();
+        // Update Follower (which updates Pinpoint localization) - PedroPathing 2.0
+        follower.update();
     }
     
     /**
@@ -150,34 +149,30 @@ public class LimelightRobot {
         // Normalize heading to 0 to 2π (same as BarrelRobot)
         pinpointHeading = (pinpointHeading + 2 * Math.PI) % (2 * Math.PI);
         
-        // Update pose (same pattern as BarrelRobot)
-        poseUpdater.setPose(
-                new Pose(
-                        pinpointX,
-                        pinpointY,
-                        pinpointHeading
-                )
-        );
+        // Set pose using Follower (PedroPathing 2.0)
+        follower.setPose(new Pose(pinpointX, pinpointY, pinpointHeading));
     }
     
     /**
      * This function adds a bezier line of the robot's historical positions. Call this each frame
      */
+    // TODO: Drawing and PoseUpdater removed in PedroPathing 2.0
     private void drawCurrentAndHistory() {
-        Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
-        drawCurrent();
+        // Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
+        // drawCurrent();
     }
     
     /**
      * This function updates the Robot's position on the field to what the PoseUpdater thinks it's position is.
      */
     private void drawCurrent() {
-        try {
-            Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
-            Drawing.sendPacket();
-        } catch (Exception e) {
-            throw new RuntimeException("Drawing failed " + e);
-        }
+        // TODO: Drawing and PoseUpdater removed in PedroPathing 2.0
+        // try {
+        //     Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
+        //     Drawing.sendPacket();
+        // } catch (Exception e) {
+        //     throw new RuntimeException("Drawing failed " + e);
+        // }
     }
 }
 

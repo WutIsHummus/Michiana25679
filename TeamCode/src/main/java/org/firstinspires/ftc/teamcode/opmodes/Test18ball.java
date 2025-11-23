@@ -7,15 +7,14 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 
 import com.pedropathing.follower.Follower;
-import com.pedropathing.localization.Pose;
-import com.pedropathing.pathgen.BezierCurve;
-import com.pedropathing.pathgen.BezierLine;
-import com.pedropathing.pathgen.PathChain;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.geometry.BezierCurve;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.paths.PathChain;
 
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 @Autonomous(name = "Test18ball")
 public class Test18ball extends PathChainAutoOpMode {
@@ -33,7 +32,7 @@ public class Test18ball extends PathChainAutoOpMode {
     @Override
     public void init() {
         pathTimer.resetTimer();
-        follower = new Follower(hardwareMap, FConstants.class, LConstants.class);
+        follower = Constants.createFollower(hardwareMap);
 
         intakefront = hardwareMap.get(DcMotor.class, "intakefront");
         intakeback  = hardwareMap.get(DcMotor.class, "intakeback");
@@ -132,7 +131,8 @@ public class Test18ball extends PathChainAutoOpMode {
                         new Pose(26, 84),
                         new Pose(62, 91)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
-                .setZeroPowerAccelerationMultiplier(8)
+                // TODO: setZeroPowerAccelerationMultiplier removed in PedroPathing 2.0
+                // .setZeroPowerAccelerationMultiplier(8)
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
@@ -153,7 +153,8 @@ public class Test18ball extends PathChainAutoOpMode {
                         new Pose(63, 44),
                         new Pose(62, 91)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
-                .setZeroPowerAccelerationMultiplier(8)
+                // TODO: setZeroPowerAccelerationMultiplier removed in PedroPathing 2.0
+                // .setZeroPowerAccelerationMultiplier(8)
 
                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();

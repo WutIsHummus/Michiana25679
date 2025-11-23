@@ -2,8 +2,7 @@ package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.pedropathing.localization.Pose;
-import com.pedropathing.util.Constants;
+import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -12,8 +11,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.helpers.hardware.LimelightRobot;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 /**
  * Example OpMode using LimelightRobot - follows the BarrelRobot pattern
@@ -32,7 +30,6 @@ public class LimelightRobotTest extends OpMode {
         telemetryA.setMsTransmissionInterval(25);
         
         // Initialize PedroPathing constants
-        Constants.setConstants(FConstants.class, LConstants.class);
         
         // Create LimelightRobot (similar to BarrelRobot)
         // It creates PoseUpdater internally, just like BarrelRobot creates follower
@@ -91,10 +88,11 @@ public class LimelightRobotTest extends OpMode {
         bl.setPower(blPower);
         br.setPower(brPower);
         
-        // Display coordinate comparison
-        double pinpointX = robot.poseUpdater.getPose().getX();
-        double pinpointY = robot.poseUpdater.getPose().getY();
-        double pinpointHeading = robot.poseUpdater.getPose().getHeading();
+        // Display coordinate comparison - Get from Follower (PedroPathing 2.0)
+        Pose pinpointPose = robot.follower.getPose();
+        double pinpointX = pinpointPose.getX();
+        double pinpointY = pinpointPose.getY();
+        double pinpointHeading = pinpointPose.getHeading();
         
         telemetryA.addData("", "");
         telemetryA.addLine("╔════════════════════════════════════════════╗");

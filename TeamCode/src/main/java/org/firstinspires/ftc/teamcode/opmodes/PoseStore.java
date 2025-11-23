@@ -1,6 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
-import com.pedropathing.localization.Pose;
+import com.pedropathing.geometry.Pose;
 
 public class PoseStore {
     public static Pose lastPose = null;

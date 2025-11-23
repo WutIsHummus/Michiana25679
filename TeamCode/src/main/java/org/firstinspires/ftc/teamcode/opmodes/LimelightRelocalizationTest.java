@@ -3,11 +3,11 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
-import com.pedropathing.localization.Pose;
-import com.pedropathing.localization.PoseUpdater;
-import com.pedropathing.util.Constants;
-import com.pedropathing.util.DashboardPoseTracker;
-import com.pedropathing.util.Drawing;
+import com.pedropathing.geometry.Pose;
+// TODO: PoseUpdater removed in PedroPathing 2.0
+// import com.pedropathing.telemetry.PoseUpdater;
+// import com.pedropathing.telemetry.DashboardPoseTracker;
+// import com.pedropathing.telemetry.Drawing;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -19,15 +19,14 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
+import com.pedropathing.follower.Follower;
 
 @Config
 @TeleOp(name = "Limelight Relocalization Test")
 public class LimelightRelocalizationTest extends OpMode {
     
-    private PoseUpdater poseUpdater;
-    private DashboardPoseTracker dashboardPoseTracker;
+    private Follower follower;  // Follower includes Pinpoint localization (PedroPathing 2.0)
     private Telemetry telemetryA;
     
     private DcMotorEx fl, fr, bl, br;
@@ -52,10 +51,10 @@ public class LimelightRelocalizationTest extends OpMode {
         telemetry.setMsTransmissionInterval(25);
         telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
         
-        // Initialize PedroPathing localization
-        Constants.setConstants(FConstants.class, LConstants.class);
-        poseUpdater = new PoseUpdater(hardwareMap);
-        dashboardPoseTracker = new DashboardPoseTracker(poseUpdater);
+        // Initialize Follower with Pinpoint localizer (PedroPathing 2.0)
+        follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(new Pose(0, 0, 0));
+        follower.startTeleopDrive();
         
         // Initialize drive motors
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
@@ -108,18 +107,22 @@ public class LimelightRelocalizationTest extends OpMode {
     @Override
     public void loop() {
         // Update odometry
-        poseUpdater.update();
-        dashboardPoseTracker.update();
+        // Update Follower (which updates Pinpoint localization) - PedroPathing 2.0
+        follower.update();
         
-        Pose currentPose = poseUpdater.getPose();
+        // Get current position from Follower (Pinpoint localization)
+        Pose currentPose = follower.getPose();
         double currentX = currentPose.getX();
         double currentY = currentPose.getY();
         double currentHeading = currentPose.getHeading();
         
         // Update dashboard
-        Drawing.drawRobot(currentPose, "#4CAF50");
-        Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50FF");
-        Drawing.sendPacket();
+        // TODO: Drawing removed
+        // Drawing.drawRobot(currentPose, "#4CAF50");
+        // TODO: Drawing removed
+        // Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50FF");
+        // TODO: Drawing removed
+        // Drawing.sendPacket();
 
         // ==================== DRIVE CONTROLS ====================
         double y = -gamepad1.right_stick_y;
@@ -289,7 +292,9 @@ public class LimelightRelocalizationTest extends OpMode {
         double limelightHeading = Math.toRadians(botpose.getOrientation().getYaw());  // degrees to radians
         
         // Store poses for comparison
-        lastOdometryPose = poseUpdater.getPose();
+        // TODO: PoseUpdater removed
+        // TODO: PoseUpdater removed
+        // // lastOdometryPose = poseUpdater.getPose();
         
         // Update PoseUpdater with Limelight's pose estimate
         try {
@@ -301,8 +306,8 @@ public class LimelightRelocalizationTest extends OpMode {
             
             lastLimelightPose = limelightPose;
             
-            // Update the pose through the localizer
-            poseUpdater.getLocalizer().setPose(limelightPose);
+            // Update the pose using Follower (PedroPathing 2.0)
+            follower.setPose(limelightPose);
             
             relocalizeSuccesses++;
             return true;

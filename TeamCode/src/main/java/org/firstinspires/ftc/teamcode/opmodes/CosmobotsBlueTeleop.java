@@ -4,10 +4,10 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDFController;
-import com.pedropathing.localization.PoseUpdater;
-import com.pedropathing.util.Constants;
-import com.pedropathing.util.DashboardPoseTracker;
-import com.pedropathing.util.Drawing;
+// TODO: PoseUpdater removed in PedroPathing 2.0
+// import com.pedropathing.telemetry.PoseUpdater;
+// import com.pedropathing.telemetry.DashboardPoseTracker;
+// import com.pedropathing.telemetry.Drawing;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
@@ -20,8 +20,9 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.FConstants;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.LConstants;
+import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.Pose;
 
 import java.util.List;
 
@@ -38,8 +39,7 @@ import java.util.List;
 @Config
 @TeleOp(name = "1 - Cosmobots - Blue")
 public class CosmobotsBlueTeleop extends OpMode {
-    private PoseUpdater poseUpdater;
-    private DashboardPoseTracker dashboardPoseTracker;
+    private Follower follower;  // Follower includes Pinpoint localization
     private Telemetry telemetryA;
 
     private DcMotorEx fl, fr, bl, br;
@@ -163,21 +163,27 @@ public class CosmobotsBlueTeleop extends OpMode {
 
 
     /**
-     * This initializes the PoseUpdater, the mecanum drive motors, and the FTC Dashboard telemetry.
+     * This initializes the Follower (with Pinpoint localization), the mecanum drive motors, and the FTC Dashboard telemetry.
      */
     @Override
     public void init() {
-        Constants.setConstants(FConstants.class, LConstants.class);
-        poseUpdater = new PoseUpdater(hardwareMap);
-        dashboardPoseTracker = new DashboardPoseTracker(poseUpdater);
-
+        // Initialize Follower with Pinpoint localizer (configured in Constants.java)
+        follower = Constants.createFollower(hardwareMap);
+        
+        // Try to restore saved pose
         try {
             if (PoseStore.hasSaved()) {
-                poseUpdater.setPose(PoseStore.lastPose);
+                follower.setStartingPose(PoseStore.lastPose);
+            } else {
+                follower.setStartingPose(new Pose(0, 0, 0));
             }
         } catch (Exception ignored) {
-            // Pose restore failed — ignore and continue with live odometry
+            // Pose restore failed — use default starting pose
+            follower.setStartingPose(new Pose(0, 0, 0));
         }
+        
+        // Start teleop drive mode
+        follower.startTeleopDrive();
 
 
 
@@ -258,8 +264,12 @@ public class CosmobotsBlueTeleop extends OpMode {
         telemetryA.update();
 
 
-        Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
-        Drawing.sendPacket();
+        // TODO: Drawing removed
+        // TODO: PoseUpdater removed
+        // TODO: PoseUpdater removed
+        // // // Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
+        // TODO: Drawing removed
+        // Drawing.sendPacket();
     }
 
     /**
@@ -292,14 +302,15 @@ public class CosmobotsBlueTeleop extends OpMode {
         lastDpadLeft  = dpadLeft;
         lastDpadRight = dpadRight;
 
-        poseUpdater.update();
-        dashboardPoseTracker.update();
+        // Update Follower (which updates Pinpoint localization)
+        follower.update();
 
         // --- snap-to-pose: gamepad1.x ---
         boolean xPressed = gamepad1.x;
         if (xPressed && !lastX) {
             double snapHeadingRad = Math.toRadians(SNAP_HEADING_DEG);
-            poseUpdater.setPose(new com.pedropathing.localization.Pose(SNAP_X, SNAP_Y, snapHeadingRad));
+            // Set pose using Follower
+            follower.setPose(new Pose(SNAP_X, SNAP_Y, snapHeadingRad));
         }
         lastX = xPressed;
 
@@ -321,9 +332,10 @@ public class CosmobotsBlueTeleop extends OpMode {
         bl.setPower(blPower);
         br.setPower(brPower);
 
-        // Get current position
-        double currentX = poseUpdater.getPose().getX();
-        double currentY = poseUpdater.getPose().getY();
+        // Get current position from Follower (Pinpoint localization)
+        Pose currentPose = follower.getPose();
+        double currentX = currentPose.getX();
+        double currentY = currentPose.getY();
 
         // Calculate distance and angle to target (for turret aiming)
         double deltaX = targetX - currentX;
@@ -335,7 +347,7 @@ public class CosmobotsBlueTeleop extends OpMode {
 
         // Calculate angle relative to robot (turret angle needed)
         // Subtract robot heading to get relative angle
-        double currentHeading = poseUpdater.getPose().getHeading();
+        double currentHeading = currentPose.getHeading();
         double turretAngle = angleToTargetField - currentHeading;
 
         // Normalize angle to [-PI, PI]
@@ -844,9 +856,14 @@ public class CosmobotsBlueTeleop extends OpMode {
 
         telemetryA.update();
 
-        Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
-        Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
-        Drawing.sendPacket();
+        // TODO: Drawing removed
+        // Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
+        // TODO: Drawing removed
+        // TODO: PoseUpdater removed
+        // TODO: PoseUpdater removed
+        // // // Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
+        // TODO: Drawing removed
+        // Drawing.sendPacket();
     }
 
     /**

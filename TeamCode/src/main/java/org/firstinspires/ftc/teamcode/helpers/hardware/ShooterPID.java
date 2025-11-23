@@ -9,7 +9,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
-import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
+// import dev.frozenmilk.dairy.cachinghardware.CachingDcMotorEx;
 
 @Config
 @TeleOp(name = "Shooter PID")
@@ -29,7 +29,8 @@ public class ShooterPID extends OpMode {
     private PIDFController pidf;
 
     // Motors
-    private CachingDcMotorEx motorR, motorL;
+    // private CachingDcMotorEx motorR, motorL;
+    private DcMotorEx motorR, motorL;
     private DcMotorEx motorREx, motorLEx;
 
     private static double rpmToTicksPerSec(double rpm) {
@@ -49,8 +50,10 @@ public class ShooterPID extends OpMode {
         DcMotorEx rawR = hardwareMap.get(DcMotorEx.class, "shootr");
         DcMotorEx rawL = hardwareMap.get(DcMotorEx.class, "shootl");
 
-        motorR = new CachingDcMotorEx(rawR);
-        motorL = new CachingDcMotorEx(rawL);
+        // motorR = new CachingDcMotorEx(rawR);
+        // motorL = new CachingDcMotorEx(rawL);
+        motorR = rawR;
+        motorL = rawL;
 
         motorREx = rawR;
         motorLEx = rawL;
