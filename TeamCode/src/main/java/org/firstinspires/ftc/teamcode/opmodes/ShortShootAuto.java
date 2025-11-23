@@ -126,9 +126,7 @@ public class ShortShootAuto extends PathChainAutoOpMode {
         PathChainTask path2Task = new PathChainTask(path2, 0.5) // minimal wait
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(
-                                actions.launch3()   // fire 3 at 900 RPM
-                        )
+                        actions.launch3()   // fire 3 at 900 RPM
                 )
                 .setMaxWaitTime(5.0)  // safety cap
                 .setWaitCondition(() -> true);

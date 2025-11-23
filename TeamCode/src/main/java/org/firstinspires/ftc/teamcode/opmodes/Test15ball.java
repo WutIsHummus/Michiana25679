@@ -206,9 +206,7 @@ public class Test15ball extends PathChainAutoOpMode {
         PathChainTask path1Task = new PathChainTask(path1, 1.5)
                 .addWaitAction(
                         0,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -221,9 +219,7 @@ public class Test15ball extends PathChainAutoOpMode {
         PathChainTask path3Task = new PathChainTask(path3, 1.5)
                 .addWaitAction(
                         0,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -236,9 +232,7 @@ public class Test15ball extends PathChainAutoOpMode {
         PathChainTask path5Task = new PathChainTask(path5, 1.5)
                 .addWaitAction(
                         0,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -251,9 +245,7 @@ public class Test15ball extends PathChainAutoOpMode {
         PathChainTask path7Task = new PathChainTask(path7, 1.5)
                 .addWaitAction(
                         0,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -266,9 +258,7 @@ public class Test15ball extends PathChainAutoOpMode {
         PathChainTask path9Task = new PathChainTask(path9, 1.5)
                 .addWaitAction(
                         0,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);

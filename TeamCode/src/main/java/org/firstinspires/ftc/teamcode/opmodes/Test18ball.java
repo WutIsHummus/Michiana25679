@@ -225,7 +225,7 @@ public class Test18ball extends PathChainAutoOpMode {
         PathChainTask p1 = new PathChainTask(path1, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(actions.launch3())
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -236,7 +236,7 @@ public class Test18ball extends PathChainAutoOpMode {
         PathChainTask p3 = new PathChainTask(path3, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(actions.launch3())
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -247,7 +247,7 @@ public class Test18ball extends PathChainAutoOpMode {
         PathChainTask p5 = new PathChainTask(path5, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(actions.launch3())
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -258,7 +258,7 @@ public class Test18ball extends PathChainAutoOpMode {
         PathChainTask p7 = new PathChainTask(path7, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(actions.launch3())
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -269,7 +269,7 @@ public class Test18ball extends PathChainAutoOpMode {
         PathChainTask p9 = new PathChainTask(path9, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(actions.launch3())
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -280,7 +280,7 @@ public class Test18ball extends PathChainAutoOpMode {
         PathChainTask p11 = new PathChainTask(path11, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(actions.launch3())
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);

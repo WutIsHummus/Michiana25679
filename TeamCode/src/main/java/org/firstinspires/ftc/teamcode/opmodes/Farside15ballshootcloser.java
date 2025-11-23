@@ -203,7 +203,7 @@ public class Farside15ballshootcloser extends PathChainAutoOpMode {
 
         // Shoot after Path 1
         tasks.add(new PathChainTask(path1, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true));
 
@@ -211,7 +211,7 @@ public class Farside15ballshootcloser extends PathChainAutoOpMode {
 
         // Shoot after Path 3
         tasks.add(new PathChainTask(path3, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true));
 
@@ -219,7 +219,7 @@ public class Farside15ballshootcloser extends PathChainAutoOpMode {
 
         // Shoot after Path 5
         tasks.add(new PathChainTask(path5, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true));
 
@@ -227,7 +227,7 @@ public class Farside15ballshootcloser extends PathChainAutoOpMode {
 
         // Shoot after Path 7
         tasks.add(new PathChainTask(path7, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true));
 
@@ -235,7 +235,7 @@ public class Farside15ballshootcloser extends PathChainAutoOpMode {
 
         // Shoot after Path 9 (final)
         tasks.add(new PathChainTask(path9, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true));
         addPath(path10, 0);

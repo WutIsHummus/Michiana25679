@@ -200,7 +200,7 @@ public class FarRedShootFarther extends PathChainAutoOpMode {
 
         // Shoot after Path 1
         PathChainTask path1Task = new PathChainTask(path1, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path1Task);
@@ -209,7 +209,7 @@ public class FarRedShootFarther extends PathChainAutoOpMode {
 
         // Shoot after Path 3
         PathChainTask path3Task = new PathChainTask(path3, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path3Task);
@@ -218,7 +218,7 @@ public class FarRedShootFarther extends PathChainAutoOpMode {
 
         // Shoot after Path 6
         PathChainTask path6Task = new PathChainTask(path6, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path6Task);
@@ -227,7 +227,7 @@ public class FarRedShootFarther extends PathChainAutoOpMode {
 
         // Shoot after Path 8
         PathChainTask path8Task = new PathChainTask(path8, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path8Task);
@@ -236,7 +236,7 @@ public class FarRedShootFarther extends PathChainAutoOpMode {
 
         // Shoot after Path 10
         PathChainTask path10Task = new PathChainTask(path10, 1.5)
-                .addWaitAction(() -> true, new SequentialAction(actions.launch3()))
+                .addWaitAction(() -> true, actions.launch3())
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path10Task);

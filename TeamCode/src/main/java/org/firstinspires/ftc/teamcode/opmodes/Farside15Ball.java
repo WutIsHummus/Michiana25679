@@ -205,9 +205,7 @@ public class Farside15Ball extends PathChainAutoOpMode {
         PathChainTask path1Task = new PathChainTask(path1, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -219,9 +217,7 @@ public class Farside15Ball extends PathChainAutoOpMode {
         PathChainTask path3Task = new PathChainTask(path3, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -234,9 +230,7 @@ public class Farside15Ball extends PathChainAutoOpMode {
         PathChainTask path6Task = new PathChainTask(path6, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -248,9 +242,7 @@ public class Farside15Ball extends PathChainAutoOpMode {
         PathChainTask path8Task = new PathChainTask(path8, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -262,9 +254,7 @@ public class Farside15Ball extends PathChainAutoOpMode {
         PathChainTask path10Task = new PathChainTask(path10, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(
-                                actions.launch3()
-                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);

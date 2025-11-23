@@ -223,8 +223,7 @@ public class DecodeTest extends PathChainAutoOpMode {
         PathChainTask path3Task = new PathChainTask(path3, 1.5)
                 .addWaitAction(
                         () -> true,
-                        new SequentialAction(
-                        actions.launch3()                        )
+                        actions.launch3()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
