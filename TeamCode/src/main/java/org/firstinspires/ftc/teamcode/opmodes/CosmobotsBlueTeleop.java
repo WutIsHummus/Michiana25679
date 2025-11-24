@@ -106,11 +106,11 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double hood1Position = 0.54;
 
     // Long range PIDF (>= 6 feet)
-    public static double pLong = 0.005;
+    public static double pLong = 0.008;
     public static double iLong = 0.0;
-    public static double dLong = 0.0001;
+    public static double dLong = 0;
     public static double fLong = 0.00089;
-    public static double kVLong = 0.0008;
+    public static double kVLong = 0;
     public static double kSLong = 0.01;
     public static double I_ZONE_LONG = 250.0;
     public static double hood1PositionLong = 0.45;
@@ -144,7 +144,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     private boolean lastY = false;
 
     // --- Hood regression (distance-based) ---
-    public static double HOOD_MIN_POS = 0.45;      // flattest shot (far)
+    public static double HOOD_MIN_POS = 0.47;      // flattest shot (far)
     public static double HOOD_MAX_POS = 0.54;      // highest arc (close)
     public static double HOOD_MIN_DIST_FT = 0.5;   // start of interpolation range
     public static double HOOD_MAX_DIST_FT = 7.0;   // end of interpolation range
@@ -159,6 +159,16 @@ public class CosmobotsBlueTeleop extends OpMode {
     private boolean lastX = false;        // edge detector for pose snap
     private boolean lastDpadLeft = false;
     private boolean lastDpadRight = false;
+    // LED strips (GoBILDA PWM lights)
+    private Servo led1;
+    private Servo led2;
+
+    // LED color positions (from GoBILDA chart)
+    public static double LED_OFF    = 0.0;
+    public static double LED_RED    = 0.277;
+    public static double LED_YELLOW = 0.388;
+    public static double LED_GREEN  = 0.500;
+    public static double LED_BLUE   = 0.611;
 
 
 
@@ -198,6 +208,8 @@ public class CosmobotsBlueTeleop extends OpMode {
         fr.setDirection(DcMotorSimple.Direction.FORWARD);
         br.setDirection(DcMotorSimple.Direction.FORWARD);
 
+
+
         // Initialize turret servos
         turret1 = hardwareMap.get(Servo.class, "turret1");
         turret2 = hardwareMap.get(Servo.class, "turret2");
@@ -216,6 +228,8 @@ public class CosmobotsBlueTeleop extends OpMode {
         shootl.setDirection(DcMotorSimple.Direction.REVERSE);
         intakeback.setDirection(DcMotorSimple.Direction.REVERSE);
         intakefront.setDirection(DcMotorSimple.Direction.REVERSE);
+        led1 = hardwareMap.get(Servo.class, "led1");
+        led2 = hardwareMap.get(Servo.class, "led2");
 
         // Setup all motors
         for (DcMotorEx m : new DcMotorEx[]{fl, fr, bl, br, intakefront, intakeback, shootr, shootl}) {
@@ -235,7 +249,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         // Set initial servo positions
         launchgate.setPosition(0.5);
         hood1.setPosition(hood1Position);
-
+        setLedColor(LED_GREEN);
         telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
         telemetryA.setMsTransmissionInterval(11);
 
@@ -278,6 +292,8 @@ public class CosmobotsBlueTeleop extends OpMode {
      */
     @Override
     public void loop() {
+
+
 
         // --- Turret trim controls: D-pad LEFT = -3°, RIGHT = +3° (edge-triggered) ---
         boolean dpadLeft  = gamepad1.dpad_left;
@@ -400,6 +416,17 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
 
 
+// Far vs near for auto-shoot timing
+        double deltaGoalXForTiming = goalZoneX - currentX;
+        double deltaGoalYForTiming = goalZoneY - currentY;
+        double distanceFeetForTiming = Math.sqrt(
+                deltaGoalXForTiming * deltaGoalXForTiming +
+                        deltaGoalYForTiming * deltaGoalYForTiming
+        ) / 12.0;
+
+// "Far" shots: double the time between shots
+        boolean isFarForShots = distanceFeetForTiming >= 6.0;
+        double shotTimeScale = isFarForShots ? 2.0 : 1.0;
 
         // ==================== AUTO-SHOOT CONTROL ====================
         // Detect A button press for auto-shoot sequence
@@ -418,7 +445,7 @@ public class CosmobotsBlueTeleop extends OpMode {
             switch (shootState) {
                 case 0: // Spin up shooter
                     shootStatus = "Spinning up...";
-                    if (shootTimer.seconds() > 1.0) {
+                    if (shootTimer.seconds() > 1.0) {   // keep spinup the same
                         shootState = 1;
                         shootTimer.reset();
                     }
@@ -428,7 +455,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     shootStatus = "Starting intakes...";
                     intakefront.setPower(-1.0);
                     intakeback.setPower(-1.0);
-                    if (shootTimer.seconds() > 0.1) {
+                    if (shootTimer.seconds() > 0.1) {   // keep intake start the same
                         shootState = 2;
                         shootTimer.reset();
                     }
@@ -437,7 +464,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                 case 2: // Fire shot 1
                     shootStatus = "Firing shot 1/3";
                     launchgate.setPosition(0.8);
-                    if (shootTimer.seconds() > 0.2) {
+                    if (shootTimer.seconds() > 0.2 * shotTimeScale) {
                         shootState = 3;
                         shootTimer.reset();
                     }
@@ -446,7 +473,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                 case 3: // Reset gate 1
                     shootStatus = "Reset 1/3";
                     launchgate.setPosition(0.5);
-                    if (shootTimer.seconds() > 0.3) {
+                    if (shootTimer.seconds() > 0.3 * shotTimeScale) {
                         shootState = 4;
                         shootTimer.reset();
                     }
@@ -455,7 +482,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                 case 4: // Fire shot 2
                     shootStatus = "Firing shot 2/3";
                     launchgate.setPosition(0.8);
-                    if (shootTimer.seconds() > 0.2) {
+                    if (shootTimer.seconds() > 0.2 * shotTimeScale) {
                         shootState = 5;
                         shootTimer.reset();
                     }
@@ -464,7 +491,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                 case 5: // Reset gate 2
                     shootStatus = "Reset 2/3";
                     launchgate.setPosition(0.5);
-                    if (shootTimer.seconds() > 0.3) {
+                    if (shootTimer.seconds() > 0.3 * shotTimeScale) {
                         shootState = 6;
                         shootTimer.reset();
                     }
@@ -473,7 +500,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                 case 6: // Fire shot 3
                     shootStatus = "Firing shot 3/3";
                     launchgate.setPosition(0.8);
-                    if (shootTimer.seconds() > 0.2) {
+                    if (shootTimer.seconds() > 0.2 * shotTimeScale) {
                         shootState = 7;
                         shootTimer.reset();
                     }
@@ -484,11 +511,12 @@ public class CosmobotsBlueTeleop extends OpMode {
                     launchgate.setPosition(0.5);
                     intakefront.setPower(0);
                     intakeback.setPower(0);
-                    if (shootTimer.seconds() > 0.2) {
+                    if (shootTimer.seconds() > 0.2 * shotTimeScale) {
                         shooting = false;
                         shootState = 0;
                     }
                     break;
+
             }
         }
 
@@ -719,6 +747,31 @@ public class CosmobotsBlueTeleop extends OpMode {
             // Manual launch gate default when not in sequence
             launchgate.setPosition(0.5);
         }
+// ---------- LED STATE LOGIC ----------
+// Priority:
+// 1) Red  = shooter ON but NOT at target RPM
+// 2) Blue = auto-shooting or auto-transfer sequence
+// 3) Yellow = intaking with either bumper
+// 4) Green = normal
+
+        boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
+        boolean intakeActive  = gamepad1.left_bumper || gamepad1.right_bumper;
+
+        double ledColor = LED_GREEN;  // default
+
+        if (shooterOn && !atTargetSpeed) {
+            // Shooter running but not at speed yet
+            ledColor = LED_RED;
+        } else if (shooting || autoTransfer) {
+            // Actively firing sequence
+            ledColor = LED_BLUE;
+        } else if (intakeActive) {
+            // Just intaking
+            ledColor = LED_YELLOW;
+        }
+
+        setLedColor(ledColor);
+// ---------- END LED STATE LOGIC ----------
 
 
         telemetryA.addData("x", currentX);
@@ -880,6 +933,11 @@ public class CosmobotsBlueTeleop extends OpMode {
     private static double ticksPerSecToRPM(double tps) {
         double motorRPM = (tps / TICKS_PER_REV) * 60.0;
         return motorRPM / GEAR_RATIO;
+    }
+    // Set both LED strips to the same color
+    private void setLedColor(double position) {
+        if (led1 != null) led1.setPosition(position);
+        if (led2 != null) led2.setPosition(position);
     }
 
     @Override

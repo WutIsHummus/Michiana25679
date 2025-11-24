@@ -27,7 +27,7 @@ public class Test15ball extends PathChainAutoOpMode {
 
     private RobotActions actions;
 
-    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10;
+    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11, path12;
 
     @Override
     public void init() {
@@ -55,8 +55,8 @@ public class Test15ball extends PathChainAutoOpMode {
 
         // Servo init
         hood1.setPosition(0.48);
-        turret1.setPosition(0.29);
-        turret2.setPosition(0.265);
+        turret1.setPosition(0.275);
+        turret2.setPosition(0.25);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.5);
 
@@ -86,7 +86,13 @@ public class Test15ball extends PathChainAutoOpMode {
         run(actions.holdShooterAtRPMclose(1350, 30));
 
         runTasks();
-
+        if (currentTaskIndex < tasks.size() && taskPhase == 1) {
+            BaseTask current = tasks.get(currentTaskIndex);
+            if (current instanceof PathChainTask) {
+                Pose p = follower.getPose();
+                follower.holdPoint(p); // effectively holdPoint(currentX, currentY, heading)
+            }
+        }
         double vR   = shootr.getVelocity();
         double vL   = shootl.getVelocity();
         double rpmR = (vR / 28.0) * 60.0;
@@ -112,13 +118,14 @@ public class Test15ball extends PathChainAutoOpMode {
                         new Pose(56.000, 8.000),
                         new Pose(56.579, 87.421)))
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(230))
+                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
                 .build();
 
         // Path2: (56.579,87.421) -> (15.315,85.719), heading 230 -> 180 (INTAKE)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.421),
-                        new Pose(15.315, 85.719)))
+                        new Pose(20, 82)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
@@ -126,10 +133,11 @@ public class Test15ball extends PathChainAutoOpMode {
         // Path3: (15.315,85.719) -> (56.792,87.421), heading 180 -> 230 (STOP INTAKE)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(15.315, 85.719),
+                        new Pose(20, 82),
                         new Pose(56.792, 87.421)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
-                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
                 .build();
 
         // Path4: (56.792,87.421) -> (14.889,64.874) via (41.903,58.919), heading 230 -> 180 (INTAKE)
@@ -137,7 +145,7 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.421),
                         new Pose(41.903, 58.919),
-                        new Pose(11, 62)))
+                        new Pose(14, 52)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(150))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
@@ -145,11 +153,12 @@ public class Test15ball extends PathChainAutoOpMode {
         // Path5: (14.889,64.874) -> (56.792,87.634), heading 180 -> 230 (STOP INTAKE)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(11, 62),
-                        new Pose(24, 60),
+                        new Pose(14, 52),
+                        new Pose(24, 50),
                         new Pose(56.792, 87.634)))
                 .setLinearHeadingInterpolation(Math.toRadians(150), Math.toRadians(230))
-                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.7, () -> run(actions.stopIntake()))
                 .build();
 
         // Path6: (56.792,87.634) -> (15.953,35.734) via (54.665,35.734), heading 230 -> 180 (INTAKE)
@@ -157,7 +166,7 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.634),
                         new Pose(54.665, 35.734),
-                        new Pose(15.953, 35.734)))
+                        new Pose(10, 28)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
@@ -165,10 +174,11 @@ public class Test15ball extends PathChainAutoOpMode {
         // Path7: (15.953,35.734) -> (56.579,87.634), heading 180 -> 230 (STOP INTAKE)
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(15.953, 35.734),
+                        new Pose(10, 28),
                         new Pose(56.579, 87.634)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
-                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.7, () -> run(actions.stopIntake()))
                 .build();
 
         // Path8: (56.579,87.634) -> (11.486,11.273), heading 230 -> 250 (INTAKE)
@@ -186,10 +196,30 @@ public class Test15ball extends PathChainAutoOpMode {
                         new Pose(11.486, 11.273),
                         new Pose(56.579, 87.634)))
                 .setLinearHeadingInterpolation(Math.toRadians(250), Math.toRadians(230))
-                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
                 .build();
 
         // Path10: (56.579,87.634) -> (46.157,76.360), heading 230 -> 230 (JUST DRIVE)
+
+        path11 = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(56.579, 87.634),
+                        new Pose(11.486, 11.273)))
+                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(250))
+                .addParametricCallback(0, () -> run(actions.startIntake()))
+                .build();
+
+        // Path9: (11.486,11.273) -> (56.579,87.634), heading 250 -> 230 (STOP INTAKE)
+        path12 = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(11.486, 11.273),
+                        new Pose(56.579, 87.634)))
+                .setLinearHeadingInterpolation(Math.toRadians(250), Math.toRadians(230))
+                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .build();
+
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.634),
@@ -203,36 +233,36 @@ public class Test15ball extends PathChainAutoOpMode {
         tasks.clear();
 
         // Shoot after Path1 (preload)
-        PathChainTask path1Task = new PathChainTask(path1, 1.5)
-                .addWaitAction(
-                        0,
-                        actions.launch3()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
+        PathChainTask path1Task = new PathChainTask(path1, 1);
+//                .addWaitAction(
+//                        0,
+//                        actions.launch3faster()
+//                )
+//                .setMaxWaitTime(6.0)
+//                .setWaitCondition(() -> true);
         tasks.add(path1Task);
 
         // Path2: intake only
         addPath(path2, 0);
 
         // Shoot after Path3
-        PathChainTask path3Task = new PathChainTask(path3, 1.5)
-                .addWaitAction(
-                        0,
-                        actions.launch3()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
+        PathChainTask path3Task = new PathChainTask(path3, 1);
+//                .addWaitAction(
+//                        0,
+//                        actions.launch3faster()
+//                )
+//                .setMaxWaitTime(6.0)
+//                .setWaitCondition(() -> true);
         tasks.add(path3Task);
 
         // Path4: intake only
         addPath(path4, 0);
 
         // Shoot after Path5
-        PathChainTask path5Task = new PathChainTask(path5, 1.5)
+        PathChainTask path5Task = new PathChainTask(path5, 1)
                 .addWaitAction(
                         0,
-                        actions.launch3()
+                        actions.launch3faster()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -242,10 +272,10 @@ public class Test15ball extends PathChainAutoOpMode {
         addPath(path6, 0);
 
         // Shoot after Path7
-        PathChainTask path7Task = new PathChainTask(path7, 1.5)
+        PathChainTask path7Task = new PathChainTask(path7, 1)
                 .addWaitAction(
                         0,
-                        actions.launch3()
+                        actions.launch3faster()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
@@ -255,17 +285,27 @@ public class Test15ball extends PathChainAutoOpMode {
         addPath(path8, 0);
 
         // Shoot after Path9
-        PathChainTask path9Task = new PathChainTask(path9, 1.5)
+        PathChainTask path9Task = new PathChainTask(path9, 1)
                 .addWaitAction(
                         0,
-                        actions.launch3()
+                        actions.launch3faster()
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path9Task);
 
         // Path10: final drive, no actions
+        addPath(path11, 0);
+        PathChainTask path12Task = new PathChainTask(path12, 1)
+                .addWaitAction(
+                        0,
+                        actions.launch3faster()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path12Task);
         addPath(path10, 0);
+
     }
 
     @Override
@@ -286,11 +326,30 @@ public class Test15ball extends PathChainAutoOpMode {
     @Override
     protected void startPath(PathChainTask task) {
         follower.followPath((PathChain) task.pathChain, true);
+
     }
 
     @Override
     protected void startTurn(TurnTask task) {
         // Not used in this auto
+    }
+
+    protected void onEnterWaitPhase(BaseTask task) {
+        // Only do this when we just finished a PATH task
+        if (task instanceof PathChainTask) {
+            Pose p = follower.getPose();
+
+            // Build a "hold" path from current pose to itself
+            PathChain holdPath = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(p.getX(), p.getY(), p.getHeading()),
+                            new Pose(p.getX(), p.getY(), p.getHeading())))
+                    .setLinearHeadingInterpolation(p.getHeading(), p.getHeading())
+                    .build();
+
+            // Start this tiny path with holdEnd = true
+            follower.followPath(holdPath, true);
+        }
     }
 
     @Override

@@ -254,6 +254,30 @@ public class RobotActions {
                 //intakeFront.stop()
         );
     }
+    public Action launch3faster() {
+        return new SequentialAction(
+                intakeBack.run(),
+                intakeFront.run(),
+                launch.fire(),
+                intakeFront.run(),
+                new SleepAction(0.1),
+                launch.reset(),
+                new SleepAction(0.1),
+                launch.fire(),
+                new SleepAction(0.1),
+                launch.reset(),
+                new SleepAction(0.1),
+                launch.fire(),
+                new SleepAction(0.1),
+                launch.reset(),
+                new SleepAction(0.1),
+                launch.fire(),
+                new SleepAction(0.1),
+                launch.reset(),
+                intakeBack.stop()
+                //intakeFront.stop()
+        );
+    }
 
 
 

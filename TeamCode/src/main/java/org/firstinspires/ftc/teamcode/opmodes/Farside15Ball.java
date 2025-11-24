@@ -223,7 +223,7 @@ public class Farside15Ball extends PathChainAutoOpMode {
                 .setWaitCondition(() -> true);
         tasks.add(path3Task);
 
-        addPath(path4, 0);
+        addPath(path4, 1);
         //addPath(path5, 0);
 
         // Shoot after path 6

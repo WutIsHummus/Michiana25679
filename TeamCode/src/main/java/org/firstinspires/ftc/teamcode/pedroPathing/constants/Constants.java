@@ -18,28 +18,30 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
  * Values migrated from FConstants.java and LConstants.java
  */
 public class Constants {
-    
+
     // Follower constants - PID coefficients, acceleration, and path following parameters
     public static FollowerConstants followerConstants = new FollowerConstants()
             .mass(13.222218)
             .forwardZeroPowerAcceleration(-32.4139)
             .lateralZeroPowerAcceleration(-71.0266)
-            .translationalPIDFCoefficients(new PIDFCoefficients(0.08, 0, 0.001, 0.02))
-            // Note: Original had useSecondaryTranslationalPID = false, but PedroPathing 2.0 requires switch value
-            // Setting to very high value (999) to effectively disable secondary PID (original behavior)
-            .translationalPIDFSwitch(999)
-            .secondaryTranslationalPIDFCoefficients(new PIDFCoefficients(0.12, 0, 0.005, 0))
-            .headingPIDFCoefficients(new PIDFCoefficients(1, 0, 0.005, 0))
+            .translationalPIDFCoefficients(new PIDFCoefficients(0.03, 0, 0.003, 0.0025))
+
+            .headingPIDFCoefficients(new PIDFCoefficients(1, 0, 0.04, 0.02))
+            //.headingPIDFSwitch(20)
+            //.useSecondaryHeadingPIDF(false)
+            //.secondaryHeadingPIDFCoefficients(new PIDFCoefficients(1,0,0.04,0.02))
             // Note: Original had useSecondaryHeadingPID = false, but PedroPathing 2.0 requires switch value
             // Setting to very high value (999) to effectively disable secondary PID (original behavior)
-            .secondaryHeadingPIDFCoefficients(new PIDFCoefficients(2.6, 0, 0.05, 0))
-            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.05, 0.00, 0.001, 0.6, 0.05))
+            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.005, 0.00, 0.001 , 0.6, 0.03))
+            //primary is fast at 0.01 p and 0.01d, but testing with 0.005 p and 0.001d
+            .useSecondaryDrivePIDF(false)
+            .drivePIDFSwitch(20)
+            // p secondary works at 0.005, testing a higher value
+            .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.002,0,0.001,0.6,0.01))
             // Note: Original had useSecondaryDrivePID = false, but PedroPathing 2.0 requires switch value
             // Setting to very high value (999) to effectively disable secondary PID (original behavior)
-            .drivePIDFSwitch(999)
-            .secondaryDrivePIDFCoefficients(new FilteredPIDFCoefficients(0.32, 0, 0.005, 0.6, 0))
-            .centripetalScaling(0.00025);
-    
+            .centripetalScaling(0.0005);
+
     // Drivetrain constants - motor names, directions, and velocities
     public static MecanumConstants driveConstants = new MecanumConstants()
             .leftFrontMotorName("frontleft")
@@ -74,14 +76,14 @@ public class Constants {
      * BEZIER_CURVE_SEARCH_LIMIT should typically be left at 10
      */
     public static PathConstraints pathConstraints = new PathConstraints(
-            0.96,      // tValueConstraint (from pathEndTValueConstraint = 0.96)
-            5.0,       // velocityConstraint (from pathEndVelocityConstraint = 5.0)
+            0.99,      // tValueConstraint (from pathEndTValueConstraint = 0.96)
+            1,       // velocityConstraint (from pathEndVelocityConstraint = 5.0)
             0.1,       // translationalConstraint (from pathEndTranslationalConstraint = 0.1)
             0.007,     // headingConstraint (from pathEndHeadingConstraint = 0.007)
             75,        // timeoutConstraint (from pathEndTimeoutConstraint = 75)
-            1.0,       // brakingStrength (default)
+            1,       // brakingStrength (default) (used to be 2)
             10,        // BEZIER_CURVE_SEARCH_LIMIT (should not be changed)
-            1          // brakingStart (default)
+            1          // brakingStart (default) (used to be 2.5)
     );
     
     /**
