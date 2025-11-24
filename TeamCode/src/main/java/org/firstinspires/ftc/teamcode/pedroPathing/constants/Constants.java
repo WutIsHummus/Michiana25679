@@ -24,7 +24,7 @@ public class Constants {
             .mass(13.222218)
             .forwardZeroPowerAcceleration(-32.4139)
             .lateralZeroPowerAcceleration(-71.0266)
-            .translationalPIDFCoefficients(new PIDFCoefficients(0.03, 0, 0.003, 0.0025))
+            .translationalPIDFCoefficients(new PIDFCoefficients(0.02, 0, 0.004, 0.0025))
 
             .headingPIDFCoefficients(new PIDFCoefficients(1, 0, 0.04, 0.02))
             //.headingPIDFSwitch(20)
@@ -76,14 +76,14 @@ public class Constants {
      * BEZIER_CURVE_SEARCH_LIMIT should typically be left at 10
      */
     public static PathConstraints pathConstraints = new PathConstraints(
-            0.99,      // tValueConstraint (from pathEndTValueConstraint = 0.96)
-            1,       // velocityConstraint (from pathEndVelocityConstraint = 5.0)
-            0.1,       // translationalConstraint (from pathEndTranslationalConstraint = 0.1)
+            0.98,      // tValueConstraint - reduced from 0.99 to stop earlier and prevent overshoot
+            3.0,       // velocityConstraint - increased from 1 to allow more reasonable stopping velocity
+            0.08,      // translationalConstraint - tightened from 0.1 to stop more precisely at path end
             0.007,     // headingConstraint (from pathEndHeadingConstraint = 0.007)
             75,        // timeoutConstraint (from pathEndTimeoutConstraint = 75)
-            1,       // brakingStrength (default) (used to be 2)
+            2.5,       // brakingStrength - increased from 1 to 2.5 for more aggressive braking to prevent overshoot
             10,        // BEZIER_CURVE_SEARCH_LIMIT (should not be changed)
-            1          // brakingStart (default) (used to be 2.5)
+            2.0        // brakingStart - increased from 1 to 2.0 to start braking earlier and prevent overshoot
     );
     
     /**
