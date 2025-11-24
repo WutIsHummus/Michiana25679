@@ -255,7 +255,7 @@ public class FarRedShootFarther extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, true);
+        follower.followPath((PathChain) task.pathChain, false);
     }
     @Override
     public void stop() {

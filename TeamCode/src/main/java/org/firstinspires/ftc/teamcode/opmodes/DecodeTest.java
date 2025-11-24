@@ -284,7 +284,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, true);
+        follower.followPath((PathChain) task.pathChain, false);
     }
 
     @Override
