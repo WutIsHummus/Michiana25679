@@ -106,6 +106,7 @@ public class DecodeTest extends PathChainAutoOpMode {
     protected void buildPathChains() {
         // Path 1: (24.460856,125.920236) -> (49,96)  | heading 144° -> 134°
         path1 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierLine(
                         new Pose(24.460856, 125.920236),
                         new Pose(49.0, 96.0)))
@@ -116,6 +117,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 2: (49,96) -> (16,84) control (81.6779913,79.9763863) | 142° -> 180°
         path2 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierCurve(
                         new Pose(49.0, 96.0),
                         new Pose(81.6779913, 79.9763863),
@@ -126,6 +128,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 3: (16,84) -> (49,96) | 180° -> 142°
         path3 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierLine(
                         new Pose(16.0, 84.0),
                         new Pose(49.0, 96.0)))
@@ -137,6 +140,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 4: (49,96) -> (17,60) control (76.57311669,53.3884786) | 142° -> 180°
         path4 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierCurve(
                         new Pose(49.0, 96.0),
                         new Pose(76.57311669, 53.3884786),
@@ -149,6 +153,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 6: (14.0384,72.1063) -> (49,96) | 90° -> 142°
         path6 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierLine(
                         new Pose(17, 65),
                         new Pose(49.0, 96.0)))
@@ -160,6 +165,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 7: (49,96) -> (14.88921713,35.9468424) control (92.9512555,31.0546528) | 142° -> 180°
         path7 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierCurve(
                         new Pose(49.0, 96.0),
                         new Pose(92.9512555, 31.0546528),
@@ -170,6 +176,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 8: (14.8892,35.9468) -> (48.7090103,95.9290989) | 180° -> 142°
         path8 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierLine(
                         new Pose(14.88921713, 35.9468424),
                         new Pose(48.7090103, 95.9290989)))
@@ -181,6 +188,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 9: (48.7090,95.9291) -> (10.42245195,10.2097488) control (14.25110782,54.664897) | 142° -> 270°
         path9 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierCurve(
                         new Pose(48.7090103, 95.9290989),
                         new Pose(14.25110782, 54.664897),
@@ -191,6 +199,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
         // Path 10: (10.42245,10.20975) -> (48.9217344,95.9290898) | 270° -> 142°
         path10 = follower.pathBuilder()
+                .setGlobalDeceleration()
                 .addPath(new BezierLine(
                         new Pose(10.42245195, 10.2097488),
                         new Pose(48.9217344, 95.9290898)))
@@ -284,7 +293,7 @@ public class DecodeTest extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, false);
+        follower.followPath((PathChain) task.pathChain, true);
     }
 
     @Override

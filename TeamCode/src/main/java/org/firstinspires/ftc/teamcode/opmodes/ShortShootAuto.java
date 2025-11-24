@@ -145,7 +145,7 @@ public class ShortShootAuto extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, false);
+        follower.followPath((PathChain) task.pathChain, true);
     }
 
     @Override

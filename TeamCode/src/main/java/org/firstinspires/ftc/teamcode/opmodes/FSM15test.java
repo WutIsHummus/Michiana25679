@@ -234,7 +234,7 @@ public class FSM15test extends PathChainAutoOpMode {
         switch (pathState) {
             case 0:
                 // Start path1 (preload) with holdEnd
-                follower.followPath(path1, false);
+                follower.followPath(path1, true);
                 setPathState(1);
                 break;
 
@@ -252,7 +252,7 @@ public class FSM15test extends PathChainAutoOpMode {
                     shotActionStarted = true;
                 }
                 if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path2, false);
+                    follower.followPath(path2, true);
                     setPathState(3);
                 }
                 break;
@@ -260,7 +260,7 @@ public class FSM15test extends PathChainAutoOpMode {
             case 3:
                 // path2 -> intake lane
                 if (!follower.isBusy()) {
-                    follower.followPath(path3, false);
+                    follower.followPath(path3, true);
                     setPathState(4);
                 }
                 break;
@@ -279,7 +279,7 @@ public class FSM15test extends PathChainAutoOpMode {
                     shotActionStarted = true;
                 }
                 if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path4, false);
+                    follower.followPath(path4, true);
                     setPathState(6);
                 }
                 break;
@@ -287,7 +287,7 @@ public class FSM15test extends PathChainAutoOpMode {
             case 6:
                 // path4 -> out to second intake
                 if (!follower.isBusy()) {
-                    follower.followPath(path5, false);
+                    follower.followPath(path5, true);
                     setPathState(7);
                 }
                 break;
@@ -306,7 +306,7 @@ public class FSM15test extends PathChainAutoOpMode {
                     shotActionStarted = true;
                 }
                 if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path6, false);
+                    follower.followPath(path6, true);
                     setPathState(9);
                 }
                 break;
@@ -314,7 +314,7 @@ public class FSM15test extends PathChainAutoOpMode {
             case 9:
                 // path6 -> out to low intake
                 if (!follower.isBusy()) {
-                    follower.followPath(path7, false);
+                    follower.followPath(path7, true);
                     setPathState(10);
                 }
                 break;
@@ -333,7 +333,7 @@ public class FSM15test extends PathChainAutoOpMode {
                     shotActionStarted = true;
                 }
                 if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path8, false);
+                    follower.followPath(path8, true);
                     setPathState(12);
                 }
                 break;
@@ -341,7 +341,7 @@ public class FSM15test extends PathChainAutoOpMode {
             case 12:
                 // path8 -> stack
                 if (!follower.isBusy()) {
-                    follower.followPath(path9, false);
+                    follower.followPath(path9, true);
                     setPathState(13);
                 }
                 break;
@@ -360,7 +360,7 @@ public class FSM15test extends PathChainAutoOpMode {
                     shotActionStarted = true;
                 }
                 if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path11, false);
+                    follower.followPath(path11, true);
                     setPathState(15);
                 }
                 break;
@@ -368,7 +368,7 @@ public class FSM15test extends PathChainAutoOpMode {
             case 15:
                 // path11 hub -> stack again
                 if (!follower.isBusy()) {
-                    follower.followPath(path12, false);
+                    follower.followPath(path12, true);
                     setPathState(16);
                 }
                 break;
@@ -387,7 +387,7 @@ public class FSM15test extends PathChainAutoOpMode {
                     shotActionStarted = true;
                 }
                 if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path10, false);
+                    follower.followPath(path10, true);
                     setPathState(18);
                 }
                 break;

@@ -40,7 +40,7 @@ public class PathOnlyAuto extends OpMode {
     public void start() {
         // Start following first path
         pathIndex = 0;
-        follower.followPath(paths[pathIndex], false);
+        follower.followPath(paths[pathIndex], true);
     }
 
     @Override
@@ -50,7 +50,7 @@ public class PathOnlyAuto extends OpMode {
         // When path is complete, move to next one
         if (!follower.isBusy() && pathIndex < paths.length - 1) {
             pathIndex++;
-            follower.followPath(paths[pathIndex], false);
+            follower.followPath(paths[pathIndex], true);
         }
 
         // Telemetry

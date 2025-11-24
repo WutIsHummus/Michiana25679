@@ -298,7 +298,7 @@ public class Test18ball extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, false);
+        follower.followPath((PathChain) task.pathChain, true);
     }
 
     @Override
