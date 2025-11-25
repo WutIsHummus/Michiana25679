@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.acmerobotics.roadrunner.SequentialAction;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -9,47 +10,52 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.BezierPoint;
 import com.pedropathing.paths.PathChain;
 
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "FSM15test")
+@Autonomous(name = "Working 18 ball")
 public class FSM15test extends PathChainAutoOpMode {
 
     private Follower follower;
 
-    // Hardware
     private DcMotor intakefront, intakeback;
     private DcMotorEx shootr, shootl;
     private Servo reargate, launchgate, hood1, turret1, turret2;
 
     private RobotActions actions;
 
-    // Paths
-    private PathChain path1, path2, path3, path4, path5, path6,
-            path7, path8, path9, path10, path11, path12;
+    private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11, path12;
+    // --- Turret + goal constants (copied from Blue teleop) ---
 
-    // Pedro FSM
-    private int pathState = 0;
-    private boolean shotActionStarted = false;
-    private static final double WAIT_SECONDS = 1.0;
+    // Field target for turret aim (mirrored blue-side coords)
+    public static double targetX = 144.0 - 128.0; // 16.0
+    public static double targetY = 125.0;
 
-    private final Pose startPose = new Pose(56.0, 8.0, Math.toRadians(270));
+    // Goal “zone” center (for distance telemetry if you want)
+    public static double goalZoneX = 144.0 - 116.0; // 28.0
+    public static double goalZoneY = 116.0;
 
-    private void setPathState(int newState) {
-        pathState = newState;
-        pathTimer.resetTimer();   // pathTimer is from PathChainAutoOpMode
-        shotActionStarted = false;
-    }
+    // Turret servo constants
+    public static double turretCenterPosition = 0.51;   // 0 deg
+    public static double turretLeftPosition   = 0.15;  // max left
+    public static double turretRightPosition  = 0.85;  // max right
+    public static double turretMaxAngle       = 140;   // deg left/right from center
+
+    // Trim + backlash
+    public static double turretTrimDeg = 0.0;
+    public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     @Override
     public void init() {
+        super.init();  // important so PathChainAutoOpMode can init its state
+
         pathTimer.resetTimer();
         follower = Constants.createFollower(hardwareMap);
 
-        // Hardware init
         intakefront = hardwareMap.get(DcMotor.class, "intakefront");
         intakeback  = hardwareMap.get(DcMotor.class, "intakeback");
         shootr      = hardwareMap.get(DcMotorEx.class, "shootr");
@@ -60,6 +66,7 @@ public class FSM15test extends PathChainAutoOpMode {
         reargate    = hardwareMap.get(Servo.class, "reargate");
         launchgate  = hardwareMap.get(Servo.class, "launchgate");
 
+        // Shooter motor direction
         shootl.setDirection(DcMotor.Direction.REVERSE);
 
         for (DcMotor m : new DcMotor[]{intakefront, intakeback, shootr, shootl}) {
@@ -73,153 +80,205 @@ public class FSM15test extends PathChainAutoOpMode {
         turret1.setPosition(0.275);
         turret2.setPosition(0.25);
         launchgate.setPosition(0.5);
-        reargate.setPosition(0.5);
+        reargate.setPosition(0.7);
+
+
 
         actions = new RobotActions(intakefront, intakeback, shootr, shootl,
                 launchgate, reargate, turret1, turret2, hood1);
 
+        // Start pose matches Path1 start
+        follower.setStartingPose(new Pose(56.0, 8.0, Math.toRadians(270)));
+
         buildPathChains();
-        follower.setStartingPose(startPose);
+        buildTaskList();
     }
 
     @Override
     public void start() {
-        setPathState(0);
+        super.start();  // important so task state is reset correctly
+        pathTimer.resetTimer();
     }
 
     @Override
     public void loop() {
-        // Let ActionOpMode handle running any queued Actions
         super.loop();
-
-        // Pedro follower update
         follower.update();
+        // Aim turret based on current pose and goal
+        updateTurretFromPose();
 
-        // Keep shooter spun up (same as your original)
+        // keep shooter spun up (tune as needed)
         run(actions.holdShooterAtRPMclose(1350, 30));
 
-        // FSM path & shooting logic
-        autonomousPathUpdate();
+        runTasks();
 
-        // Telemetry
         double vR   = shootr.getVelocity();
         double vL   = shootl.getVelocity();
         double rpmR = (vR / 28.0) * 60.0;
         double rpmL = (vL / 28.0) * 60.0;
         double avg  = 0.5 * (rpmR + rpmL);
 
-        Pose p = follower.getPose();
-
-        telemetry.addData("pathState", pathState);
+        telemetry.addData("Task", currentTaskIndex + "/" + tasks.size());
+        telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
         telemetry.addData("T", follower.getCurrentTValue());
-        telemetry.addData("Busy", follower.isBusy());
-        telemetry.addData("X", "%.1f", p.getX());
-        telemetry.addData("Y", "%.1f", p.getY());
-        telemetry.addData("H (deg)", "%.1f", Math.toDegrees(p.getHeading()));
+        telemetry.addData("PathBusy", follower.isBusy());
         telemetry.addLine("=== SHOOTER ===");
         telemetry.addData("RPM R", "%.0f", rpmR);
         telemetry.addData("RPM L", "%.0f", rpmL);
         telemetry.addData("RPM avg", "%.0f", avg);
-        telemetry.addData("waitTimer", "%.2f", pathTimer.getElapsedTimeSeconds());
         telemetry.update();
     }
 
-    // ===================== PATH BUILDING =====================
-
     @Override
     protected void buildPathChains() {
-        // Path1: (56,8) -> (56.579,87.421), heading 270 -> 230
+        // Shooter heading we want to hold at the end
+        double shooterHeading = Math.toRadians(215);
+
+        // === Path1: (56,8) -> (56.579,87.421), then settle at shooter pose ===
         path1 = follower.pathBuilder()
+                // Main drive segment, tangent heading but reversed so it drives backwards
                 .addPath(new BezierLine(
                         new Pose(56.000, 8.000),
                         new Pose(56.579, 87.421)))
-                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(230))
+                .setTangentHeadingInterpolation().setReversed()
+                .setTValueConstraint(0.96)
+                // Final settle as a BezierPoint at the same shooter pose with explicit heading
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.421, shooterHeading)))
+//                .setConstantHeadingInterpolation(230)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
-        // Path2: (56.579,87.421) -> (20,82), heading 230 -> 180
+        // === Path2: (56.579,87.421) -> (20,82), intake path (not a shooter path) ===
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.421),
                         new Pose(20, 82)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path3: (20,82) -> (56.792,87.421), heading 180 -> 230
+        // === Path3: (20,82) -> (56.792,87.421), then settle at shooter pose ===
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(20, 82),
                         new Pose(56.792, 87.421)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
+                .setTangentHeadingInterpolation().setReversed()
+                .setTValueConstraint(0.96)
+
+//                .addPath(new BezierPoint(
+//                        new Pose(56.792, 87.421, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
-        // Path4: (56.792,87.421) -> (14,52) via (41.903,58.919), heading 230 -> 150
+
         path4 = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Pose(56.792, 87.634),
+                        new Pose(54.665, 35.734),
+                        new Pose(10, 25)))
+                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                .addParametricCallback(0, () -> run(actions.startIntake()))
+                .build();
+
+        // === Path7: (10,28) -> (56.579,87.634), then settle at shooter pose ===
+        path5 = follower.pathBuilder()
+                .addPath(new BezierCurve(
+                        new Pose(10, 25),
+                        new Pose(54.665, 35.734),
+                        new Pose(56.579, 87.634)))
+                .setTangentHeadingInterpolation().setReversed()
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.7, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+
+                .build();
+        // === Path4: (56.792,87.421) -> curve to (14,52), intake path ===
+        path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.421),
                         new Pose(41.903, 58.919),
                         new Pose(14, 52)))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(150))
+                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(160))
+                .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path5: (14,52) -> (56.792,87.634), heading 150 -> 230
-        path5 = follower.pathBuilder()
+        // === Path5: (14,52) curve -> (56.792,87.634), then settle at shooter pose ===
+        path7 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(14, 52),
                         new Pose(24, 50),
                         new Pose(56.792, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(150), Math.toRadians(230))
+                .setTangentHeadingInterpolation().setReversed()
+                .setTValueConstraint(0.96)
+
+//                .addPath(new BezierPoint(
+//                        new Pose(56.792, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.7, () -> run(actions.stopIntake()))
+
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
-        // Path6: (56.792,87.634) -> (10,28) via (54.665,35.734), heading 230 -> 180
-        path6 = follower.pathBuilder()
-                .addPath(new BezierCurve(
-                        new Pose(56.792, 87.634),
-                        new Pose(54.665, 35.734),
-                        new Pose(10, 28)))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
-                .build();
+        // === Path6: (56.792,87.634) curve -> (10,28), intake path ===
 
-        // Path7: (10,28) -> (56.579,87.634), heading 180 -> 230
-        path7 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Pose(10, 28),
-                        new Pose(56.579, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
-                .build();
 
-        // Path8: (56.579,87.634) -> (11.486,11.273), heading 230 -> 250
+        // === Path8: (56.579,87.634) -> (11.486,11.273), intake path ===
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.634),
                         new Pose(11.486, 11.273)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(250))
+                .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path9: (11.486,11.273) -> (56.579,87.634), heading 250 -> 230
+        // === Path9: (11.486,11.273) -> (56.579,87.634), then settle at shooter pose ===
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(11.486, 11.273),
                         new Pose(56.579, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(250), Math.toRadians(230))
+                .setTangentHeadingInterpolation().setReversed()
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+
                 .build();
 
-        // Path11: repeat hub -> stack
+        // === Path11: (56.579,87.634) -> (11.486,11.273), intake path ===
         path11 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.634),
-                        new Pose(11.486, 11.273)))
+                        new Pose(20, 11.273)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(250))
+                .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path12: repeat stack -> hub
+        // === Path12: (11.486,11.273) -> (56.579,87.634), then settle at shooter pose ===
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(11.486, 11.273),
+                        new Pose(20, 11.273),
                         new Pose(56.579, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(250), Math.toRadians(230))
+                .setTangentHeadingInterpolation().setReversed()
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+
                 .build();
 
-        // Path10: final park
+        // === Path10: (56.579,87.634) -> (46.157,76.360), simple reposition ===
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.634),
@@ -228,190 +287,75 @@ public class FSM15test extends PathChainAutoOpMode {
                 .build();
     }
 
-    // ===================== FSM LOGIC =====================
-
-    private void autonomousPathUpdate() {
-        switch (pathState) {
-            case 0:
-                // Start path1 (preload) with holdEnd
-                follower.followPath(path1, true);
-                setPathState(1);
-                break;
-
-            case 1:
-                // Wait for path1 to finish
-                if (!follower.isBusy()) {
-                    setPathState(2);
-                }
-                break;
-
-            case 2:
-                // 1s wait at hub after path1 + shoot
-                if (!shotActionStarted) {
-                    run(actions.launch3faster());
-                    shotActionStarted = true;
-                }
-                if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path2, true);
-                    setPathState(3);
-                }
-                break;
-
-            case 3:
-                // path2 -> intake lane
-                if (!follower.isBusy()) {
-                    follower.followPath(path3, true);
-                    setPathState(4);
-                }
-                break;
-
-            case 4:
-                // wait for path3 (back to hub)
-                if (!follower.isBusy()) {
-                    setPathState(5);
-                }
-                break;
-
-            case 5:
-                // 1s wait at hub after path3 + shoot
-                if (!shotActionStarted) {
-                    run(actions.launch3faster());
-                    shotActionStarted = true;
-                }
-                if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path4, true);
-                    setPathState(6);
-                }
-                break;
-
-            case 6:
-                // path4 -> out to second intake
-                if (!follower.isBusy()) {
-                    follower.followPath(path5, true);
-                    setPathState(7);
-                }
-                break;
-
-            case 7:
-                // wait for path5 (back to hub)
-                if (!follower.isBusy()) {
-                    setPathState(8);
-                }
-                break;
-
-            case 8:
-                // 1s wait at hub after path5 + shoot
-                if (!shotActionStarted) {
-                    run(actions.launch3faster());
-                    shotActionStarted = true;
-                }
-                if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path6, true);
-                    setPathState(9);
-                }
-                break;
-
-            case 9:
-                // path6 -> out to low intake
-                if (!follower.isBusy()) {
-                    follower.followPath(path7, true);
-                    setPathState(10);
-                }
-                break;
-
-            case 10:
-                // wait for path7 (back to hub)
-                if (!follower.isBusy()) {
-                    setPathState(11);
-                }
-                break;
-
-            case 11:
-                // 1s wait at hub after path7 + shoot
-                if (!shotActionStarted) {
-                    run(actions.launch3faster());
-                    shotActionStarted = true;
-                }
-                if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path8, true);
-                    setPathState(12);
-                }
-                break;
-
-            case 12:
-                // path8 -> stack
-                if (!follower.isBusy()) {
-                    follower.followPath(path9, true);
-                    setPathState(13);
-                }
-                break;
-
-            case 13:
-                // wait for path9 (stack -> hub)
-                if (!follower.isBusy()) {
-                    setPathState(14);
-                }
-                break;
-
-            case 14:
-                // 1s wait at hub after path9 + shoot
-                if (!shotActionStarted) {
-                    run(actions.launch3faster());
-                    shotActionStarted = true;
-                }
-                if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path11, true);
-                    setPathState(15);
-                }
-                break;
-
-            case 15:
-                // path11 hub -> stack again
-                if (!follower.isBusy()) {
-                    follower.followPath(path12, true);
-                    setPathState(16);
-                }
-                break;
-
-            case 16:
-                // wait for path12 (stack -> hub)
-                if (!follower.isBusy()) {
-                    setPathState(17);
-                }
-                break;
-
-            case 17:
-                // 1s wait at hub after path12 + shoot
-                if (!shotActionStarted) {
-                    run(actions.launch3faster());
-                    shotActionStarted = true;
-                }
-                if (pathTimer.getElapsedTimeSeconds() > WAIT_SECONDS) {
-                    follower.followPath(path10, true);
-                    setPathState(18);
-                }
-                break;
-
-            case 18:
-                // final park path10
-                if (!follower.isBusy()) {
-                    setPathState(-1);  // done
-                }
-                break;
-
-            case -1:
-            default:
-                // Idle
-                break;
-        }
-    }
-
-    // ===================== REQUIRED ABSTRACTS (NOT USED) =====================
-
     @Override
     protected void buildTaskList() {
-        // We are NOT using the task system here
         tasks.clear();
+
+        // Shoot after Path1 (preload)
+        PathChainTask path1Task = new PathChainTask(path1, 0.7);
+        tasks.add(path1Task);
+
+        // Path2: intake only
+        addPath(path2, 0);
+
+        // Shoot after Path3
+        PathChainTask path3Task = new PathChainTask(path3, 0.7);
+        tasks.add(path3Task);
+
+        // Path4: intake only
+        addPath(path4, 0);
+
+        // Shoot after Path5
+        PathChainTask path5Task = new PathChainTask(path5, 1)
+                .addWaitAction(
+                        0,
+                        actions.launch3faster()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path5Task);
+
+        // Path6: intake only
+        addPath(path6, 0.5);
+
+        // Shoot after Path7
+        PathChainTask path7Task = new PathChainTask(path7, 1)
+                .addWaitAction(
+                        0,
+                        actions.launch3faster()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path7Task);
+
+        // Path8: intake only
+        addPath(path8, 0);
+
+        // Shoot after Path9
+        PathChainTask path9Task = new PathChainTask(path9, 1)
+                .addWaitAction(
+                        0,
+                        actions.launch3faster()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path9Task);
+
+        // Path11: intake only
+        addPath(path11, 0);
+
+        // Shoot after Path12
+        PathChainTask path12Task = new PathChainTask(path12, 1)
+                .addWaitAction(
+                        0,
+                        actions.launch3faster()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path12Task);
+
+        // Final reposition
+        addPath(path10, 0);
     }
 
     @Override
@@ -431,13 +375,80 @@ public class FSM15test extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        // Not used in FSM version
+        follower.followPath((PathChain) task.pathChain, true); // holdEnd = true
     }
 
     @Override
     protected void startTurn(TurnTask task) {
         // Not used in this auto
     }
+    /**
+     * Uses Pedro pose to:
+     *  - compute angle to goal
+     *  - compute distance to goal
+     *  - set turret1/turret2 servo positions accordingly
+     */
+    private void updateTurretFromPose() {
+        if (follower == null || turret1 == null || turret2 == null) return;
+
+        // Current robot pose from Pedro (Pinpoint)
+        Pose currentPose = follower.getPose();
+        double currentX = currentPose.getX();
+        double currentY = currentPose.getY();
+        double currentHeading = currentPose.getHeading(); // radians
+
+        // Vector from robot to turret target
+        double deltaX = targetX - currentX;
+        double deltaY = targetY - currentY;
+
+        // Distance to goal (inches, since your field coords are in inches)
+        double distanceToGoalInches = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        // Field angle to target (0 rad = +X, CCW positive)
+        double angleToTargetField = Math.atan2(deltaY, deltaX);
+
+        // Angle of target relative to robot heading (what turret must turn)
+        double turretAngle = angleToTargetField - currentHeading;
+
+        // Normalize to [-PI, PI]
+        while (turretAngle > Math.PI)  turretAngle -= 2.0 * Math.PI;
+        while (turretAngle < -Math.PI) turretAngle += 2.0 * Math.PI;
+
+        // Convert to degrees and apply trim
+        double turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
+
+        // Clamp to allowed turret range
+        double clampedAngle = Math.max(-turretMaxAngle,
+                Math.min(turretMaxAngle, turretAngleDegrees));
+
+        // Map angle → servo position
+        double servoPosition;
+        if (clampedAngle >= 0) {
+            // Positive angle = turn right
+            double servoRange = turretRightPosition - turretCenterPosition;
+            servoPosition = turretCenterPosition + (clampedAngle / turretMaxAngle) * servoRange;
+        } else {
+            // Negative angle = turn left
+            double servoRange = turretCenterPosition - turretLeftPosition;
+            servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
+        }
+
+        // Clamp servo range
+        servoPosition = Math.max(0.0, Math.min(1.0, servoPosition));
+
+        // Apply backlash compensation to turret1, both shifted slightly like teleop
+        double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
+        turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
+
+        turret1.setPosition(turret1Pos - 0.01);
+        turret2.setPosition(servoPosition - 0.01);
+
+        // Optional: telemetry so you can see what's happening in auto
+        telemetry.addData("Turret dist (in)", "%.1f", distanceToGoalInches);
+        telemetry.addData("Turret angle (deg)", "%.1f", turretAngleDegrees);
+        telemetry.addData("Turret servo", "%.3f", servoPosition);
+    }
+
 
     @Override
     public void stop() {

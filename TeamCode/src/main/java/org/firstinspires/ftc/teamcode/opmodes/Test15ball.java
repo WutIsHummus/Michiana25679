@@ -10,13 +10,14 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.BezierPoint;
 import com.pedropathing.paths.PathChain;
 
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "Test15ball")
+@Autonomous(name = "15 classified")
 public class Test15ball extends PathChainAutoOpMode {
 
     private Follower follower;
@@ -28,9 +29,30 @@ public class Test15ball extends PathChainAutoOpMode {
     private RobotActions actions;
 
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11, path12;
+    // --- Turret + goal constants (copied from Blue teleop) ---
+
+    // Field target for turret aim (mirrored blue-side coords)
+    public static double targetX = 144.0 - 128.0; // 16.0
+    public static double targetY = 125.0;
+
+    // Goal “zone” center (for distance telemetry if you want)
+    public static double goalZoneX = 144.0 - 116.0; // 28.0
+    public static double goalZoneY = 116.0;
+
+    // Turret servo constants
+    public static double turretCenterPosition = 0.51;   // 0 deg
+    public static double turretLeftPosition   = 0.15;  // max left
+    public static double turretRightPosition  = 0.85;  // max right
+    public static double turretMaxAngle       = 140;   // deg left/right from center
+
+    // Trim + backlash
+    public static double turretTrimDeg = 0.0;
+    public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     @Override
     public void init() {
+        super.init();  // important so PathChainAutoOpMode can init its state
+
         pathTimer.resetTimer();
         follower = Constants.createFollower(hardwareMap);
 
@@ -58,7 +80,9 @@ public class Test15ball extends PathChainAutoOpMode {
         turret1.setPosition(0.275);
         turret2.setPosition(0.25);
         launchgate.setPosition(0.5);
-        reargate.setPosition(0.5);
+        reargate.setPosition(0.7);
+
+
 
         actions = new RobotActions(intakefront, intakeback, shootr, shootl,
                 launchgate, reargate, turret1, turret2, hood1);
@@ -72,8 +96,7 @@ public class Test15ball extends PathChainAutoOpMode {
 
     @Override
     public void start() {
-        currentTaskIndex = 0;
-        taskPhase        = 0;
+        super.start();  // important so task state is reset correctly
         pathTimer.resetTimer();
     }
 
@@ -81,18 +104,14 @@ public class Test15ball extends PathChainAutoOpMode {
     public void loop() {
         super.loop();
         follower.update();
+        // Aim turret based on current pose and goal
+        updateTurretFromPose();
 
         // keep shooter spun up (tune as needed)
         run(actions.holdShooterAtRPMclose(1350, 30));
 
         runTasks();
-        if (currentTaskIndex < tasks.size() && taskPhase == 1) {
-            BaseTask current = tasks.get(currentTaskIndex);
-            if (current instanceof PathChainTask) {
-                Pose p = follower.getPose();
-                follower.holdPoint(p); // effectively holdPoint(currentX, currentY, heading)
-            }
-        }
+
         double vR   = shootr.getVelocity();
         double vL   = shootl.getVelocity();
         double rpmR = (vR / 28.0) * 60.0;
@@ -112,16 +131,26 @@ public class Test15ball extends PathChainAutoOpMode {
 
     @Override
     protected void buildPathChains() {
-        // Path1: (56,8) -> (56.579,87.421), heading 270 -> 230
+        // Shooter heading we want to hold at the end
+        double shooterHeading = Math.toRadians(215);
+
+        // === Path1: (56,8) -> (56.579,87.421), then settle at shooter pose ===
         path1 = follower.pathBuilder()
+                // Main drive segment, tangent heading but reversed so it drives backwards
                 .addPath(new BezierLine(
                         new Pose(56.000, 8.000),
                         new Pose(56.579, 87.421)))
-                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(230))
-                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .setTangentHeadingInterpolation().setReversed()
+                .setTValueConstraint(0.96)
+                // Final settle as a BezierPoint at the same shooter pose with explicit heading
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.421, shooterHeading)))
+//                .setConstantHeadingInterpolation(230)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
-        // Path2: (56.579,87.421) -> (15.315,85.719), heading 230 -> 180 (INTAKE)
+        // === Path2: (56.579,87.421) -> (20,82), intake path (not a shooter path) ===
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.421),
@@ -130,17 +159,22 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path3: (15.315,85.719) -> (56.792,87.421), heading 180 -> 230 (STOP INTAKE)
+        // === Path3: (20,82) -> (56.792,87.421), then settle at shooter pose ===
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(20, 82),
                         new Pose(56.792, 87.421)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
-                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
-                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .setTangentHeadingInterpolation().setReversed()
+                .setTValueConstraint(0.96)
+
+//                .addPath(new BezierPoint(
+//                        new Pose(56.792, 87.421, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
-        // Path4: (56.792,87.421) -> (14.889,64.874) via (41.903,58.919), heading 230 -> 180 (INTAKE)
+        // === Path4: (56.792,87.421) -> curve to (14,52), intake path ===
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.421),
@@ -150,18 +184,25 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path5: (14.889,64.874) -> (56.792,87.634), heading 180 -> 230 (STOP INTAKE)
+        // === Path5: (14,52) curve -> (56.792,87.634), then settle at shooter pose ===
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(14, 52),
                         new Pose(24, 50),
                         new Pose(56.792, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(150), Math.toRadians(230))
-                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .setTangentHeadingInterpolation().setReversed()
+                .setTValueConstraint(0.96)
+
+//                .addPath(new BezierPoint(
+//                        new Pose(56.792, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
                 .addParametricCallback(0.7, () -> run(actions.stopIntake()))
+
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
-        // Path6: (56.792,87.634) -> (15.953,35.734) via (54.665,35.734), heading 230 -> 180 (INTAKE)
+        // === Path6: (56.792,87.634) curve -> (10,28), intake path ===
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.634),
@@ -171,17 +212,22 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path7: (15.953,35.734) -> (56.579,87.634), heading 180 -> 230 (STOP INTAKE)
+        // === Path7: (10,28) -> (56.579,87.634), then settle at shooter pose ===
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(10, 28),
                         new Pose(56.579, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(230))
-                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .setTangentHeadingInterpolation().setReversed()
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
                 .addParametricCallback(0.7, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+
                 .build();
 
-        // Path8: (56.579,87.634) -> (11.486,11.273), heading 230 -> 250 (INTAKE)
+        // === Path8: (56.579,87.634) -> (11.486,11.273), intake path ===
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.634),
@@ -190,18 +236,22 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path9: (11.486,11.273) -> (56.579,87.634), heading 250 -> 230 (STOP INTAKE)
+        // === Path9: (11.486,11.273) -> (56.579,87.634), then settle at shooter pose ===
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(11.486, 11.273),
                         new Pose(56.579, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(250), Math.toRadians(230))
-                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .setTangentHeadingInterpolation().setReversed()
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
                 .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+
                 .build();
 
-        // Path10: (56.579,87.634) -> (46.157,76.360), heading 230 -> 230 (JUST DRIVE)
-
+        // === Path11: (56.579,87.634) -> (11.486,11.273), intake path ===
         path11 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.634),
@@ -210,16 +260,22 @@ public class Test15ball extends PathChainAutoOpMode {
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path9: (11.486,11.273) -> (56.579,87.634), heading 250 -> 230 (STOP INTAKE)
+        // === Path12: (11.486,11.273) -> (56.579,87.634), then settle at shooter pose ===
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(11.486, 11.273),
                         new Pose(56.579, 87.634)))
-                .setLinearHeadingInterpolation(Math.toRadians(250), Math.toRadians(230))
-                .addParametricCallback(0.99, () -> run(actions.launch3faster()))
+                .setTangentHeadingInterpolation().setReversed()
+//                .addPath(new BezierPoint(
+//                        new Pose(56.579, 87.634, shooterHeading)))
+//                .setConstantHeadingInterpolation(shooterHeading)
+                .setGlobalDeceleration(0.6)
                 .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+
                 .build();
 
+        // === Path10: (56.579,87.634) -> (46.157,76.360), simple reposition ===
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.634),
@@ -234,12 +290,6 @@ public class Test15ball extends PathChainAutoOpMode {
 
         // Shoot after Path1 (preload)
         PathChainTask path1Task = new PathChainTask(path1, 1);
-//                .addWaitAction(
-//                        0,
-//                        actions.launch3faster()
-//                )
-//                .setMaxWaitTime(6.0)
-//                .setWaitCondition(() -> true);
         tasks.add(path1Task);
 
         // Path2: intake only
@@ -247,12 +297,6 @@ public class Test15ball extends PathChainAutoOpMode {
 
         // Shoot after Path3
         PathChainTask path3Task = new PathChainTask(path3, 1);
-//                .addWaitAction(
-//                        0,
-//                        actions.launch3faster()
-//                )
-//                .setMaxWaitTime(6.0)
-//                .setWaitCondition(() -> true);
         tasks.add(path3Task);
 
         // Path4: intake only
@@ -294,8 +338,10 @@ public class Test15ball extends PathChainAutoOpMode {
                 .setWaitCondition(() -> true);
         tasks.add(path9Task);
 
-        // Path10: final drive, no actions
+        // Path11: intake only
         addPath(path11, 0);
+
+        // Shoot after Path12
         PathChainTask path12Task = new PathChainTask(path12, 1)
                 .addWaitAction(
                         0,
@@ -304,8 +350,9 @@ public class Test15ball extends PathChainAutoOpMode {
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path12Task);
-        addPath(path10, 0);
 
+        // Final reposition
+        addPath(path10, 0);
     }
 
     @Override
@@ -325,32 +372,80 @@ public class Test15ball extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, true);
-
+        follower.followPath((PathChain) task.pathChain, true); // holdEnd = true
     }
 
     @Override
     protected void startTurn(TurnTask task) {
         // Not used in this auto
     }
+    /**
+     * Uses Pedro pose to:
+     *  - compute angle to goal
+     *  - compute distance to goal
+     *  - set turret1/turret2 servo positions accordingly
+     */
+    private void updateTurretFromPose() {
+        if (follower == null || turret1 == null || turret2 == null) return;
 
-    protected void onEnterWaitPhase(BaseTask task) {
-        // Only do this when we just finished a PATH task
-        if (task instanceof PathChainTask) {
-            Pose p = follower.getPose();
+        // Current robot pose from Pedro (Pinpoint)
+        Pose currentPose = follower.getPose();
+        double currentX = currentPose.getX();
+        double currentY = currentPose.getY();
+        double currentHeading = currentPose.getHeading(); // radians
 
-            // Build a "hold" path from current pose to itself
-            PathChain holdPath = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(p.getX(), p.getY(), p.getHeading()),
-                            new Pose(p.getX(), p.getY(), p.getHeading())))
-                    .setLinearHeadingInterpolation(p.getHeading(), p.getHeading())
-                    .build();
+        // Vector from robot to turret target
+        double deltaX = targetX - currentX;
+        double deltaY = targetY - currentY;
 
-            // Start this tiny path with holdEnd = true
-            follower.followPath(holdPath, true);
+        // Distance to goal (inches, since your field coords are in inches)
+        double distanceToGoalInches = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+        // Field angle to target (0 rad = +X, CCW positive)
+        double angleToTargetField = Math.atan2(deltaY, deltaX);
+
+        // Angle of target relative to robot heading (what turret must turn)
+        double turretAngle = angleToTargetField - currentHeading;
+
+        // Normalize to [-PI, PI]
+        while (turretAngle > Math.PI)  turretAngle -= 2.0 * Math.PI;
+        while (turretAngle < -Math.PI) turretAngle += 2.0 * Math.PI;
+
+        // Convert to degrees and apply trim
+        double turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
+
+        // Clamp to allowed turret range
+        double clampedAngle = Math.max(-turretMaxAngle,
+                Math.min(turretMaxAngle, turretAngleDegrees));
+
+        // Map angle → servo position
+        double servoPosition;
+        if (clampedAngle >= 0) {
+            // Positive angle = turn right
+            double servoRange = turretRightPosition - turretCenterPosition;
+            servoPosition = turretCenterPosition + (clampedAngle / turretMaxAngle) * servoRange;
+        } else {
+            // Negative angle = turn left
+            double servoRange = turretCenterPosition - turretLeftPosition;
+            servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
         }
+
+        // Clamp servo range
+        servoPosition = Math.max(0.0, Math.min(1.0, servoPosition));
+
+        // Apply backlash compensation to turret1, both shifted slightly like teleop
+        double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
+        turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
+
+        turret1.setPosition(turret1Pos - 0.01);
+        turret2.setPosition(servoPosition - 0.01);
+
+        // Optional: telemetry so you can see what's happening in auto
+        telemetry.addData("Turret dist (in)", "%.1f", distanceToGoalInches);
+        telemetry.addData("Turret angle (deg)", "%.1f", turretAngleDegrees);
+        telemetry.addData("Turret servo", "%.3f", servoPosition);
     }
+
 
     @Override
     public void stop() {

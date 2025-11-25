@@ -87,9 +87,9 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     // Turret servo constants
     public static double turretCenterPosition = 0.51; // Servo position for 0 degrees
-    public static double turretLeftPosition = 0.275; // Servo position for max left
-    public static double turretRightPosition = 0.745; // Servo position for max right
-    public static double turretMaxAngle = 90.0; // Max angle in degrees (left or right from center)
+    public static double turretLeftPosition = 0.15; // Servo position for max left
+    public static double turretRightPosition = 0.85; // Servo position for max right
+    public static double turretMaxAngle = 140; // Max angle in degrees (left or right from center)
 
     // Shooter PIDF Constants - From VelocityFinder
     public static double TICKS_PER_REV = 28.0;
@@ -144,7 +144,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     private boolean lastY = false;
 
     // --- Hood regression (distance-based) ---
-    public static double HOOD_MIN_POS = 0.47;      // flattest shot (far)
+    public static double HOOD_MIN_POS = 0.45;      // flattest shot (far)
     public static double HOOD_MAX_POS = 0.54;      // highest arc (close)
     public static double HOOD_MIN_DIST_FT = 0.5;   // start of interpolation range
     public static double HOOD_MAX_DIST_FT = 7.0;   // end of interpolation range
@@ -426,7 +426,7 @@ public class CosmobotsBlueTeleop extends OpMode {
 
 // "Far" shots: double the time between shots
         boolean isFarForShots = distanceFeetForTiming >= 6.0;
-        double shotTimeScale = isFarForShots ? 2.0 : 1.0;
+        double shotTimeScale = isFarForShots ? 16.0 : 1.0;
 
         // ==================== AUTO-SHOOT CONTROL ====================
         // Detect A button press for auto-shoot sequence
