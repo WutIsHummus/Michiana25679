@@ -9,7 +9,9 @@ import com.pedropathing.geometry.Pose;
 // import com.pedropathing.telemetry.DashboardPoseTracker;
 // import com.pedropathing.telemetry.Drawing;
 import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.LLStatus;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -23,6 +25,7 @@ import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 import com.pedropathing.follower.Follower;
 
 @Config
+@Disabled
 @TeleOp(name = "Limelight Relocalization Test")
 public class LimelightRelocalizationTest extends OpMode {
     
@@ -35,6 +38,13 @@ public class LimelightRelocalizationTest extends OpMode {
     // Relocalization settings
     public static boolean ENABLE_AUTO_RELOCALIZATION = false;  // Default OFF for testing
     public static double RELOCALIZE_INTERVAL_SECONDS = 2.0;
+    
+    // Quality thresholds (based on best practices from GitHub repos)
+    private static final double MAX_LATENCY_MS = 100.0;  // Reject data older than 100ms
+    private static final double MIN_FIELD_X = -10.0;  // Reasonable bounds check (inches, in Pinpoint coords)
+    private static final double MAX_FIELD_X = 154.0;
+    private static final double MIN_FIELD_Y = -10.0;
+    private static final double MAX_FIELD_Y = 154.0;
     
     private ElapsedTime relocalizeTimer;
     private boolean lastDpadUp = false;
@@ -73,14 +83,28 @@ public class LimelightRelocalizationTest extends OpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        // Initialize Limelight
+        // Initialize Limelight - Based on official FTC sample code
         try {
             limelight = hardwareMap.get(Limelight3A.class, "limelight");
+            
+            // Set pipeline before starting (official sample pattern)
             limelight.pipelineSwitch(0);  // Use pipeline 0 (AprilTag)
+            
+            // Start polling for data - MUST call start() or getLatestResult() returns null
             limelight.start();
-            telemetryA.addLine("✓ Limelight initialized");
+            
+            // Verify connection by checking status
+            LLStatus status = limelight.getStatus();
+            if (status != null) {
+                telemetryA.addLine("✓ Limelight initialized");
+                telemetryA.addData("  Name", status.getName());
+                telemetryA.addData("  Pipeline", "Index: %d, Type: %s", 
+                    status.getPipelineIndex(), status.getPipelineType());
+            } else {
+                telemetryA.addLine("⚠ Limelight started but status unavailable");
+            }
         } catch (Exception e) {
-            telemetryA.addLine("❌ Limelight not found: " + e.getMessage());
+            telemetryA.addLine("❌ Limelight initialization failed: " + e.getMessage());
             limelight = null;
         }
         
@@ -264,14 +288,35 @@ public class LimelightRelocalizationTest extends OpMode {
             return false;
         }
         
+        // Official sample pattern: check result != null first, then isValid()
         LLResult result = limelight.getLatestResult();
-        if (result == null || !result.isValid()) {
+        if (result == null) {
             return false;
+        }
+        
+        if (!result.isValid()) {
+            return false;
+        }
+        
+        // Check latency - reject stale data (best practice from GitHub repos)
+        double captureLatency = result.getCaptureLatency();
+        double targetingLatency = result.getTargetingLatency();
+        double totalLatency = captureLatency + targetingLatency;
+        
+        if (totalLatency > MAX_LATENCY_MS) {
+            return false;  // Data too stale
         }
         
         // Get botpose from Limelight (field-relative robot position)
         Pose3D botpose = result.getBotpose();
         if (botpose == null || botpose.getPosition() == null) {
+            return false;
+        }
+        
+        // Check if data is valid (non-zero) - Limelight returns (0,0,0) when no tags visible
+        double rawX = botpose.getPosition().x;
+        double rawY = botpose.getPosition().y;
+        if (Math.abs(rawX) < 0.001 && Math.abs(rawY) < 0.001) {
             return false;
         }
         
@@ -289,7 +334,24 @@ public class LimelightRelocalizationTest extends OpMode {
         // ═══════════════════════════════════════════════════════════
         double limelightX = limelightRawX + 72.0;  // CONVERTED to Pinpoint coords
         double limelightY = limelightRawY + 72.0;  // CONVERTED to Pinpoint coords
-        double limelightHeading = Math.toRadians(botpose.getOrientation().getYaw());  // degrees to radians
+        
+        // Bounds check - reject unreasonable poses (best practice from GitHub repos)
+        if (limelightX < MIN_FIELD_X || limelightX > MAX_FIELD_X || 
+            limelightY < MIN_FIELD_Y || limelightY > MAX_FIELD_Y) {
+            return false;  // Pose out of bounds
+        }
+        
+        // Get heading in degrees, convert to radians
+        double headingDegrees = botpose.getOrientation().getYaw();
+        double limelightHeading = Math.toRadians(headingDegrees);
+        
+        // Normalize heading to 0 to 2π range
+        while (limelightHeading < 0) {
+            limelightHeading += 2 * Math.PI;
+        }
+        while (limelightHeading >= 2 * Math.PI) {
+            limelightHeading -= 2 * Math.PI;
+        }
         
         // Store poses for comparison
         // TODO: PoseUpdater removed

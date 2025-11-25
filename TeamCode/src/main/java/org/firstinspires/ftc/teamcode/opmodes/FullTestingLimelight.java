@@ -7,6 +7,7 @@ import com.arcrobotics.ftclib.controller.PIDFController;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -38,6 +39,7 @@ import java.util.List;
  * @version 1.0, 5/6/2024
  */
 @Config
+@Disabled
 @TeleOp(name = "Full Testing Limelight")
 public class FullTestingLimelight extends OpMode {
     private Follower follower;  // Follower includes Pinpoint localization (PedroPathing 2.0)
@@ -238,14 +240,28 @@ public class FullTestingLimelight extends OpMode {
         telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
         telemetryA.setMsTransmissionInterval(11);
         
-        // Initialize Limelight
+        // Initialize Limelight - Based on official FTC sample code
         try {
             limelight = hardwareMap.get(Limelight3A.class, "limelight");
+            
+            // Set pipeline before starting (official sample pattern)
             limelight.pipelineSwitch(0);
+            
+            // Start polling for data - MUST call start() or getLatestResult() returns null
             limelight.start();
-            telemetryA.addLine("Limelight initialized successfully");
+            
+            // Verify connection by checking status
+            com.qualcomm.hardware.limelightvision.LLStatus status = limelight.getStatus();
+            if (status != null) {
+                telemetryA.addLine("Limelight initialized successfully");
+                telemetryA.addData("  Name", status.getName());
+                telemetryA.addData("  Pipeline", "Index: %d, Type: %s", 
+                    status.getPipelineIndex(), status.getPipelineType());
+            } else {
+                telemetryA.addLine("⚠ Limelight started but status unavailable");
+            }
         } catch (Exception e) {
-            telemetryA.addLine("Warning: Limelight not found - " + e.getMessage());
+            telemetryA.addLine("Warning: Limelight initialization failed - " + e.getMessage());
             limelight = null;
         }
         

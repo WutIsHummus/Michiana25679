@@ -7,6 +7,7 @@ import com.arcrobotics.ftclib.controller.PIDFController;
 import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.LLResultTypes;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -38,6 +39,7 @@ import java.util.List;
  * @version 1.0, 5/6/2024
  */
 @Config
+@Disabled
 @TeleOp(name = "1 - Cosmobots - RED")
 public class FullTesting extends OpMode {
     private Follower follower;  // Follower includes Pinpoint localization (PedroPathing 2.0)
