@@ -11,7 +11,6 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
-@Disabled
 @Config
 @TeleOp(name = "Shooter Velocity Tuner", group = "Tuning")
 public class ShooterVelocityTuner extends LinearOpMode {

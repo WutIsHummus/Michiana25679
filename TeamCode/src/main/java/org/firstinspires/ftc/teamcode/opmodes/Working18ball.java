@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
-import com.acmerobotics.roadrunner.SequentialAction;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -10,7 +9,6 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
-import com.pedropathing.geometry.BezierPoint;
 import com.pedropathing.paths.PathChain;
 
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
@@ -18,7 +16,7 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMo
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 @Autonomous(name = "Working 18 ball")
-public class FSM15test extends PathChainAutoOpMode {
+public class Working18ball extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -155,7 +153,7 @@ public class FSM15test extends PathChainAutoOpMode {
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.421),
                         new Pose(20, 82)))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
@@ -267,7 +265,7 @@ public class FSM15test extends PathChainAutoOpMode {
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(20, 11.273),
-                        new Pose(56.579, 87.634)))
+                        new Pose(56.579, 95)))
                 .setTangentHeadingInterpolation().setReversed()
 //                .addPath(new BezierPoint(
 //                        new Pose(56.579, 87.634, shooterHeading)))
@@ -279,12 +277,7 @@ public class FSM15test extends PathChainAutoOpMode {
                 .build();
 
         // === Path10: (56.579,87.634) -> (46.157,76.360), simple reposition ===
-        path10 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Pose(56.579, 87.634),
-                        new Pose(46.157, 76.360)))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(230))
-                .build();
+
     }
 
     @Override
@@ -355,7 +348,6 @@ public class FSM15test extends PathChainAutoOpMode {
         tasks.add(path12Task);
 
         // Final reposition
-        addPath(path10, 0);
     }
 
     @Override

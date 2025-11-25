@@ -81,7 +81,7 @@ public class Constants {
             0.1,       // velocityConstraint - increased from 1 to allow more reasonable stopping velocity
             0.08,      // translationalConstraint - tightened from 0.1 to stop more precisely at path end
             0.007,     // headingConstraint (from pathEndHeadingConstraint = 0.007)
-            75,        // timeoutConstraint (from pathEndTimeoutConstraint = 75)
+            25,        // timeoutConstraint (from pathEndTimeoutConstraint = 75)
             0.5,       // brakingStrength - increased from 1 to 2.5 for more aggressive braking to prevent overshoot
             10,        // BEZIER_CURVE_SEARCH_LIMIT (should not be changed)
             1        // brakingStart - increased from 1 to 2.0 to start braking earlier and prevent overshoot
