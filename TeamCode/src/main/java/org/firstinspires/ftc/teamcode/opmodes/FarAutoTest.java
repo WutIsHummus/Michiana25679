@@ -44,7 +44,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
 
     // 🔒 Fixed turret angle (deg, relative to robot forward)
     // This is your OG tuned angle that works
-    public static double FIXED_TURRET_ANGLE_DEG = -67;
+    public static double FIXED_TURRET_ANGLE_DEG = -67.55;
 
     @Override
     public void init() {
@@ -73,7 +73,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
         }
 
         // Servo init
-        hood1.setPosition(0.45);
+        hood1.setPosition(0.47);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
 
@@ -135,8 +135,8 @@ public class FarAutoTest extends PathChainAutoOpMode {
         path1 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(57.430, 8.934),
-                                new Pose(57.430, 15.315)))
+                                new Pose(57, 9),
+                                new Pose(57, 15)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .setGlobalDeceleration(0.6)
                 .build();
@@ -146,7 +146,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(57.430, 15.315),
+                                new Pose(57, 15),
                                 new Pose(10, 8)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .setNoDeceleration()
@@ -158,11 +158,11 @@ public class FarAutoTest extends PathChainAutoOpMode {
                 .addPath(
                         new BezierLine(
                                 new Pose(10, 8),
-                                new Pose(57.217, 15.315)))
+                                new Pose(57, 15)))
                 .setLinearHeadingInterpolation(Math.toRadians(190), Math.toRadians(180))
-                .setGlobalDeceleration(0.4)
+                .setGlobalDeceleration(0.6)
                 .addPath(
-                        new BezierPoint(57.216, 15.315))
+                        new BezierPoint(57, 15))
                 .setLinearHeadingInterpolation(Math.toRadians(175), Math.toRadians(180))
                 .setGlobalDeceleration(0.6)
                 .addParametricCallback(0.9, () -> run(actions.stopIntake()))
