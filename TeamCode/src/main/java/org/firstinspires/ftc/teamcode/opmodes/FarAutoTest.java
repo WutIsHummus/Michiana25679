@@ -163,7 +163,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
                 .setGlobalDeceleration(0.6)
                 .addPath(
                         new BezierPoint(57, 15))
-                .setConstantHeadingInterpolation(180)
+                .setConstantHeadingInterpolation(Math.toRadians(180))
                 .setGlobalDeceleration(0.6)
                 .addParametricCallback(0.9, () -> run(actions.stopIntake()))
                 .build();

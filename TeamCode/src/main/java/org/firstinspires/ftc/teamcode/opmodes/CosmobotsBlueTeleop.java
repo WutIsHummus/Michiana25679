@@ -90,7 +90,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double turretCenterPosition = 0.51; // Servo position for 0 degrees
     public static double turretLeftPosition = 0.15; // Servo position for max left
     public static double turretRightPosition = 0.85; // Servo position for max right
-    public static double turretMaxAngle = 140; // Max angle in degrees (left or right from center)
+    public static double turretMaxAngle = 145; // Max angle in degrees (left or right from center)
 
     // Shooter PIDF Constants - From VelocityFinder
     public static double TICKS_PER_REV = 28.0;
@@ -107,11 +107,11 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double hood1Position = 0.54;
 
     // Long range PIDF (>= 6 feet)
-    public static double pLong = 0.008;
+    public static double pLong = 0.0015;
     public static double iLong = 0.0;
     public static double dLong = 0;
     public static double fLong = 0.00089;
-    public static double kVLong = 0;
+    public static double kVLong = 0.0008;
     public static double kSLong = 0.01;
     public static double I_ZONE_LONG = 250.0;
     public static double hood1PositionLong = 0.45;
