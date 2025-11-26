@@ -86,7 +86,25 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
     public static double aprilTagHeight = 30.0; // AprilTag height in inches
     public static double limelightHeight = 13.5; // Limelight height in inches
     public static double heightDifference = aprilTagHeight - limelightHeight; // 16.3 inches
-    public static double limelightMountAngle = 19.0; // Limelight mount angle in degrees
+    
+    // Camera mount angles (in degrees)
+    // Pitch = tilt up/down (positive = tilted up)
+    // Yaw = rotation left/right (positive = rotated right/clockwise when viewed from above)
+    // Roll = tilt left/right (usually 0, positive = tilted right)
+    public static double CAMERA_PITCH_DEG = 19.0;  // Camera tilt angle (pitch) - how much camera is tilted up
+    public static double CAMERA_YAW_DEG = 0.0;     // Camera yaw offset - if camera points left/right (0 = straight forward)
+    public static double CAMERA_ROLL_DEG = 0.0;     // Camera roll - if camera is tilted sideways (usually 0)
+    
+    // Legacy constant for backward compatibility
+    public static double limelightMountAngle = CAMERA_PITCH_DEG;
+    
+    // Limelight camera offset from robot center (in robot-relative coordinates)
+    // These should match what's configured in Limelight Settings -> Robot
+    // Positive forward = camera is forward of robot center
+    // Positive right = camera is to the right of robot center
+    public static double CAMERA_FORWARD_OFFSET_INCHES = 5.5;   // Camera is 5.5 inches forward of robot center
+    public static double CAMERA_RIGHT_OFFSET_INCHES = -0.5;   // Camera is 0.5 inches to the LEFT (negative = left)
+    public static double CAMERA_UP_OFFSET_INCHES = 13.5;      // Camera height (already used in limelightHeight)
 
     // Turret servo constants
     public static double turretCenterPosition = 0.51; // Servo position for 0 degrees
@@ -171,6 +189,21 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
     private ElapsedTime relocalizeTimer;
     private static final double AUTO_RELOCALIZE_INTERVAL_SEC = 2.0;  // Relocalize every 2 seconds when tags visible
     private static final double MAX_LATENCY_MS = 100.0;  // Reject stale Limelight data
+    private static final double MAX_POSE_CHANGE_INCHES = 12.0;  // Reject relocalization if pose changes more than 12 inches
+    private static final double MAX_HEADING_CHANGE_RAD = Math.toRadians(30.0);  // Reject if heading changes more than 30 degrees
+    
+    // AprilTag field positions in LIMELIGHT coordinates (center of field = 0,0)
+    // Field is 144" x 144", so center is at (0,0) in Limelight coords
+    // These are the known positions of AprilTags on the field
+    // TODO: Update these with actual AprilTag positions for your field
+    private static final double[][] APRILTAG_POSITIONS = {
+        // {tagId, x_inches_from_center, y_inches_from_center}
+        {11, -60.0, 72.0},   // Example: Top-left structure tag
+        {12, 60.0, 72.0},    // Example: Top-right structure tag
+        {13, -60.0, -72.0},  // Example: Bottom-left structure tag
+        {14, 60.0, -72.0},   // Example: Bottom-right structure tag
+        // Add more tags as needed
+    };
 
     // LED color positions (from GoBILDA chart)
     public static double LED_OFF    = 0.0;
@@ -349,15 +382,6 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
             relocalizeFromLimelight();
         }
         lastDpadUp = dpadUp;
-        
-        // --- Automatic periodic relocalization ---
-        if (relocalizeTimer.seconds() >= AUTO_RELOCALIZE_INTERVAL_SEC) {
-            if (attemptRelocalization()) {
-                relocalizeTimer.reset();  // Reset timer on successful relocalization
-            } else {
-                relocalizeTimer.reset();  // Reset timer even on failure to avoid blocking
-            }
-        }
 
         // Drive controls - matching VelocityFinder setup
         double y = -gamepad1.right_stick_y;
@@ -376,6 +400,23 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         fr.setPower(frPower);
         bl.setPower(blPower);
         br.setPower(brPower);
+        
+        // --- Automatic periodic relocalization ---
+        // Only relocalize when:
+        // 1. AprilTag is visible
+        // 2. NOT actively shooting
+        // 3. Robot is relatively stationary
+        // This prevents relocalization from interfering with turret aiming
+        boolean robotMoving = Math.abs(y) > 0.1 || Math.abs(x) > 0.1 || Math.abs(rx) > 0.1;
+        boolean canRelocalize = !shooting && !autoTransfer && !robotMoving;
+        
+        if (canRelocalize && relocalizeTimer.seconds() >= AUTO_RELOCALIZE_INTERVAL_SEC) {
+            if (attemptRelocalizationFromAprilTag()) {
+                relocalizeTimer.reset();  // Reset timer on successful relocalization
+            } else {
+                relocalizeTimer.reset();  // Reset timer even on failure to avoid blocking
+            }
+        }
 
         // Get current position from Follower (Pinpoint localization)
         Pose currentPose = follower.getPose();
@@ -834,10 +875,114 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
 // ---------- END LED STATE LOGIC ----------
 
 
-        telemetryA.addData("x", currentX);
-        telemetryA.addData("y", currentY);
-        telemetryA.addData("heading (rad)", currentHeading);
-        telemetryA.addData("heading (deg)", Math.toDegrees(currentHeading));
+        telemetryA.addData("", ""); // Empty line
+        telemetryA.addLine("=== POSITION COMPARISON ===");
+        telemetryA.addLine("--- Odometry (Pinpoint) ---");
+        telemetryA.addData("X", "%.2f inches", currentX);
+        telemetryA.addData("Y", "%.2f inches", currentY);
+        telemetryA.addData("Heading", "%.1f° (%.3f rad)", Math.toDegrees(currentHeading), currentHeading);
+        
+        // Calculate AprilTag position for comparison
+        double aprilTagX = Double.NaN;
+        double aprilTagY = Double.NaN;
+        double aprilTagHeading = Double.NaN;
+        int detectedTagId = -1;
+        double tagDistance = 0;
+        boolean aprilTagAvailable = false;
+        
+        if (limelight != null) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null && result.isValid()) {
+                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+                if (!fiducialResults.isEmpty()) {
+                    LLResultTypes.FiducialResult detectedTag = fiducialResults.get(0);
+                    detectedTagId = detectedTag.getFiducialId();
+                    
+                    // Find tag's field position
+                    double tagFieldX_Limelight = 0;
+                    double tagFieldY_Limelight = 0;
+                    boolean tagPositionKnown = false;
+                    
+                    for (double[] tagPos : APRILTAG_POSITIONS) {
+                        if ((int)tagPos[0] == detectedTagId) {
+                            tagFieldX_Limelight = tagPos[1];
+                            tagFieldY_Limelight = tagPos[2];
+                            tagPositionKnown = true;
+                            break;
+                        }
+                    }
+                    
+                    if (tagPositionKnown) {
+                        // Calculate camera position from tag
+                        double tx_raw = detectedTag.getTargetXDegrees();
+                        double ty_raw = detectedTag.getTargetYDegrees();
+                        
+                        // Account for camera yaw offset (if camera is not pointing straight forward)
+                        double tx = tx_raw - CAMERA_YAW_DEG;
+                        
+                        // Calculate total vertical angle to target (camera pitch + ty from Limelight)
+                        double angleToTarget = CAMERA_PITCH_DEG + ty_raw;
+                        
+                        if (Math.abs(angleToTarget) > 0.5) {
+                            // Calculate distance to tag (horizontal distance in the plane)
+                            double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
+                            // Calculate horizontal offset (left/right) from camera center
+                            double xOffset = horizontalDistance * Math.tan(Math.toRadians(tx));
+                                
+                                // Camera position relative to tag
+                                double cameraX_relativeToTag = -xOffset;
+                                double cameraY_relativeToTag = -horizontalDistance;
+                                
+                                // Camera absolute position
+                                double cameraX_Limelight = tagFieldX_Limelight + cameraX_relativeToTag;
+                                double cameraY_Limelight = tagFieldY_Limelight + cameraY_relativeToTag;
+                                
+                                // Account for camera offset from robot center
+                                // Rotate camera offset from robot-relative to field-relative coordinates
+                                double offsetX_field = CAMERA_FORWARD_OFFSET_INCHES * Math.cos(currentHeading) - 
+                                                       CAMERA_RIGHT_OFFSET_INCHES * Math.sin(currentHeading);
+                                double offsetY_field = CAMERA_FORWARD_OFFSET_INCHES * Math.sin(currentHeading) + 
+                                                       CAMERA_RIGHT_OFFSET_INCHES * Math.cos(currentHeading);
+                                
+                                // Robot center position = camera position - offset
+                                double robotX_Limelight = cameraX_Limelight - offsetX_field;
+                                double robotY_Limelight = cameraY_Limelight - offsetY_field;
+                                
+                                // Convert to Pinpoint coordinates
+                                aprilTagX = robotX_Limelight + 72.0;
+                                aprilTagY = robotY_Limelight + 72.0;
+                                aprilTagHeading = currentHeading;  // Keep current heading for now
+                                tagDistance = horizontalDistance;
+                                aprilTagAvailable = true;
+                            }
+                        }
+                }
+            }
+        }
+        
+        telemetryA.addLine("--- AprilTag (Limelight) ---");
+        if (aprilTagAvailable) {
+            telemetryA.addData("Tag ID", "%d", detectedTagId);
+            telemetryA.addData("Distance to Tag", "%.2f inches", tagDistance);
+            telemetryA.addData("Camera Offset", "Fwd: %.1f\", Right: %.1f\"", 
+                CAMERA_FORWARD_OFFSET_INCHES, CAMERA_RIGHT_OFFSET_INCHES);
+            telemetryA.addData("X", "%.2f inches", aprilTagX);
+            telemetryA.addData("Y", "%.2f inches", aprilTagY);
+            telemetryA.addData("Heading", "%.1f° (using odometry)", Math.toDegrees(aprilTagHeading));
+            
+            // Calculate difference
+            double diffX = aprilTagX - currentX;
+            double diffY = aprilTagY - currentY;
+            double diffDistance = Math.sqrt(diffX * diffX + diffY * diffY);
+            
+            telemetryA.addLine("--- Difference ---");
+            telemetryA.addData("ΔX", "%.2f inches", diffX);
+            telemetryA.addData("ΔY", "%.2f inches", diffY);
+            telemetryA.addData("ΔDistance", "%.2f inches", diffDistance);
+        } else {
+            telemetryA.addData("Status", "No AprilTag visible or invalid");
+        }
+        
         telemetryA.addData("", ""); // Empty line
         telemetryA.addLine("=== RELOCALIZATION ===");
         telemetryA.addData("Auto-Relocalize", "Every %.1fs (when tags visible)", AUTO_RELOCALIZE_INTERVAL_SEC);
@@ -931,11 +1076,15 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
                         telemetryA.addData("    X (degrees)", "%.2f", tx);
                         telemetryA.addData("    Y (degrees)", "%.2f", ty);
 
+                        // Account for camera yaw offset (if camera is not pointing straight forward)
+                        double tx_adjusted = tx - CAMERA_YAW_DEG;
+                        
                         // Calculate distance using height difference, mount angle, and vertical angle
-                        double angleToTarget = limelightMountAngle + ty;
+                        // Total vertical angle = camera pitch + ty from Limelight
+                        double angleToTarget = CAMERA_PITCH_DEG + ty;
 
                         if (Math.abs(angleToTarget) > 0.5) { // Only calculate if we have a valid angle
-                            // Horizontal distance calculation accounting for mount angle
+                            // Horizontal distance calculation accounting for camera pitch angle
                             double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
 
                             // Diagonal distance from lens to center of AprilTag
@@ -944,8 +1093,8 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
                                             heightDifference * heightDifference
                             );
 
-                            // Convert horizontal angle to inches offset
-                            double x_inches = horizontalDistance * Math.tan(Math.toRadians(tx));
+                            // Convert horizontal angle to inches offset (accounting for camera yaw)
+                            double x_inches = horizontalDistance * Math.tan(Math.toRadians(tx_adjusted));
 
                             telemetryA.addData("    Angle to Target", "%.2f deg", angleToTarget);
                             telemetryA.addData("    Horizontal Dist", "%.2f inches", horizontalDistance);
@@ -1007,8 +1156,8 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
     }
     
     /**
-     * Relocalize from Limelight AprilTag - corrects robot pose estimate
-     * Based on official FTC sample code and best practices
+     * Manual relocalization from Limelight AprilTag - corrects robot pose estimate
+     * Uses AprilTag detection and distance calculation
      */
     private void relocalizeFromLimelight() {
         if (limelight == null) {
@@ -1017,123 +1166,239 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         }
         
         LLResult result = limelight.getLatestResult();
-        if (result == null) {
-            telemetryA.addData("Relocalize", "No data available");
+        if (result == null || !result.isValid()) {
+            telemetryA.addData("Relocalize", "No valid data");
             return;
         }
         
-        if (!result.isValid()) {
-            telemetryA.addData("Relocalize", "Invalid result");
-            return;
-        }
-        
-        // Check latency - reject stale data
-        double captureLatency = result.getCaptureLatency();
-        double targetingLatency = result.getTargetingLatency();
-        double totalLatency = captureLatency + targetingLatency;
-        
+        // Check latency
+        double totalLatency = result.getCaptureLatency() + result.getTargetingLatency();
         if (totalLatency > MAX_LATENCY_MS) {
             telemetryA.addData("Relocalize", "Data too stale (%.1fms)", totalLatency);
             return;
         }
         
-        // Get botpose from Limelight (MegaTag localization)
-        Pose3D botpose = result.getBotpose();
-        if (botpose == null || botpose.getPosition() == null) {
-            telemetryA.addData("Relocalize", "No botpose data");
+        // Get AprilTag fiducial results - only relocalize if tag is visible
+        List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+        if (fiducialResults.isEmpty()) {
+            telemetryA.addData("Relocalize", "No AprilTag visible");
             return;
         }
         
-        // Extract raw Limelight coordinates (meters, center-origin)
-        double limelightRawX_meters = botpose.getPosition().x;
-        double limelightRawY_meters = botpose.getPosition().y;
+        // Use the first detected tag
+        LLResultTypes.FiducialResult detectedTag = fiducialResults.get(0);
+        int tagId = detectedTag.getFiducialId();
         
-        // Check if data is valid (non-zero) - Limelight returns (0,0,0) when no tags visible
-        if (Math.abs(limelightRawX_meters) < 0.001 && Math.abs(limelightRawY_meters) < 0.001) {
-            telemetryA.addData("Relocalize", "No tags visible");
+        // Find the tag's known field position
+        double tagFieldX_Limelight = 0;
+        double tagFieldY_Limelight = 0;
+        boolean tagPositionKnown = false;
+        
+        for (double[] tagPos : APRILTAG_POSITIONS) {
+            if ((int)tagPos[0] == tagId) {
+                tagFieldX_Limelight = tagPos[1];
+                tagFieldY_Limelight = tagPos[2];
+                tagPositionKnown = true;
+                break;
+            }
+        }
+        
+        if (!tagPositionKnown) {
+            telemetryA.addData("Relocalize", "Tag ID %d not in known positions", tagId);
             return;
         }
         
-        // Convert meters to inches
-        double limelightRawX = limelightRawX_meters * 39.3701;
-        double limelightRawY = limelightRawY_meters * 39.3701;
+        // Get angles from Limelight (relative to camera's view)
+        double tx_raw = detectedTag.getTargetXDegrees();  // Horizontal angle from camera center
+        double ty_raw = detectedTag.getTargetYDegrees();  // Vertical angle from camera center
         
-        // Convert from Limelight coordinates (center-origin) to Pinpoint (corner-origin)
-        double pinpointX = limelightRawX + 72.0;
-        double pinpointY = limelightRawY + 72.0;
+        // Account for camera yaw offset (if camera is not pointing straight forward)
+        // If camera is rotated right (positive yaw), tx needs to be adjusted
+        double tx = tx_raw - CAMERA_YAW_DEG;
         
-        // Bounds check - reject unreasonable poses
+        // Calculate total vertical angle to target (camera pitch + ty from Limelight)
+        double angleToTarget = CAMERA_PITCH_DEG + ty_raw;
+        if (Math.abs(angleToTarget) < 0.5) {
+            telemetryA.addData("Relocalize", "Angle too small");
+            return;
+        }
+        
+        // Calculate distance to tag (horizontal distance in the plane)
+        // This accounts for the camera's pitch angle
+        double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
+        
+        // Calculate horizontal offset (left/right) from camera center
+        // This accounts for the camera's yaw offset
+        double xOffset = horizontalDistance * Math.tan(Math.toRadians(tx));
+        
+        // Robot position relative to tag (tag is at 0,0 in its own coordinate system)
+        double robotX_relativeToTag = -xOffset;
+        double robotY_relativeToTag = -horizontalDistance;
+        
+        // Convert to absolute field position
+        double robotX_Limelight = tagFieldX_Limelight + robotX_relativeToTag;
+        double robotY_Limelight = tagFieldY_Limelight + robotY_relativeToTag;
+        
+        // Convert to Pinpoint coordinates
+        double pinpointX = robotX_Limelight + 72.0;
+        double pinpointY = robotY_Limelight + 72.0;
+        
+        // Bounds check
         if (pinpointX < -10.0 || pinpointX > 154.0 || pinpointY < -10.0 || pinpointY > 154.0) {
             telemetryA.addData("Relocalize", "Pose out of bounds (%.1f, %.1f)", pinpointX, pinpointY);
             return;
         }
         
-        // Get heading in degrees, convert to radians
-        double headingDegrees = botpose.getOrientation().getYaw();
-        double pinpointHeading = Math.toRadians(headingDegrees);
+        // Keep current heading (could be improved with tag orientation)
+        double pinpointHeading = follower.getPose().getHeading();
         
-        // Normalize heading to 0 to 2π range
-        while (pinpointHeading < 0) {
-            pinpointHeading += 2 * Math.PI;
-        }
-        while (pinpointHeading >= 2 * Math.PI) {
-            pinpointHeading -= 2 * Math.PI;
-        }
-        
-        // Set pose using Follower
+        // Set pose
         try {
             follower.setPose(new Pose(pinpointX, pinpointY, pinpointHeading));
-            telemetryA.addData("Relocalize", "✓ Success (%.1fms)", totalLatency);
+            telemetryA.addData("Relocalize", "✓ Success (Tag %d, %.1fms)", tagId, totalLatency);
+            telemetryA.addData("  Distance", "%.1f inches", horizontalDistance);
         } catch (Exception e) {
             telemetryA.addData("Relocalize Error", e.getMessage());
         }
     }
     
     /**
-     * Attempt automatic relocalization - returns true if successful
+     * Attempt automatic relocalization from AprilTag detection
+     * Only works when AprilTag is visible
+     * Calculates distance to tag and uses known tag position to determine robot position
+     * Returns true if successful
      */
-    private boolean attemptRelocalization() {
+    private boolean attemptRelocalizationFromAprilTag() {
         if (limelight == null) {
             return false;
         }
         
+        // Get current pose to compare against
+        Pose currentPose = follower.getPose();
+        double currentX = currentPose.getX();
+        double currentY = currentPose.getY();
+        double currentHeading = currentPose.getHeading();
+        
         LLResult result = limelight.getLatestResult();
         if (result == null || !result.isValid()) {
-            return false;
+            return false;  // No valid Limelight data
         }
         
         // Check latency
         double totalLatency = result.getCaptureLatency() + result.getTargetingLatency();
         if (totalLatency > MAX_LATENCY_MS) {
-            return false;
+            return false;  // Data too stale
         }
         
-        Pose3D botpose = result.getBotpose();
-        if (botpose == null || botpose.getPosition() == null) {
-            return false;
+        // Get AprilTag fiducial results - only relocalize if tag is visible
+        List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+        if (fiducialResults.isEmpty()) {
+            return false;  // No AprilTag visible
         }
         
-        double rawX_meters = botpose.getPosition().x;
-        double rawY_meters = botpose.getPosition().y;
+        // Use the first detected tag (or you could prioritize specific tags)
+        LLResultTypes.FiducialResult detectedTag = fiducialResults.get(0);
+        int tagId = detectedTag.getFiducialId();
         
-        // Check if data is valid (non-zero)
-        if (Math.abs(rawX_meters) < 0.001 && Math.abs(rawY_meters) < 0.001) {
-            return false;
+        // Find the tag's known field position (this is the tag's absolute position on field)
+        double tagFieldX_Limelight = 0;
+        double tagFieldY_Limelight = 0;
+        boolean tagPositionKnown = false;
+        
+        for (double[] tagPos : APRILTAG_POSITIONS) {
+            if ((int)tagPos[0] == tagId) {
+                tagFieldX_Limelight = tagPos[1];  // Tag's X position in Limelight coords (center=0)
+                tagFieldY_Limelight = tagPos[2];  // Tag's Y position in Limelight coords (center=0)
+                tagPositionKnown = true;
+                break;
+            }
         }
         
-        // Convert and validate
-        double pinpointX = (rawX_meters * 39.3701) + 72.0;
-        double pinpointY = (rawY_meters * 39.3701) + 72.0;
+        if (!tagPositionKnown) {
+            return false;  // Tag ID not in our known positions
+        }
         
+        // Calculate robot position relative to tag (treating tag as origin 0,0)
+        // Get angles from Limelight (relative to camera's view)
+        double tx_raw = detectedTag.getTargetXDegrees();  // Horizontal angle (left/right, negative = tag left)
+        double ty_raw = detectedTag.getTargetYDegrees();  // Vertical angle (up/down, positive = tag up)
+        
+        // Account for camera yaw offset (if camera is not pointing straight forward)
+        double tx = tx_raw - CAMERA_YAW_DEG;
+        
+        // Calculate distance to tag using trigonometry
+        // Total vertical angle = camera pitch + ty from Limelight
+        double angleToTarget = CAMERA_PITCH_DEG + ty_raw;
+        if (Math.abs(angleToTarget) < 0.5) {
+            return false;  // Angle too small for accurate calculation
+        }
+        
+        // Horizontal distance from camera to tag (in inches)
+        // This accounts for the camera's pitch angle
+        double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
+        
+        // Calculate horizontal offset (left/right) from tx angle
+        // This accounts for the camera's yaw offset
+        // tx: negative = tag is to the left of camera center, positive = tag is to the right
+        double xOffset = horizontalDistance * Math.tan(Math.toRadians(tx));
+        
+        // Camera position relative to tag (treating tag as 0,0)
+        // This gives us where the CAMERA is, not the robot center
+        // If tag is straight ahead (tx=0), camera is directly behind tag by horizontalDistance
+        // If tag is to the left (tx negative), camera is to the right of tag
+        // If tag is to the right (tx positive), camera is to the left of tag
+        // In tag's coordinate system (tag at 0,0):
+        //   - Camera is at (-xOffset, -horizontalDistance) relative to tag
+        double cameraX_relativeToTag = -xOffset;  // Negative because if tag is left, camera is right
+        double cameraY_relativeToTag = -horizontalDistance;  // Negative because camera is behind tag
+        
+        // Convert camera position to absolute field position
+        double cameraX_Limelight = tagFieldX_Limelight + cameraX_relativeToTag;
+        double cameraY_Limelight = tagFieldY_Limelight + cameraY_relativeToTag;
+        
+        // Account for camera offset from robot center
+        // Camera offset is in robot-relative coordinates (forward/right)
+        // Need to rotate by robot heading to convert to field coordinates
+        // Get current heading to rotate the offset
+        double robotHeading = currentPose.getHeading();
+        
+        // Rotate camera offset from robot-relative to field-relative coordinates
+        // Forward offset: +X in field coords when heading = 0 (east)
+        // Right offset: +Y in field coords when heading = 0 (east)
+        double offsetX_field = CAMERA_FORWARD_OFFSET_INCHES * Math.cos(robotHeading) - 
+                               CAMERA_RIGHT_OFFSET_INCHES * Math.sin(robotHeading);
+        double offsetY_field = CAMERA_FORWARD_OFFSET_INCHES * Math.sin(robotHeading) + 
+                               CAMERA_RIGHT_OFFSET_INCHES * Math.cos(robotHeading);
+        
+        // Robot center position = camera position - offset (camera is offset from center)
+        double robotX_Limelight = cameraX_Limelight - offsetX_field;
+        double robotY_Limelight = cameraY_Limelight - offsetY_field;
+        
+        // Convert from Limelight coordinates (center=0, meters) to Pinpoint (corner=0, inches)
+        // Limelight uses center as origin, Pinpoint uses bottom-left corner
+        // Field is 144" x 144", so center is at (72, 72) in Pinpoint
+        double pinpointX = robotX_Limelight + 72.0;
+        double pinpointY = robotY_Limelight + 72.0;
+        
+        // Bounds check
         if (pinpointX < -10.0 || pinpointX > 154.0 || pinpointY < -10.0 || pinpointY > 154.0) {
-            return false;
+            return false;  // Position out of bounds
         }
         
-        // Get heading
-        double headingDegrees = botpose.getOrientation().getYaw();
-        double pinpointHeading = Math.toRadians(headingDegrees);
-        while (pinpointHeading < 0) pinpointHeading += 2 * Math.PI;
-        while (pinpointHeading >= 2 * Math.PI) pinpointHeading -= 2 * Math.PI;
+        // For heading, we can estimate from the tag's orientation or use current heading
+        // For now, keep current heading (could be improved with tag orientation)
+        double pinpointHeading = currentHeading;
+        
+        // Check if pose change is too large (likely bad data)
+        double poseChange = Math.sqrt(
+            Math.pow(pinpointX - currentX, 2) + 
+            Math.pow(pinpointY - currentY, 2)
+        );
+        
+        // Reject if change is too large (prevents bad relocalization from moving turret)
+        if (poseChange > MAX_POSE_CHANGE_INCHES) {
+            return false;  // Pose change too large, likely bad calculation
+        }
         
         // Set pose
         try {
