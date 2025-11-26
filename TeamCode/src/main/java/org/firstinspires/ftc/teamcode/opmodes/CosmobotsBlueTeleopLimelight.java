@@ -20,6 +20,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 import com.pedropathing.follower.Follower;
@@ -42,7 +44,7 @@ import java.util.List;
 @Config
 @TeleOp(name = "2 - Cosmobots - Blue (Limelight)")
 public class CosmobotsBlueTeleopLimelight extends OpMode {
-    private Follower follower;  // Follower includes Pinpoint localization
+    private Follower follower;  // For odometry comparison only - not used for control
     private Telemetry telemetryA;
 
     private DcMotorEx fl, fr, bl, br;
@@ -202,8 +204,18 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         {12, 60.0, 72.0},    // Example: Top-right structure tag
         {13, -60.0, -72.0},  // Example: Bottom-left structure tag
         {14, 60.0, -72.0},   // Example: Bottom-right structure tag
+        {20, 0.0, 0.0},      // Blue alliance tag (update with actual position)
+        {24, 0.0, 0.0},      // Red alliance tag (update with actual position)
         // Add more tags as needed
     };
+    
+    // Alliance-specific tag IDs (based on FTC-23511 pattern)
+    private static final int BLUE_ALLIANCE_TAG_ID = 20;
+    private static final int RED_ALLIANCE_TAG_ID = 24;
+    
+    // Choose which MegaTag version to use (MT1 or MT2)
+    // MT2 uses updateRobotOrientation() for better accuracy
+    public static boolean USE_LIMELIGHT_MT1 = false;
 
     // LED color positions (from GoBILDA chart)
     public static double LED_OFF    = 0.0;
@@ -215,28 +227,14 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
 
 
     /**
-     * This initializes the Follower (with Pinpoint localization), the mecanum drive motors, and the FTC Dashboard telemetry.
+     * This initializes the mecanum drive motors, Limelight, and the FTC Dashboard telemetry.
      */
     @Override
     public void init() {
-        // Initialize Follower with Pinpoint localizer (configured in Constants.java)
+        // Initialize Follower for odometry comparison only (not used for control)
         follower = Constants.createFollower(hardwareMap);
-        
-        // Try to restore saved pose
-        try {
-            if (PoseStore.hasSaved()) {
-                follower.setStartingPose(PoseStore.lastPose);
-            } else {
-                follower.setStartingPose(new Pose(0, 0, 0));
-            }
-        } catch (Exception ignored) {
-            // Pose restore failed — use default starting pose
-            follower.setStartingPose(new Pose(0, 0, 0));
-        }
-        
-        // Start teleop drive mode
+        follower.setStartingPose(new Pose(0, 0, 0));
         follower.startTeleopDrive();
-
 
 
         // Initialize drive motors
@@ -364,24 +362,11 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         lastDpadLeft  = dpadLeft;
         lastDpadRight = dpadRight;
 
-        // Update Follower (which updates Pinpoint localization)
-        follower.update();
-
-        // --- snap-to-pose: gamepad1.x ---
+        // --- snap-to-pose: gamepad1.x --- (disabled - no odometry)
         boolean xPressed = gamepad1.x;
-        if (xPressed && !lastX) {
-            double snapHeadingRad = Math.toRadians(SNAP_HEADING_DEG);
-            // Set pose using Follower
-            follower.setPose(new Pose(SNAP_X, SNAP_Y, snapHeadingRad));
-        }
         lastX = xPressed;
         
-        // --- Manual relocalization: D-pad UP ---
-        boolean dpadUp = gamepad1.dpad_up;
-        if (dpadUp && !lastDpadUp) {
-            relocalizeFromLimelight();
-        }
-        lastDpadUp = dpadUp;
+        // Relocalization removed - no odometry to update
 
         // Drive controls - matching VelocityFinder setup
         double y = -gamepad1.right_stick_y;
@@ -401,47 +386,65 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         bl.setPower(blPower);
         br.setPower(brPower);
         
-        // --- Automatic periodic relocalization ---
-        // Only relocalize when:
-        // 1. AprilTag is visible
-        // 2. NOT actively shooting
-        // 3. Robot is relatively stationary
-        // This prevents relocalization from interfering with turret aiming
-        boolean robotMoving = Math.abs(y) > 0.1 || Math.abs(x) > 0.1 || Math.abs(rx) > 0.1;
-        boolean canRelocalize = !shooting && !autoTransfer && !robotMoving;
-        
-        if (canRelocalize && relocalizeTimer.seconds() >= AUTO_RELOCALIZE_INTERVAL_SEC) {
-            if (attemptRelocalizationFromAprilTag()) {
-                relocalizeTimer.reset();  // Reset timer on successful relocalization
-            } else {
-                relocalizeTimer.reset();  // Reset timer even on failure to avoid blocking
-            }
-        }
-
-        // Get current position from Follower (Pinpoint localization)
+        // Get current position and heading from odometry (matching FTC-23511's robot.drive.getPose())
         Pose currentPose = follower.getPose();
         double currentX = currentPose.getX();
         double currentY = currentPose.getY();
+        double currentHeading = currentPose.getHeading();  // From odometry, matching FTC-23511
 
-        // Calculate distance and angle to target (for turret aiming)
-        double deltaX = targetX - currentX;
-        double deltaY = targetY - currentY;
-        double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        // Check if AprilTag is detected for turret tracking
+        boolean trackingAprilTag = false;
+        double aprilTagTx = 0;  // Horizontal angle from camera center to tag
+        
+        if (limelight != null) {
+            LLResult result = limelight.getLatestResult();
+            if (result != null) {
+                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+                if (fiducialResults != null && !fiducialResults.isEmpty()) {
+                    // AprilTag detected - track it with turret
+                    LLResultTypes.FiducialResult detectedTag = fiducialResults.get(0);
+                    aprilTagTx = detectedTag.getTargetXDegrees();  // Horizontal angle from camera center
+                    trackingAprilTag = true;
+                }
+            }
+        }
 
-        // Calculate angle to target relative to field (0 degrees = east, 90 = north)
-        double angleToTargetField = Math.atan2(deltaY, deltaX);
+        // Calculate turret angle
+        double turretAngleDegrees;
+        
+        if (trackingAprilTag) {
+            // Track AprilTag: center the camera on the tag
+            // tx is the angle from camera center to tag (negative = tag left, positive = tag right)
+            // To center the tag, we need to move turret in opposite direction
+            // Account for camera yaw offset
+            double tx_adjusted = aprilTagTx - CAMERA_YAW_DEG;
+            
+            // Turret angle needed to center tag = negative of tx (if tag is left, turn turret left)
+            // Add some proportional control for smoother tracking
+            double trackingGain = 1.0;  // Can be adjusted for smoother tracking
+            turretAngleDegrees = -tx_adjusted * trackingGain + turretTrimDeg;
+        } else {
+            // Normal target aiming
+            // Calculate distance and angle to target (for turret aiming)
+            // Use Limelight position if available, otherwise use default (0,0)
+            double deltaX = targetX - currentX;
+            double deltaY = targetY - currentY;
+            double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        // Calculate angle relative to robot (turret angle needed)
-        // Subtract robot heading to get relative angle
-        double currentHeading = currentPose.getHeading();
-        double turretAngle = angleToTargetField - currentHeading;
+            // Calculate angle to target relative to field (0 degrees = east, 90 = north)
+            double angleToTargetField = Math.atan2(deltaY, deltaX);
 
-        // Normalize angle to [-PI, PI]
-        while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
-        while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
+            // Calculate angle relative to robot (turret angle needed)
+            // Subtract robot heading to get relative angle
+            double turretAngle = angleToTargetField - currentHeading;
 
-        // Convert to degrees
-        double turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
+            // Normalize angle to [-PI, PI]
+            while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
+            while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
+
+            // Convert to degrees
+            turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
+        }
 
         // Calculate servo position
         // Clamp angle to valid range
@@ -600,40 +603,86 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         lastY = yPressed;
         boolean shooterOn = shootingconstant || shooting;
 
-        // Calculate distance to goal zone for RPM calculation
-        // Try to use Limelight botpose for more accurate distance, fallback to odometry
-        double limelightX = currentX;
-        double limelightY = currentY;
-        boolean usingLimelightPose = false;
+        // Calculate AprilTag position for shooter RPM calculation (and telemetry)
+        // Based on FTC-23511's implementation pattern
+        double aprilTagX = Double.NaN;
+        double aprilTagY = Double.NaN;
+        double aprilTagHeading = Double.NaN;
+        int detectedTagId = -1;
+        double tagDistance = 0;
+        boolean aprilTagAvailable = false;
+        String aprilTagStatus = "Limelight not initialized";
+        boolean usingBotpose = false;
         
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
-            if (result != null && result.isValid()) {
-                Pose3D botpose = result.getBotpose();
-                if (botpose != null && botpose.getPosition() != null) {
-                    double captureLatency = result.getCaptureLatency();
-                    double targetingLatency = result.getTargetingLatency();
-                    double totalLatency = captureLatency + targetingLatency;
-                    
-                    // Only use Limelight if data is fresh and valid
-                    if (totalLatency < MAX_LATENCY_MS) {
-                        double rawX_meters = botpose.getPosition().x;
-                        double rawY_meters = botpose.getPosition().y;
-                        
-                        // Check if data is valid (non-zero)
-                        if (Math.abs(rawX_meters) > 0.001 || Math.abs(rawY_meters) > 0.001) {
-                            // Convert from Limelight (center-origin, meters) to Pinpoint (corner-origin, inches)
-                            limelightX = (rawX_meters * 39.3701) + 72.0;
-                            limelightY = (rawY_meters * 39.3701) + 72.0;
-                            usingLimelightPose = true;
+            if (result == null) {
+                aprilTagStatus = "Result is NULL";
+            } else if (!result.isValid()) {
+                aprilTagStatus = "Result not valid";
+            } else {
+                // Check for alliance-specific tags first (based on FTC-23511 pattern)
+                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+                if (fiducialResults == null || fiducialResults.isEmpty()) {
+                    aprilTagStatus = "No AprilTags detected";
+                } else {
+                    // Find alliance-specific tag (20 for blue, 24 for red)
+                    LLResultTypes.FiducialResult allianceTag = null;
+                    for (LLResultTypes.FiducialResult fiducial : fiducialResults) {
+                        int id = fiducial.getFiducialId();
+                        if (id == BLUE_ALLIANCE_TAG_ID || id == RED_ALLIANCE_TAG_ID) {
+                            allianceTag = fiducial;
+                            detectedTagId = id;
+                            break;
                         }
                     }
+                    
+                    if (allianceTag == null) {
+                        // No alliance tag found, use first detected tag
+                        allianceTag = fiducialResults.get(0);
+                        detectedTagId = allianceTag.getFiducialId();
+                    }
+                    
+                    // Try botpose (requires VPR file uploaded to Limelight)
+                    // Calculate approximate turret angle for MT2 (needed for updateRobotOrientation)
+                    // This is calculated later in the code, but we need it here for MT2
+                    // For now, use 0 (turret at center) - this could be improved by calculating turret angle earlier
+                    double turretAngleRad = 0; // TODO: Calculate from servo position if needed
+                    // Store odometry heading before calling getLimelightPose (MT2 uses odometry heading, not botpose heading)
+                    double odometryHeading = currentHeading;
+                    Pose llPose = getLimelightPose(result, allianceTag, currentHeading, turretAngleRad);
+                    if (llPose != null) {
+                        // Convert from Limelight center-origin to Pinpoint corner-origin
+                        aprilTagX = llPose.getX() + 72.0;
+                        aprilTagY = llPose.getY() + 72.0;
+                        // For MT2, heading comes from odometry (matching FTC-23511's pinpointPose.getRotation())
+                        // For MT1, heading comes from botpose
+                        aprilTagHeading = USE_LIMELIGHT_MT1 ? llPose.getHeading() : odometryHeading;
+                        
+                        // Update current position from Limelight (x, y from botpose, heading depends on MT1/MT2)
+                        currentX = aprilTagX;
+                        currentY = aprilTagY;
+                        currentHeading = aprilTagHeading;
+                        
+                        aprilTagAvailable = true;
+                        usingBotpose = true;
+                        aprilTagStatus = USE_LIMELIGHT_MT1 ? "Available (MT1)" : "Available (MT2)";
+                    } else {
+                        aprilTagStatus = "Botpose not available";
+                    }
                 }
+                
             }
         }
+
+        // Calculate distance to goal zone for RPM calculation
+        // Use AprilTag-based position if available, otherwise use default (0,0)
+        double shooterX = currentX;
+        double shooterY = currentY;
+        boolean usingLimelightPose = aprilTagAvailable;
         
-        double deltaGoalX = goalZoneX - limelightX;
-        double deltaGoalY = goalZoneY - limelightY;
+        double deltaGoalX = goalZoneX - shooterX;
+        double deltaGoalY = goalZoneY - shooterY;
         double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
         double distanceToGoalFeet = distanceToGoalInches / 12.0;  // Convert inches to feet
 
@@ -877,110 +926,53 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
 
         telemetryA.addData("", ""); // Empty line
         telemetryA.addLine("=== POSITION COMPARISON ===");
+        
+        // Get odometry position for comparison
+        Pose odomPose = follower.getPose();
+        double odomX = odomPose.getX();
+        double odomY = odomPose.getY();
+        double odomHeading = odomPose.getHeading();
+        
         telemetryA.addLine("--- Odometry (Pinpoint) ---");
-        telemetryA.addData("X", "%.2f inches", currentX);
-        telemetryA.addData("Y", "%.2f inches", currentY);
-        telemetryA.addData("Heading", "%.1f° (%.3f rad)", Math.toDegrees(currentHeading), currentHeading);
+        telemetryA.addData("X", "%.2f inches", odomX);
+        telemetryA.addData("Y", "%.2f inches", odomY);
+        telemetryA.addData("Heading", "%.1f° (%.3f rad)", Math.toDegrees(odomHeading), odomHeading);
         
-        // Calculate AprilTag position for comparison
-        double aprilTagX = Double.NaN;
-        double aprilTagY = Double.NaN;
-        double aprilTagHeading = Double.NaN;
-        int detectedTagId = -1;
-        double tagDistance = 0;
-        boolean aprilTagAvailable = false;
-        
-        if (limelight != null) {
-            LLResult result = limelight.getLatestResult();
-            if (result != null && result.isValid()) {
-                List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
-                if (!fiducialResults.isEmpty()) {
-                    LLResultTypes.FiducialResult detectedTag = fiducialResults.get(0);
-                    detectedTagId = detectedTag.getFiducialId();
-                    
-                    // Find tag's field position
-                    double tagFieldX_Limelight = 0;
-                    double tagFieldY_Limelight = 0;
-                    boolean tagPositionKnown = false;
-                    
-                    for (double[] tagPos : APRILTAG_POSITIONS) {
-                        if ((int)tagPos[0] == detectedTagId) {
-                            tagFieldX_Limelight = tagPos[1];
-                            tagFieldY_Limelight = tagPos[2];
-                            tagPositionKnown = true;
-                            break;
-                        }
-                    }
-                    
-                    if (tagPositionKnown) {
-                        // Calculate camera position from tag
-                        double tx_raw = detectedTag.getTargetXDegrees();
-                        double ty_raw = detectedTag.getTargetYDegrees();
-                        
-                        // Account for camera yaw offset (if camera is not pointing straight forward)
-                        double tx = tx_raw - CAMERA_YAW_DEG;
-                        
-                        // Calculate total vertical angle to target (camera pitch + ty from Limelight)
-                        double angleToTarget = CAMERA_PITCH_DEG + ty_raw;
-                        
-                        if (Math.abs(angleToTarget) > 0.5) {
-                            // Calculate distance to tag (horizontal distance in the plane)
-                            double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
-                            // Calculate horizontal offset (left/right) from camera center
-                            double xOffset = horizontalDistance * Math.tan(Math.toRadians(tx));
-                                
-                                // Camera position relative to tag
-                                double cameraX_relativeToTag = -xOffset;
-                                double cameraY_relativeToTag = -horizontalDistance;
-                                
-                                // Camera absolute position
-                                double cameraX_Limelight = tagFieldX_Limelight + cameraX_relativeToTag;
-                                double cameraY_Limelight = tagFieldY_Limelight + cameraY_relativeToTag;
-                                
-                                // Account for camera offset from robot center
-                                // Rotate camera offset from robot-relative to field-relative coordinates
-                                double offsetX_field = CAMERA_FORWARD_OFFSET_INCHES * Math.cos(currentHeading) - 
-                                                       CAMERA_RIGHT_OFFSET_INCHES * Math.sin(currentHeading);
-                                double offsetY_field = CAMERA_FORWARD_OFFSET_INCHES * Math.sin(currentHeading) + 
-                                                       CAMERA_RIGHT_OFFSET_INCHES * Math.cos(currentHeading);
-                                
-                                // Robot center position = camera position - offset
-                                double robotX_Limelight = cameraX_Limelight - offsetX_field;
-                                double robotY_Limelight = cameraY_Limelight - offsetY_field;
-                                
-                                // Convert to Pinpoint coordinates
-                                aprilTagX = robotX_Limelight + 72.0;
-                                aprilTagY = robotY_Limelight + 72.0;
-                                aprilTagHeading = currentHeading;  // Keep current heading for now
-                                tagDistance = horizontalDistance;
-                                aprilTagAvailable = true;
-                            }
-                        }
-                }
-            }
-        }
-        
-        telemetryA.addLine("--- AprilTag (Limelight) ---");
+        telemetryA.addLine("--- Limelight (AprilTag) ---");
         if (aprilTagAvailable) {
-            telemetryA.addData("Tag ID", "%d", detectedTagId);
-            telemetryA.addData("Distance to Tag", "%.2f inches", tagDistance);
+            telemetryA.addData("Status", aprilTagStatus);
+            telemetryA.addData("Method", usingBotpose ? "botpose (VPR)" : "manual calculation");
+            if (detectedTagId != -1) {
+                telemetryA.addData("Tag ID", "%d", detectedTagId);
+            }
+            if (!usingBotpose && tagDistance > 0) {
+                telemetryA.addData("Distance to Tag", "%.2f inches", tagDistance);
+            }
             telemetryA.addData("Camera Offset", "Fwd: %.1f\", Right: %.1f\"", 
                 CAMERA_FORWARD_OFFSET_INCHES, CAMERA_RIGHT_OFFSET_INCHES);
             telemetryA.addData("X", "%.2f inches", aprilTagX);
             telemetryA.addData("Y", "%.2f inches", aprilTagY);
-            telemetryA.addData("Heading", "%.1f° (using odometry)", Math.toDegrees(aprilTagHeading));
+            telemetryA.addData("Heading", "%.1f°", Math.toDegrees(aprilTagHeading));
             
             // Calculate difference
-            double diffX = aprilTagX - currentX;
-            double diffY = aprilTagY - currentY;
+            double diffX = aprilTagX - odomX;
+            double diffY = aprilTagY - odomY;
             double diffDistance = Math.sqrt(diffX * diffX + diffY * diffY);
+            double diffHeading = Math.abs(aprilTagHeading - odomHeading);
+            while (diffHeading > Math.PI) diffHeading -= 2 * Math.PI;
+            while (diffHeading < -Math.PI) diffHeading += 2 * Math.PI;
+            diffHeading = Math.abs(Math.toDegrees(diffHeading));
             
             telemetryA.addLine("--- Difference ---");
             telemetryA.addData("ΔX", "%.2f inches", diffX);
             telemetryA.addData("ΔY", "%.2f inches", diffY);
             telemetryA.addData("ΔDistance", "%.2f inches", diffDistance);
+            telemetryA.addData("ΔHeading", "%.1f°", diffHeading);
         } else {
-            telemetryA.addData("Status", "No AprilTag visible or invalid");
+            telemetryA.addData("Status", aprilTagStatus);
+            if (detectedTagId != -1) {
+                telemetryA.addData("Detected Tag ID", "%d (but calculation failed)", detectedTagId);
+            }
         }
         
         telemetryA.addData("", ""); // Empty line
@@ -990,9 +982,19 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         telemetryA.addData("Manual (D-Pad Up)", "Press to relocalize now");
         telemetryA.addData("", ""); // Empty line
         telemetryA.addLine("=== AIMING ===");
-        telemetryA.addData("Turret Target", "(%.1f, %.1f)", targetX, targetY);
-        telemetryA.addData("Distance to Target", "%.2f inches", distance);
-        telemetryA.addData("Turret Angle", "%.2f degrees", turretAngleDegrees);
+        if (trackingAprilTag) {
+            telemetryA.addData("Turret Mode", "TRACKING APRILTAG");
+            telemetryA.addData("Tag tx", "%.2f degrees", aprilTagTx);
+            telemetryA.addData("Turret Angle", "%.2f degrees", turretAngleDegrees);
+        } else {
+            telemetryA.addData("Turret Mode", "TARGET AIMING");
+            telemetryA.addData("Turret Target", "(%.1f, %.1f)", targetX, targetY);
+            double deltaX = targetX - currentX;
+            double deltaY = targetY - currentY;
+            double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            telemetryA.addData("Distance to Target", "%.2f inches", distance);
+            telemetryA.addData("Turret Angle", "%.2f degrees", turretAngleDegrees);
+        }
         telemetryA.addData("Turret Servo Position", "%.3f", servoPosition);
         if (turretAngleDegrees < -turretMaxAngle || turretAngleDegrees > turretMaxAngle) {
             telemetryA.addData("WARNING", "Target out of turret range!");
@@ -1015,7 +1017,7 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
         telemetryA.addData("Goal Zone (RPM calc)", "(%.1f, %.1f)", goalZoneX, goalZoneY);
         telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
-        telemetryA.addData("Distance Source", usingLimelightPose ? "Limelight botpose" : "Odometry");
+        telemetryA.addData("Distance Source", usingLimelightPose ? "Limelight AprilTag" : "Default (0,0)");
         telemetryA.addData("Calculated Target RPM", "%.0f (RPM = 100*%.2f + 1150)", calculatedTargetRPM, distanceToGoalFeet);
         telemetryA.addData("Current RPM", "%.0f", avgVelocityRPM);
         telemetryA.addData("Right Motor RPM", "%.0f", shootrVelocityRPM);
@@ -1058,16 +1060,18 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         // Add Limelight data
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
-            if (result != null && result.isValid()) {
-                telemetryA.addData("", ""); // Empty line
-                telemetryA.addLine("=== Limelight Data ===");
-                telemetryA.addData("tx (degrees)", "%.2f", result.getTx());
-                telemetryA.addData("ty (degrees)", "%.2f", result.getTy());
-
-                // Display AprilTag fiducial results
+            if (result != null) {
+                // Check for AprilTags even if isValid() is false
+                // Sometimes isValid() can be false but tag detection still works
                 List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
-                if (!fiducialResults.isEmpty()) {
+                if (fiducialResults != null && !fiducialResults.isEmpty()) {
+                    telemetryA.addData("", ""); // Empty line
+                    telemetryA.addLine("=== Limelight Data ===");
+                    telemetryA.addData("tx (degrees)", "%.2f", result.getTx());
+                    telemetryA.addData("ty (degrees)", "%.2f", result.getTy());
+                    telemetryA.addData("isValid()", result.isValid() ? "TRUE" : "FALSE");
                     telemetryA.addData("AprilTags Detected", fiducialResults.size());
+                    
                     for (LLResultTypes.FiducialResult fr : fiducialResults) {
                         double tx = fr.getTargetXDegrees();
                         double ty = fr.getTargetYDegrees();
@@ -1114,11 +1118,18 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
                         }
                     }
                 } else {
-                    telemetryA.addData("AprilTags", "None detected");
+                    telemetryA.addData("", ""); // Empty line
+                    telemetryA.addLine("=== Limelight Diagnostics ===");
+                    telemetryA.addData("Status", "No AprilTags detected");
+                    telemetryA.addData("isValid()", result.isValid() ? "TRUE" : "FALSE");
+                    telemetryA.addData("Capture Latency", "%.1f ms", result.getCaptureLatency());
+                    telemetryA.addData("Targeting Latency", "%.1f ms", result.getTargetingLatency());
+                    telemetryA.addData("Fiducial Count", "%d", fiducialResults != null ? fiducialResults.size() : 0);
                 }
             } else {
                 telemetryA.addData("", ""); // Empty line
-                telemetryA.addData("Limelight", "No valid data");
+                telemetryA.addLine("=== Limelight Diagnostics ===");
+                telemetryA.addData("Status", "Result is NULL");
             }
         }
 
@@ -1134,6 +1145,99 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         // Drawing.sendPacket();
     }
 
+    /**
+     * Get Limelight pose using MT1 (MegaTag 1) - Based on FTC-23511 implementation
+     */
+    private Pose getLimelightPoseMT1(LLResult result, LLResultTypes.FiducialResult allianceTag, double currentHeading) {
+        if (result == null || allianceTag == null) {
+            return null;
+        }
+        
+        int id = allianceTag.getFiducialId();
+        // Only use alliance-specific tags
+        if (id != BLUE_ALLIANCE_TAG_ID && id != RED_ALLIANCE_TAG_ID) {
+            return null;
+        }
+        
+        Pose3D botPose = result.getBotpose();
+        if (botPose != null && botPose.getPosition() != null) {
+            // FTC-23511 pattern: swap x/y and negate x
+            double x = DistanceUnit.INCH.fromMeters(botPose.getPosition().y);
+            double y = -DistanceUnit.INCH.fromMeters(botPose.getPosition().x);
+            double heading = botPose.getOrientation().getYaw(AngleUnit.RADIANS);
+            
+            // Add PI/2 offset for coordinate system difference (from FTC-23511)
+            heading = heading + Math.PI / 2.0;
+            // Normalize to [0, 2π]
+            while (heading < 0) heading += 2 * Math.PI;
+            while (heading >= 2 * Math.PI) heading -= 2 * Math.PI;
+            
+            // Bounds check (from FTC-23511)
+            if (x > -80 && x < 80 && y > -80 && y < 80 && !Double.isNaN(heading)) {
+                return new Pose(x, y, heading);
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get Limelight pose using MT2 (MegaTag 2) - Based on FTC-23511 implementation
+     * MT2 uses updateRobotOrientation() for better accuracy
+     */
+    private Pose getLimelightPoseMT2(LLResult result, LLResultTypes.FiducialResult allianceTag, double currentHeading, double turretAngleRad) {
+        if (result == null || allianceTag == null) {
+            return null;
+        }
+        
+        int id = allianceTag.getFiducialId();
+        // Only use alliance-specific tags
+        if (id != BLUE_ALLIANCE_TAG_ID && id != RED_ALLIANCE_TAG_ID) {
+            return null;
+        }
+        
+        // Update robot orientation BEFORE getting botpose (key improvement from FTC-23511)
+        // Calculate heading: robot heading + turret angle + 90 degrees offset
+        // Based on FTC-23511: robot.drive.getPose().getRotation().getDegrees() + Math.toDegrees(getPosition()) + 90.0
+        double robotHeadingDegrees = Math.toDegrees(currentHeading);
+        double turretAngleDegrees = Math.toDegrees(turretAngleRad);
+        double totalHeadingDegrees = robotHeadingDegrees + turretAngleDegrees + 90.0;
+        
+        // Normalize to [0, 360) for updateRobotOrientation (matching FTC-23511's MathUtils.normalizeDegrees(..., true))
+        while (totalHeadingDegrees >= 360) totalHeadingDegrees -= 360;
+        while (totalHeadingDegrees < 0) totalHeadingDegrees += 360;
+        
+        limelight.updateRobotOrientation(totalHeadingDegrees);
+        
+        Pose3D botPose = result.getBotpose_MT2();
+        // FTC-23511 only checks botPose != null, not getPosition() != null
+        // But our defensive check is fine
+        if (botPose != null && botPose.getPosition() != null) {
+            // FTC-23511 pattern: swap x/y and negate x
+            double x = DistanceUnit.INCH.fromMeters(botPose.getPosition().y);
+            double y = -DistanceUnit.INCH.fromMeters(botPose.getPosition().x);
+            
+            // MT2 keeps heading from odometry (from FTC-23511's pinpointPose.getRotation())
+            // currentHeading is already the odometry heading passed in
+            double heading = currentHeading;
+            
+            // Bounds check (from FTC-23511)
+            if (x > -80 && x < 80 && y > -80 && y < 80) {
+                return new Pose(x, y, heading);
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get Limelight pose - chooses MT1 or MT2 based on USE_LIMELIGHT_MT1 flag
+     * Based on FTC-23511 implementation
+     */
+    private Pose getLimelightPose(LLResult result, LLResultTypes.FiducialResult allianceTag, double currentHeading, double turretAngleRad) {
+        return USE_LIMELIGHT_MT1 ? getLimelightPoseMT1(result, allianceTag, currentHeading) : getLimelightPoseMT2(result, allianceTag, currentHeading, turretAngleRad);
+    }
+    
     /**
      * Convert RPM to ticks per second
      */
@@ -1156,9 +1260,9 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
     }
     
     /**
-     * Manual relocalization from Limelight AprilTag - corrects robot pose estimate
-     * Uses AprilTag detection and distance calculation
+     * Manual relocalization removed - no odometry to update
      */
+    @Deprecated
     private void relocalizeFromLimelight() {
         if (limelight == null) {
             telemetryA.addData("Relocalize", "Limelight not initialized");
@@ -1166,10 +1270,22 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
         }
         
         LLResult result = limelight.getLatestResult();
-        if (result == null || !result.isValid()) {
-            telemetryA.addData("Relocalize", "No valid data");
+        if (result == null) {
+            telemetryA.addData("Relocalize", "Result is NULL");
             return;
         }
+        
+        // Check if we have AprilTags even if isValid() is false
+        // Sometimes isValid() can be false but we still have valid tag detections
+        List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
+        if (fiducialResults == null || fiducialResults.isEmpty()) {
+            telemetryA.addData("Relocalize", "No AprilTags detected");
+            telemetryA.addData("  isValid()", result.isValid() ? "TRUE" : "FALSE");
+            return;
+        }
+        
+        // If we have tags, proceed even if isValid() is false
+        // (isValid() might be false for other reasons, but tag detection can still work)
         
         // Check latency
         double totalLatency = result.getCaptureLatency() + result.getTargetingLatency();
@@ -1178,12 +1294,7 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
             return;
         }
         
-        // Get AprilTag fiducial results - only relocalize if tag is visible
-        List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
-        if (fiducialResults.isEmpty()) {
-            telemetryA.addData("Relocalize", "No AprilTag visible");
-            return;
-        }
+        // Fiducial results already checked above, use them
         
         // Use the first detected tag
         LLResultTypes.FiducialResult detectedTag = fiducialResults.get(0);
@@ -1249,164 +1360,17 @@ public class CosmobotsBlueTeleopLimelight extends OpMode {
             return;
         }
         
-        // Keep current heading (could be improved with tag orientation)
-        double pinpointHeading = follower.getPose().getHeading();
-        
-        // Set pose
-        try {
-            follower.setPose(new Pose(pinpointX, pinpointY, pinpointHeading));
-            telemetryA.addData("Relocalize", "✓ Success (Tag %d, %.1fms)", tagId, totalLatency);
-            telemetryA.addData("  Distance", "%.1f inches", horizontalDistance);
-        } catch (Exception e) {
-            telemetryA.addData("Relocalize Error", e.getMessage());
-        }
+        // Relocalization removed - no odometry to update
+        telemetryA.addData("Relocalize", "No odometry - position calculated from Limelight");
     }
     
     /**
-     * Attempt automatic relocalization from AprilTag detection
-     * Only works when AprilTag is visible
-     * Calculates distance to tag and uses known tag position to determine robot position
-     * Returns true if successful
+     * Automatic relocalization removed - no odometry to update
      */
+    @Deprecated
     private boolean attemptRelocalizationFromAprilTag() {
-        if (limelight == null) {
-            return false;
-        }
-        
-        // Get current pose to compare against
-        Pose currentPose = follower.getPose();
-        double currentX = currentPose.getX();
-        double currentY = currentPose.getY();
-        double currentHeading = currentPose.getHeading();
-        
-        LLResult result = limelight.getLatestResult();
-        if (result == null || !result.isValid()) {
-            return false;  // No valid Limelight data
-        }
-        
-        // Check latency
-        double totalLatency = result.getCaptureLatency() + result.getTargetingLatency();
-        if (totalLatency > MAX_LATENCY_MS) {
-            return false;  // Data too stale
-        }
-        
-        // Get AprilTag fiducial results - only relocalize if tag is visible
-        List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
-        if (fiducialResults.isEmpty()) {
-            return false;  // No AprilTag visible
-        }
-        
-        // Use the first detected tag (or you could prioritize specific tags)
-        LLResultTypes.FiducialResult detectedTag = fiducialResults.get(0);
-        int tagId = detectedTag.getFiducialId();
-        
-        // Find the tag's known field position (this is the tag's absolute position on field)
-        double tagFieldX_Limelight = 0;
-        double tagFieldY_Limelight = 0;
-        boolean tagPositionKnown = false;
-        
-        for (double[] tagPos : APRILTAG_POSITIONS) {
-            if ((int)tagPos[0] == tagId) {
-                tagFieldX_Limelight = tagPos[1];  // Tag's X position in Limelight coords (center=0)
-                tagFieldY_Limelight = tagPos[2];  // Tag's Y position in Limelight coords (center=0)
-                tagPositionKnown = true;
-                break;
-            }
-        }
-        
-        if (!tagPositionKnown) {
-            return false;  // Tag ID not in our known positions
-        }
-        
-        // Calculate robot position relative to tag (treating tag as origin 0,0)
-        // Get angles from Limelight (relative to camera's view)
-        double tx_raw = detectedTag.getTargetXDegrees();  // Horizontal angle (left/right, negative = tag left)
-        double ty_raw = detectedTag.getTargetYDegrees();  // Vertical angle (up/down, positive = tag up)
-        
-        // Account for camera yaw offset (if camera is not pointing straight forward)
-        double tx = tx_raw - CAMERA_YAW_DEG;
-        
-        // Calculate distance to tag using trigonometry
-        // Total vertical angle = camera pitch + ty from Limelight
-        double angleToTarget = CAMERA_PITCH_DEG + ty_raw;
-        if (Math.abs(angleToTarget) < 0.5) {
-            return false;  // Angle too small for accurate calculation
-        }
-        
-        // Horizontal distance from camera to tag (in inches)
-        // This accounts for the camera's pitch angle
-        double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
-        
-        // Calculate horizontal offset (left/right) from tx angle
-        // This accounts for the camera's yaw offset
-        // tx: negative = tag is to the left of camera center, positive = tag is to the right
-        double xOffset = horizontalDistance * Math.tan(Math.toRadians(tx));
-        
-        // Camera position relative to tag (treating tag as 0,0)
-        // This gives us where the CAMERA is, not the robot center
-        // If tag is straight ahead (tx=0), camera is directly behind tag by horizontalDistance
-        // If tag is to the left (tx negative), camera is to the right of tag
-        // If tag is to the right (tx positive), camera is to the left of tag
-        // In tag's coordinate system (tag at 0,0):
-        //   - Camera is at (-xOffset, -horizontalDistance) relative to tag
-        double cameraX_relativeToTag = -xOffset;  // Negative because if tag is left, camera is right
-        double cameraY_relativeToTag = -horizontalDistance;  // Negative because camera is behind tag
-        
-        // Convert camera position to absolute field position
-        double cameraX_Limelight = tagFieldX_Limelight + cameraX_relativeToTag;
-        double cameraY_Limelight = tagFieldY_Limelight + cameraY_relativeToTag;
-        
-        // Account for camera offset from robot center
-        // Camera offset is in robot-relative coordinates (forward/right)
-        // Need to rotate by robot heading to convert to field coordinates
-        // Get current heading to rotate the offset
-        double robotHeading = currentPose.getHeading();
-        
-        // Rotate camera offset from robot-relative to field-relative coordinates
-        // Forward offset: +X in field coords when heading = 0 (east)
-        // Right offset: +Y in field coords when heading = 0 (east)
-        double offsetX_field = CAMERA_FORWARD_OFFSET_INCHES * Math.cos(robotHeading) - 
-                               CAMERA_RIGHT_OFFSET_INCHES * Math.sin(robotHeading);
-        double offsetY_field = CAMERA_FORWARD_OFFSET_INCHES * Math.sin(robotHeading) + 
-                               CAMERA_RIGHT_OFFSET_INCHES * Math.cos(robotHeading);
-        
-        // Robot center position = camera position - offset (camera is offset from center)
-        double robotX_Limelight = cameraX_Limelight - offsetX_field;
-        double robotY_Limelight = cameraY_Limelight - offsetY_field;
-        
-        // Convert from Limelight coordinates (center=0, meters) to Pinpoint (corner=0, inches)
-        // Limelight uses center as origin, Pinpoint uses bottom-left corner
-        // Field is 144" x 144", so center is at (72, 72) in Pinpoint
-        double pinpointX = robotX_Limelight + 72.0;
-        double pinpointY = robotY_Limelight + 72.0;
-        
-        // Bounds check
-        if (pinpointX < -10.0 || pinpointX > 154.0 || pinpointY < -10.0 || pinpointY > 154.0) {
-            return false;  // Position out of bounds
-        }
-        
-        // For heading, we can estimate from the tag's orientation or use current heading
-        // For now, keep current heading (could be improved with tag orientation)
-        double pinpointHeading = currentHeading;
-        
-        // Check if pose change is too large (likely bad data)
-        double poseChange = Math.sqrt(
-            Math.pow(pinpointX - currentX, 2) + 
-            Math.pow(pinpointY - currentY, 2)
-        );
-        
-        // Reject if change is too large (prevents bad relocalization from moving turret)
-        if (poseChange > MAX_POSE_CHANGE_INCHES) {
-            return false;  // Pose change too large, likely bad calculation
-        }
-        
-        // Set pose
-        try {
-            follower.setPose(new Pose(pinpointX, pinpointY, pinpointHeading));
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        // No odometry to update - this function is no longer used
+        return false;
     }
 
     @Override
