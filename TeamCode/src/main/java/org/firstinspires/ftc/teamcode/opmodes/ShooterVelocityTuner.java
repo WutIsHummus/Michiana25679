@@ -68,7 +68,7 @@ public class ShooterVelocityTuner extends LinearOpMode {
                 measureTicksPerRevolution();
             }
             
-            updateTelemetry();
+            updateTelemetry(); 
             sleep(20);
         }
         
@@ -95,11 +95,15 @@ public class ShooterVelocityTuner extends LinearOpMode {
         intakeBack.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shoot.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         shootL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        
+        // Set shooter motor directions (matching teleop configuration)
+        shootL.setDirection(DcMotorSimple.Direction.REVERSE);
     }
     
     private void runMotorsWithFeedforward() {
         double currentTime = timer.seconds();
         double dt = currentTime - lastTime;
+        if (dt == 0) dt = 0.001; // Prevent division by zero
         
         if (INTAKE_FRONT_ENABLED) {
             double currentVel = intakeFront.getVelocity();
@@ -240,4 +244,3 @@ public class ShooterVelocityTuner extends LinearOpMode {
         telemetry.update();
     }
 }
-

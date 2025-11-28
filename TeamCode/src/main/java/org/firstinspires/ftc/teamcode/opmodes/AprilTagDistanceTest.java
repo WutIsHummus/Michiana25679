@@ -15,7 +15,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import java.util.List;
 
 @Config
-@Disabled
 @TeleOp(name = "AprilTag Distance Test")
 public class AprilTagDistanceTest extends OpMode {
     
