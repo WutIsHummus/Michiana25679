@@ -43,9 +43,21 @@ public class FarAutoTest extends PathChainAutoOpMode {
     public static double turretTrimDeg = 0.0;
     public static double TURRET1_BACKLASH_OFFSET = 0.027;
 
-    // 🔒 Fixed turret angle (deg, relative to robot forward)
-    // This is your OG tuned angle that works
-    public static double FIXED_TURRET_ANGLE_DEG = -67.55;
+    // This is the OG tuned angle when robot pose = (57.217,15.315, heading 180°)
+    // and facing the right/backdrop.
+    public static double FIXED_TURRET_ANGLE_DEG = -68.55;
+
+    // === Field target (BLUE) ===
+    // Same as your Blue TeleOp:
+    // Red-side 128,125 mirrored across field width 144 → (16,125)
+    public static double targetX = 144.0 - 128.0;  // 16.0
+    public static double targetY = 125.0;
+
+    // Small calibration offset so that at the shooter pose
+    // the field-based angle matches the empirically tuned -68.55°.
+    // Geometry at (57.217,15.315, heading 180) gives about -69.40°,
+    // so we add +0.85°.
+    public static double TURRET_CAL_OFFSET_DEG = -1.5;
 
     @Override
     public void init() {
@@ -84,8 +96,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
         // Start pose matches Path1 start
         follower.setStartingPose(new Pose(57.430, 8.934, Math.toRadians(180)));
 
-        // Lock turret at fixed angle on init
-        updateTurretFixed();
+        // ⭕ Turret now uses auto-aim from pose
 
         buildPathChains();
         buildTaskList();
@@ -102,8 +113,8 @@ public class FarAutoTest extends PathChainAutoOpMode {
         super.loop();
         follower.update();
 
-        // 🔒 Keep turret locked at fixed angle the entire auto
-        updateTurretFixed();
+        // ⭕ Continuously auto-aim turret to target using localization
+        updateTurretAutoAim();
 
         // keep shooter spun up (tune as needed)
         run(actions.holdShooterAtRPMclose(1750, 30));
@@ -124,8 +135,26 @@ public class FarAutoTest extends PathChainAutoOpMode {
         telemetry.addData("RPM R", "%.0f", rpmR);
         telemetry.addData("RPM L", "%.0f", rpmL);
         telemetry.addData("RPM avg", "%.0f", avg);
-        telemetry.addLine("=== TURRET (FIXED) ===");
-        telemetry.addData("Fixed angle (deg)", FIXED_TURRET_ANGLE_DEG + turretTrimDeg);
+        telemetry.addLine("=== TURRET AUTO-AIM ===");
+
+        // For debug: show current pose and computed turret angle
+        Pose pose = follower.getPose();
+        telemetry.addData("Pose", "(%.1f, %.1f, %.1f°)",
+                pose.getX(), pose.getY(), Math.toDegrees(pose.getHeading()));
+        telemetry.addData("Target", "(%.1f, %.1f)", targetX, targetY);
+
+        // Recompute angle for telemetry
+        double dx = targetX - pose.getX();
+        double dy = targetY - pose.getY();
+        double fieldAngle = Math.atan2(dy, dx);
+        double turretAngleRad = fieldAngle - pose.getHeading();
+        while (turretAngleRad > Math.PI)  turretAngleRad -= 2 * Math.PI;
+        while (turretAngleRad < -Math.PI) turretAngleRad += 2 * Math.PI;
+        double turretAngleDeg = Math.toDegrees(turretAngleRad)
+                + turretTrimDeg + TURRET_CAL_OFFSET_DEG;
+
+        telemetry.addData("Turret angle (deg)", "%.2f", turretAngleDeg);
+        telemetry.addData("Trim (deg)", "%.2f", turretTrimDeg);
         telemetry.update();
     }
 
@@ -134,19 +163,16 @@ public class FarAutoTest extends PathChainAutoOpMode {
         // Use the precise shooter pose everywhere: (57.217, 15.315)
 
         // === Path1: (57.430, 8.934) -> (57.217, 15.315) ===
-        // Shooter path to ~57,15 (no intake)
         path1 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
                                 new Pose(57.430, 8.934),
                                 new Pose(57.217, 15.315)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
-                .setGlobalDeceleration(0.6)
-                .setHeadingConstraint(0.001)
+                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setGlobalDeceleration(0.5)
                 .build();
 
         // === Path2: (57.217, 15.315) -> (10, 8) ===
-        // Intake ON
         path2 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
@@ -158,18 +184,13 @@ public class FarAutoTest extends PathChainAutoOpMode {
                 .build();
 
         // === Path3: (10, 8) -> (57.217, 15.315) ===
-        // Back to shooter; stop intake before launch
         path3 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
                                 new Pose(10, 8),
                                 new Pose(57.217, 15.315)))
-                .setLinearHeadingInterpolation(Math.toRadians(190), Math.toRadians(180))
-                .setGlobalDeceleration(0.6)
-                .addPath(
-                        new BezierPoint(57.217, 15.315))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.5)
                 .addParametricCallback(0.9, () -> run(actions.stopIntake()))
                 .build();
 
@@ -196,9 +217,9 @@ public class FarAutoTest extends PathChainAutoOpMode {
                                 new Pose(57.217, 15.315)
                         )
                 )
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                .setConstantHeadingInterpolation(Math.toRadians(180))
                 .addParametricCallback(0.9, () -> run(actions.stopIntake()))
-                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.5)
                 .build();
     }
 
@@ -294,19 +315,42 @@ public class FarAutoTest extends PathChainAutoOpMode {
     }
 
     /**
-     * 🔒 Fixed-angle turret control.
-     * Uses the same angle→servo mapping as before, but
-     * always holds FIXED_TURRET_ANGLE_DEG.
+     * Auto-aim turret based on robot pose and field target.
+     * Uses the same math as TeleOp:
+     *  1) Compute angle to target in field frame.
+     *  2) Subtract robot heading to get turret angle.
+     *  3) Normalize to [-180,180], apply trim + calibration.
+     *  4) Convert angle → servo positions (with backlash on turret1).
      */
-    private void updateTurretFixed() {
-        if (turret1 == null || turret2 == null) return;
+    private void updateTurretAutoAim() {
+        if (turret1 == null || turret2 == null || follower == null) return;
 
-        // Apply trim
-        double desiredAngleDeg = FIXED_TURRET_ANGLE_DEG + turretTrimDeg;
+        Pose pose = follower.getPose();
+        double currentX = pose.getX();
+        double currentY = pose.getY();
+        double heading  = pose.getHeading();
 
-        // Clamp to allowed turret range
+        // Vector from robot → target (field coordinates)
+        double dx = targetX - currentX;
+        double dy = targetY - currentY;
+
+        // Field-frame angle to target
+        double angleToTargetField = Math.atan2(dy, dx);
+
+        // Turret angle relative to robot forward
+        double turretAngle = angleToTargetField - heading;
+
+        // Normalize to [-PI, PI]
+        while (turretAngle > Math.PI)  turretAngle -= 2 * Math.PI;
+        while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
+
+        // Convert to degrees & apply trim + calibration offset
+        double turretAngleDeg =
+                Math.toDegrees(turretAngle) + turretTrimDeg + TURRET_CAL_OFFSET_DEG;
+
+        // Clamp to mechanical range
         double clampedAngle = Math.max(-turretMaxAngle,
-                Math.min(turretMaxAngle, desiredAngleDeg));
+                Math.min(turretMaxAngle, turretAngleDeg));
 
         // Map angle → servo position
         double servoPosition;
@@ -317,13 +361,14 @@ public class FarAutoTest extends PathChainAutoOpMode {
         } else {
             // Negative angle = turn left
             double servoRange = turretCenterPosition - turretLeftPosition;
-            servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
+            servoPosition = turretCenterPosition
+                    - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
         }
 
         // Clamp servo range
         servoPosition = Math.max(0.0, Math.min(1.0, servoPosition));
 
-        // Apply backlash compensation to turret1, both shifted slightly like teleop
+        // Backlash compensation on turret1, plus small shift like TeleOp
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
 

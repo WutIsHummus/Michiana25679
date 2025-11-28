@@ -90,7 +90,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double turretCenterPosition = 0.51; // Servo position for 0 degrees
     public static double turretLeftPosition = 0.15; // Servo position for max left
     public static double turretRightPosition = 0.85; // Servo position for max right
-    public static double turretMaxAngle = 140; // Max angle in degrees (left or right from center)
+    public static double turretMaxAngle = 145; // Max angle in degrees (left or right from center)
 
     // Shooter PIDF Constants - From VelocityFinder
     public static double TICKS_PER_REV = 28.0;
@@ -250,6 +250,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         // Initialize auto-shoot timers
         shootTimer = new ElapsedTime();
         transferTimer = new ElapsedTime();
+        farShotTimer = new ElapsedTime();   // <<< FIX: initialize farShotTimer so reset() is safe
 
         // Set initial servo positions
         launchgate.setPosition(0.5);
@@ -310,7 +311,7 @@ public class CosmobotsBlueTeleop extends OpMode {
             turretTrimDeg = 0.0;   // reset offset
         }
         lastB = bPressed;
-// Low-power mode: hold RT to force shooter to 800 RPM
+        // Low-power mode: hold RT to force shooter to 800 RPM
         boolean lowPowerMode = gamepad1.right_trigger > LOW_POWER_TRIGGER_THRESHOLD;
 
         if (dpadRight && !lastDpadRight) {
@@ -397,7 +398,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         // Set servo positions
         // Set servo positions with backlash compensation on turret1 only
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
-// clamp to [0,1] so it never explodes
+        // clamp to [0,1] so it never explodes
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
 
         turret1.setPosition(turret1Pos-0.01);
@@ -421,7 +422,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
 
 
-// Far vs near for auto-shoot timing
+        // Far vs near for auto-shoot timing
         double deltaGoalXForTiming = goalZoneX - currentX;
         double deltaGoalYForTiming = goalZoneY - currentY;
         double distanceFeetForTiming = Math.sqrt(
@@ -429,7 +430,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         deltaGoalYForTiming * deltaGoalYForTiming
         ) / 12.0;
 
-// "Far" shots: double the time between shots
+        // "Far" shots: double the time between shots
         boolean isFarForShots = distanceFeetForTiming >= 6.0;
         double shotTimeScale = isFarForShots ? 16.0 : 1.0;
         // NEW: for left-trigger behavior (single-shot vs auto-transfer)
@@ -530,7 +531,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         // Shooter velocity control - controlled by shootingconstant (always true) OR auto-shoot active
         boolean yPressed = gamepad1.y;
 
-// Toggle shootingconstant on rising edge of Y
+        // Toggle shootingconstant on rising edge of Y
         if (yPressed && !lastY) {
             shootingconstant = !shootingconstant;
         }
@@ -567,7 +568,6 @@ public class CosmobotsBlueTeleop extends OpMode {
         boolean isLongRange = distanceToGoalFeet >= 6.0;
 
         // Use appropriate PIDF values based on distance
-        // Use appropriate PIDF values based on distance
         double currentP = isLongRange ? pLong : p;
         double currentI = isLongRange ? iLong : i;
         double currentD = isLongRange ? dLong : d;
@@ -576,22 +576,22 @@ public class CosmobotsBlueTeleop extends OpMode {
         double currentKS = isLongRange ? kSLong : kS;
         double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
 
-// --- HOOD REGRESSION (distance-based between HOOD_MAX_POS and HOOD_MIN_POS) ---
+        // --- HOOD REGRESSION (distance-based between HOOD_MAX_POS and HOOD_MIN_POS) ---
         double hoodT = (distanceToGoalFeet - HOOD_MIN_DIST_FT) / (HOOD_MAX_DIST_FT - HOOD_MIN_DIST_FT);
-// clamp 0–1
+        // clamp 0–1
         hoodT = Math.max(0.0, Math.min(1.0, hoodT));
 
-// interpolate: close (small distance) → HOOD_MAX_POS, far → HOOD_MIN_POS
+        // interpolate: close (small distance) → HOOD_MAX_POS, far → HOOD_MIN_POS
         double currentHoodPos = HOOD_MAX_POS + hoodT * (HOOD_MIN_POS - HOOD_MAX_POS);
 
-// clamp servo range just in case
+        // clamp servo range just in case
         currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
 
-// Update PIDF coefficients
+        // Update PIDF coefficients
         shooterPID.setPIDF(currentP, currentI, currentD, currentF);
         shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
 
-// Set hood position based on regression
+        // Set hood position based on regression
         hood1.setPosition(currentHoodPos);
 
 
@@ -792,12 +792,12 @@ public class CosmobotsBlueTeleop extends OpMode {
             launchgate.setPosition(0.5);
         }
 
-// ---------- LED STATE LOGIC ----------
-// Priority:
-// 1) Red  = shooter ON but NOT at target RPM
-// 2) Blue = auto-shooting or auto-transfer sequence
-// 3) Yellow = intaking with either bumper
-// 4) Green = normal
+        // ---------- LED STATE LOGIC ----------
+        // Priority:
+        // 1) Red  = shooter ON but NOT at target RPM
+        // 2) Blue = auto-shooting or auto-transfer sequence
+        // 3) Yellow = intaking with either bumper
+        // 4) Green = normal
 
         boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
         boolean intakeActive  = gamepad1.left_bumper || gamepad1.right_bumper;
@@ -816,7 +816,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
 
         setLedColor(ledColor);
-// ---------- END LED STATE LOGIC ----------
+        // ---------- END LED STATE LOGIC ----------
 
 
         telemetryA.addData("x", currentX);
