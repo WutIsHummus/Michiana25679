@@ -90,7 +90,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double turretCenterPosition = 0.51; // Servo position for 0 degrees
     public static double turretLeftPosition = 0.15; // Servo position for max left
     public static double turretRightPosition = 0.85; // Servo position for max right
-    public static double turretMaxAngle = 145; // Max angle in degrees (left or right from center)
+    public static double turretMaxAngle = 140; // Max angle in degrees (left or right from center)
 
     // Shooter PIDF Constants - From VelocityFinder
     public static double TICKS_PER_REV = 28.0;
@@ -102,7 +102,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double d = 0.0000;
     public static double f = 0.0009;
     public static double kV = 0.0008;
-    public static double kS = 0.01;
+    public static double kS = 0.0;
     public static double I_ZONE = 250.0;
     public static double hood1Position = 0.54;
 
@@ -112,7 +112,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double dLong = 0;
     public static double fLong = 0.00089;
     public static double kVLong = 0.0008;
-    public static double kSLong = 0.01;
+    public static double kSLong = 0.0;
     public static double I_ZONE_LONG = 250.0;
     public static double hood1PositionLong = 0.45;
 
@@ -127,7 +127,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     // b in y = mx + b
 
     // Far shooting RPM cap (for distances >= 7 feet)
-    public static double FAR_SHOOTING_RPM_MAX = 1950.0;  // Reduced from 2100
+    public static double FAR_SHOOTING_RPM_MAX = 1850.0;  // Reduced from 2100
 
     // Auto-shoot state machine
     private boolean lastA = false;
@@ -138,6 +138,10 @@ public class CosmobotsBlueTeleop extends OpMode {
     private int transferState = 0;
     private ElapsedTime shootTimer;
     private ElapsedTime transferTimer;
+    // NEW: far-shot single-fire state
+    private boolean farSingleShot = false;
+    private ElapsedTime farShotTimer;
+
 
     // RPM tolerance for "at target" detection
     public static double RPM_TOLERANCE = 100.0;
@@ -151,7 +155,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double HOOD_MAX_DIST_FT = 7.0;   // end of interpolation range
 
     // --- Turret backlash compensation for turret1 only ---
-    public static double TURRET1_BACKLASH_OFFSET = 0.025;
+    public static double TURRET1_BACKLASH_OFFSET = 0.021;
 
     // Voltage compensation (always on)
     private static final double NOMINAL_VOLTAGE = 12.0;
@@ -180,7 +184,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public void init() {
         // Initialize Follower with Pinpoint localizer (configured in Constants.java)
         follower = Constants.createFollower(hardwareMap);
-        
+
         // Try to restore saved pose
         try {
             if (PoseStore.hasSaved()) {
@@ -192,7 +196,7 @@ public class CosmobotsBlueTeleop extends OpMode {
             // Pose restore failed — use default starting pose
             follower.setStartingPose(new Pose(0, 0, 0));
         }
-        
+
         // Start teleop drive mode
         follower.startTeleopDrive();
 
@@ -428,6 +432,8 @@ public class CosmobotsBlueTeleop extends OpMode {
 // "Far" shots: double the time between shots
         boolean isFarForShots = distanceFeetForTiming >= 6.0;
         double shotTimeScale = isFarForShots ? 16.0 : 1.0;
+        // NEW: for left-trigger behavior (single-shot vs auto-transfer)
+        boolean isFarForTransfer = distanceFeetForTiming >= 7.0;  // ≥7ft = far
 
         // ==================== AUTO-SHOOT CONTROL ====================
         // Detect A button press for auto-shoot sequence
@@ -640,19 +646,56 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
 
         // ==================== LEFT TRIGGER SIMPLE SEQUENCE ====================
+        // ==================== LEFT TRIGGER CONTROL ====================
         boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
 
-        // Detect left trigger press to start sequence
-        if (currentLeftTrigger && !lastLeftTrigger && !autoTransfer) {
-            autoTransfer = true;
-            transferState = 0;
-            transferTimer.reset();
+        // Detect left trigger press
+        if (currentLeftTrigger && !lastLeftTrigger) {
+            if (isFarForTransfer) {
+                // FAR SHOT (≥7 ft): single-fire only
+                farSingleShot = true;
+                farShotTimer.reset();
+
+                // Make sure auto-transfer is not running
+                autoTransfer = false;
+                transferState = 0;
+            } else if (!autoTransfer) {
+                // CLOSE SHOT (<7 ft): keep existing 4-ball auto-transfer
+                autoTransfer = true;
+                transferState = 0;
+                transferTimer.reset();
+            }
         }
         lastLeftTrigger = currentLeftTrigger;
 
         String transferStatus = "Ready";
 
-        if (autoTransfer) {
+        // FAR SHOTS: single-fire sequence
+        if (farSingleShot) {
+            transferStatus = "Far single shot";
+
+            double t = farShotTimer.seconds();
+
+            if (t < 0.05) {
+                // QUICK OPEN
+                launchgate.setPosition(0.8);
+                intakeback.setPower(1);
+                intakefront.setPower(1);
+            } else if (t < 0.15) {
+                // CLOSE, keep intakes running briefly
+                launchgate.setPosition(0.5);
+                intakeback.setPower(1);
+                intakefront.setPower(1);
+            } else {
+                // DONE: reset gate + stop intakes
+                launchgate.setPosition(0.5);
+                intakeback.setPower(0);
+                intakefront.setPower(0);
+                farSingleShot = false;
+            }
+
+            // CLOSE SHOTS: your existing 4-ball auto-transfer state machine
+        } else if (autoTransfer) {
             switch (transferState) {
 
                 case 0: // FIRE 1 - open
@@ -744,10 +787,11 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
             }
 
-        } else if (!currentLeftTrigger && !autoTransfer) {
-            // Manual launch gate default when not in sequence
+            // Default gate position when no sequence is active
+        } else if (!currentLeftTrigger && !autoTransfer && !farSingleShot) {
             launchgate.setPosition(0.5);
         }
+
 // ---------- LED STATE LOGIC ----------
 // Priority:
 // 1) Red  = shooter ON but NOT at target RPM

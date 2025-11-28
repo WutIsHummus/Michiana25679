@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.geometry.BezierPoint;
+import com.pedropathing.geometry.BezierCurve;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -130,42 +131,74 @@ public class FarAutoTest extends PathChainAutoOpMode {
 
     @Override
     protected void buildPathChains() {
-        // === Path1: (57.430, 8.934) -> (57.430, 15.315) ===
+        // Use the precise shooter pose everywhere: (57.217, 15.315)
+
+        // === Path1: (57.430, 8.934) -> (57.217, 15.315) ===
         // Shooter path to ~57,15 (no intake)
         path1 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(57, 9),
-                                new Pose(57, 15)))
+                                new Pose(57.430, 8.934),
+                                new Pose(57.217, 15.315)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .setGlobalDeceleration(0.6)
+                .setHeadingConstraint(0.001)
                 .build();
 
-        // === Path2: (57.430, 15.315) -> (10, 8) ===
+        // === Path2: (57.217, 15.315) -> (10, 8) ===
         // Intake ON
         path2 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(57, 15),
+                                new Pose(57.217, 15.315),
                                 new Pose(10, 8)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
-        // Back to 57,15 → shooter path; stop intake before launch
-        path5 = follower.pathBuilder()
+        // === Path3: (10, 8) -> (57.217, 15.315) ===
+        // Back to shooter; stop intake before launch
+        path3 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
                                 new Pose(10, 8),
-                                new Pose(57, 15)))
+                                new Pose(57.217, 15.315)))
                 .setLinearHeadingInterpolation(Math.toRadians(190), Math.toRadians(180))
                 .setGlobalDeceleration(0.6)
                 .addPath(
-                        new BezierPoint(57, 15))
+                        new BezierPoint(57.217, 15.315))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .setGlobalDeceleration(0.6)
                 .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .build();
+
+        // === Path4: shooter -> stack 2 via curve ===
+        path4 = follower
+                .pathBuilder()
+                .addPath(
+                        new BezierCurve(
+                                new Pose(57.217, 15.315),
+                                new Pose(35.947, 37.648),
+                                new Pose(14.464, 35.734)
+                        )
+                )
+                .setTangentHeadingInterpolation()
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .build();
+
+        // === Path5: stack 2 -> shooter (line) ===
+        path5 = follower
+                .pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(14.464, 35.734),
+                                new Pose(57.217, 15.315)
+                        )
+                )
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .setGlobalDeceleration(0.6)
                 .build();
     }
 
@@ -186,10 +219,21 @@ public class FarAutoTest extends PathChainAutoOpMode {
                 .setWaitCondition(() -> true);
         tasks.add(path1Task);
 
-        // === Path2: intake-only driving ===
-        addPath(path2, 0);  // no extra wait, intake is already started via callbacks
+        // === First cycle: Path2 (out) + Path3 (back & shoot) ===
+        addPath(path2, 0);  // intake-only drive
 
-        // === Path5: back to shooter point, then launch ===
+        PathChainTask path3Task = new PathChainTask(path3, 1.0)
+                .addWaitAction(
+                        0,
+                        actions.launch3slow()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path3Task);
+
+        // === Second cycle: Path4 (curved out) + Path5 (back & shoot) ===
+        addPath(path4, 0);  // intake-only curve
+
         PathChainTask path5Task = new PathChainTask(path5, 1.0)
                 .addWaitAction(
                         0,
@@ -198,6 +242,30 @@ public class FarAutoTest extends PathChainAutoOpMode {
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path5Task);
+
+        // === Repeat Path2 + Path3 two more times ===
+
+        // Repeat 1
+        addPath(path2, 0);
+        PathChainTask path3TaskRepeat1 = new PathChainTask(path3, 1.0)
+                .addWaitAction(
+                        0,
+                        actions.launch3slow()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path3TaskRepeat1);
+
+        // Repeat 2
+        addPath(path2, 0);
+        PathChainTask path3TaskRepeat2 = new PathChainTask(path3, 1.0)
+                .addWaitAction(
+                        0,
+                        actions.launch3slow()
+                )
+                .setMaxWaitTime(6.0)
+                .setWaitCondition(() -> true);
+        tasks.add(path3TaskRepeat2);
     }
 
     @Override
