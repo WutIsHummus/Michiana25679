@@ -27,16 +27,6 @@ import com.pedropathing.geometry.Pose;
 
 import java.util.List;
 
-//import pedropathing.constants.*;
-
-/**
- * This is the LocalizationTest OpMode. This is basically just a simple mecanum drive attached to a
- * PoseUpdater. The OpMode will print out the robot's pose to telemetry as well as draw the robot
- * on FTC Dashboard (192/168/43/1:8080/dash). You should use this to check the robot's localization.
- *
- * @author Anyi Lin - 10158 Scott's Bots
- * @version 1.0, 5/6/2024
- */
 @Config
 @TeleOp(name = "1 - Cosmobots - Blue")
 public class CosmobotsBlueTeleop extends OpMode {
@@ -56,16 +46,13 @@ public class CosmobotsBlueTeleop extends OpMode {
     private Servo reargate, launchgate, hood1;
     private PIDFController shooterPID;
 
-    // Target coordinates for turret aiming
     // === Blue-Side Mirrored Field Constants ===
-
-    // Aim target for turret (mirrored X)
     public static double targetX = 144.0 - 128.0; // mirror of Red-side 128.0 → 16.0
     public static double targetY = 125.0;
+
     // Low-power shooter mode (Right Trigger)
     public static double LOW_POWER_RPM = 800.0;
-    public static double LOW_POWER_TRIGGER_THRESHOLD = 0.1;  // how hard you have to press RT
-
+    public static double LOW_POWER_TRIGGER_THRESHOLD = 0.1;
 
     // Goal zone coordinates (mirrored X)
     public static double goalZoneX = 144.0 - 116.0; // mirror of Red-side 116.0 → 28.0
@@ -76,23 +63,22 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double SNAP_Y = 123.7003;
     public static double SNAP_HEADING_DEG = (180.0 - 359.0 + 360.0) % 360.0; // mirrors 359° → 181°
 
-    public static double turretTrimDeg = 0.0; // stays the same
+    public static double turretTrimDeg = 0.0;
     public static double TRIM_STEP_DEG = 3.0;
-
 
     // Height measurements
     public static double aprilTagHeight = 30.0; // AprilTag height in inches
     public static double limelightHeight = 13.5; // Limelight height in inches
-    public static double heightDifference = aprilTagHeight - limelightHeight; // 16.3 inches
-    public static double limelightMountAngle = 19.0; // Limelight mount angle in degrees
+    public static double heightDifference = aprilTagHeight - limelightHeight;
+    public static double limelightMountAngle = 19.0; // degrees
 
     // Turret servo constants
-    public static double turretCenterPosition = 0.51; // Servo position for 0 degrees
-    public static double turretLeftPosition = 0.15; // Servo position for max left
-    public static double turretRightPosition = 0.85; // Servo position for max right
-    public static double turretMaxAngle = 145; // Max angle in degrees (left or right from center)
+    public static double turretCenterPosition = 0.51;
+    public static double turretLeftPosition = 0.15;
+    public static double turretRightPosition = 0.85;
+    public static double turretMaxAngle = 150;
 
-    // Shooter PIDF Constants - From VelocityFinder
+    // Shooter PIDF Constants
     public static double TICKS_PER_REV = 28.0;
     public static double GEAR_RATIO = 1.0;
 
@@ -118,16 +104,19 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     private boolean lastB = false;
 
+    // Linear regression for RPM calculation: RPM = 80 * (feet_from_goal) + 1050
+    private static final double RPM_SLOPE = 80.0;
+    private static final double RPM_INTERCEPT = 1050.0;
 
-    // Linear regression for RPM calculation: RPM = 100 * (feet_from_goal) + 1150
-    // where x is feet from goal zone, y is RPM
-    // Formula: y = 100x + 1150
-    private static final double RPM_SLOPE = 80.0;  // m in y = mx + b
-    private static final double RPM_INTERCEPT = 1050.0;  // b in y = mx + b (was 1150)
-    // b in y = mx + b
+    // Far shooting RPM cap (for distances >= 9 feet)
+    public static double FAR_SHOOTING_RPM_MAX = 1800;
 
-    // Far shooting RPM cap (for distances >= 7 feet)
-    public static double FAR_SHOOTING_RPM_MAX = 1850.0;  // Reduced from 2100
+    // NEW: normal (non-far) max RPM cap
+    public static double NORMAL_SHOOTING_RPM_MAX = 1600.0;
+
+    // Far-shooting toggle state (D-pad UP)
+    private boolean farShootingEnabled = false;
+    private boolean lastDpadUp = false;
 
     // Auto-shoot state machine
     private boolean lastA = false;
@@ -138,10 +127,9 @@ public class CosmobotsBlueTeleop extends OpMode {
     private int transferState = 0;
     private ElapsedTime shootTimer;
     private ElapsedTime transferTimer;
-    // NEW: far-shot single-fire state
+    // far-shot single-fire state
     private boolean farSingleShot = false;
     private ElapsedTime farShotTimer;
-
 
     // RPM tolerance for "at target" detection
     public static double RPM_TOLERANCE = 100.0;
@@ -149,43 +137,36 @@ public class CosmobotsBlueTeleop extends OpMode {
     private boolean lastY = false;
 
     // --- Hood regression (distance-based) ---
-    public static double HOOD_MIN_POS = 0.45;      // flattest shot (far)
-    public static double HOOD_MAX_POS = 0.54;      // highest arc (close)
-    public static double HOOD_MIN_DIST_FT = 0.5;   // start of interpolation range
-    public static double HOOD_MAX_DIST_FT = 7.0;   // end of interpolation range
+    public static double HOOD_MIN_POS = 0.45;
+    public static double HOOD_MAX_POS = 0.54;
+    public static double HOOD_MIN_DIST_FT = -2;
+    public static double HOOD_MAX_DIST_FT = 7.0;
 
-    // --- Turret backlash compensation for turret1 only ---
+    // --- Turret backlash compensation ---
     public static double TURRET1_BACKLASH_OFFSET = 0.021;
 
-    // Voltage compensation (always on)
+    // Voltage compensation
     private static final double NOMINAL_VOLTAGE = 12.0;
 
-    // --- add near other fields ---
-    private boolean lastX = false;        // edge detector for pose snap
+    // edge detectors
+    private boolean lastX = false;
     private boolean lastDpadLeft = false;
     private boolean lastDpadRight = false;
-    // LED strips (GoBILDA PWM lights)
+
+    // LED strips
     private Servo led1;
     private Servo led2;
 
-    // LED color positions (from GoBILDA chart)
     public static double LED_OFF    = 0.0;
     public static double LED_RED    = 0.277;
     public static double LED_YELLOW = 0.388;
     public static double LED_GREEN  = 0.500;
     public static double LED_BLUE   = 0.611;
 
-
-
-    /**
-     * This initializes the Follower (with Pinpoint localization), the mecanum drive motors, and the FTC Dashboard telemetry.
-     */
     @Override
     public void init() {
-        // Initialize Follower with Pinpoint localizer (configured in Constants.java)
+        // Follower + pose restore
         follower = Constants.createFollower(hardwareMap);
-
-        // Try to restore saved pose
         try {
             if (PoseStore.hasSaved()) {
                 follower.setStartingPose(PoseStore.lastPose);
@@ -193,16 +174,11 @@ public class CosmobotsBlueTeleop extends OpMode {
                 follower.setStartingPose(new Pose(0, 0, 0));
             }
         } catch (Exception ignored) {
-            // Pose restore failed — use default starting pose
             follower.setStartingPose(new Pose(0, 0, 0));
         }
-
-        // Start teleop drive mode
         follower.startTeleopDrive();
 
-
-
-        // Initialize drive motors
+        // Drive motors
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
         fr = hardwareMap.get(DcMotorEx.class, "frontright");
         bl = hardwareMap.get(DcMotorEx.class, "backleft");
@@ -213,53 +189,49 @@ public class CosmobotsBlueTeleop extends OpMode {
         fr.setDirection(DcMotorSimple.Direction.FORWARD);
         br.setDirection(DcMotorSimple.Direction.FORWARD);
 
-
-
-        // Initialize turret servos
+        // Turret
         turret1 = hardwareMap.get(Servo.class, "turret1");
         turret2 = hardwareMap.get(Servo.class, "turret2");
 
-        // Initialize shooter hardware
+        // Shooter hardware
         intakefront = hardwareMap.get(DcMotorEx.class, "intakefront");
-        intakeback = hardwareMap.get(DcMotorEx.class, "intakeback");
-        shootr = hardwareMap.get(DcMotorEx.class, "shootr");
-        shootl = hardwareMap.get(DcMotorEx.class, "shootl");
+        intakeback  = hardwareMap.get(DcMotorEx.class, "intakeback");
+        shootr      = hardwareMap.get(DcMotorEx.class, "shootr");
+        shootl      = hardwareMap.get(DcMotorEx.class, "shootl");
 
-        reargate = hardwareMap.get(Servo.class, "reargate");
+        reargate   = hardwareMap.get(Servo.class, "reargate");
         launchgate = hardwareMap.get(Servo.class, "launchgate");
-        hood1 = hardwareMap.get(Servo.class, "hood 1");
+        hood1      = hardwareMap.get(Servo.class, "hood 1");
 
-        // Set shooter motor directions
         shootl.setDirection(DcMotorSimple.Direction.REVERSE);
         intakeback.setDirection(DcMotorSimple.Direction.REVERSE);
         intakefront.setDirection(DcMotorSimple.Direction.REVERSE);
+
         led1 = hardwareMap.get(Servo.class, "led1");
         led2 = hardwareMap.get(Servo.class, "led2");
 
-        // Setup all motors
+        // Motor modes
         for (DcMotorEx m : new DcMotorEx[]{fl, fr, bl, br, intakefront, intakeback, shootr, shootl}) {
             m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             m.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        // Initialize shooter PIDF controller
         shooterPID = new PIDFController(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
 
-        // Initialize auto-shoot timers
-        shootTimer = new ElapsedTime();
+        shootTimer   = new ElapsedTime();
         transferTimer = new ElapsedTime();
-        farShotTimer = new ElapsedTime();   // <<< FIX: initialize farShotTimer so reset() is safe
+        farShotTimer  = new ElapsedTime();
 
-        // Set initial servo positions
         launchgate.setPosition(0.5);
         hood1.setPosition(hood1Position);
         setLedColor(LED_GREEN);
+
         telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
         telemetryA.setMsTransmissionInterval(11);
 
-        // Initialize Limelight
+        // Limelight
         try {
             limelight = hardwareMap.get(Limelight3A.class, "limelight");
             limelight.pipelineSwitch(0);
@@ -271,47 +243,22 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
 
         telemetryA.addLine("Full Testing OpMode - Localization + Shooter");
-        telemetryA.addLine("Gamepad 1 Controls:");
-        telemetryA.addLine("  - Right Stick: Mecanum drive (Y/X)");
-        telemetryA.addLine("  - Left Stick X: Rotation");
-        telemetryA.addLine("  - Left Bumper: Back intake");
-        telemetryA.addLine("  - Right Bumper: Front intake");
-        telemetryA.addLine("  - Right Trigger: Spin up shooter (RPM auto-calculated)");
-        telemetryA.addLine("  - Left Trigger: Auto-transfer 3 balls when at speed");
-        telemetryA.addLine("  - A Button: Auto-shoot 3 balls (distance-based)");
-        telemetryA.addLine("RPM Formula: RPM = 100 * (feet from goal) + 1150");
-        telemetryA.addLine("Auto-transfer adapts to distance (fast <7ft, slow ≥7ft)");
         telemetryA.update();
-
-
-        // TODO: Drawing removed
-        // TODO: PoseUpdater removed
-        // TODO: PoseUpdater removed
-        // // // Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
-        // TODO: Drawing removed
-        // Drawing.sendPacket();
     }
 
-    /**
-     * This updates the robot's pose estimate, the simple mecanum drive, and updates the FTC
-     * Dashboard telemetry with the robot's position as well as draws the robot's position.
-     */
     @Override
     public void loop() {
-
-
-
-        // --- Turret trim controls: D-pad LEFT = -3°, RIGHT = +3° (edge-triggered) ---
+        // Turret trim
         boolean dpadLeft  = gamepad1.dpad_left;
         boolean dpadRight = gamepad1.dpad_right;
 
-        // --- B to reset turret trim (offset) to 0 ---
         boolean bPressed = gamepad1.b;
         if (bPressed && !lastB) {
-            turretTrimDeg = 0.0;   // reset offset
+            turretTrimDeg = 0.0;
         }
         lastB = bPressed;
-        // Low-power mode: hold RT to force shooter to 800 RPM
+
+        // Low-power mode (RT)
         boolean lowPowerMode = gamepad1.right_trigger > LOW_POWER_TRIGGER_THRESHOLD;
 
         if (dpadRight && !lastDpadRight) {
@@ -320,28 +267,33 @@ public class CosmobotsBlueTeleop extends OpMode {
         if (dpadLeft && !lastDpadLeft) {
             turretTrimDeg -= TRIM_STEP_DEG;
         }
-
         lastDpadLeft  = dpadLeft;
         lastDpadRight = dpadRight;
 
-        // Update Follower (which updates Pinpoint localization)
+        // FAR SHOOTING TOGGLE: D-pad UP
+        boolean dpadUp = gamepad1.dpad_up;
+        if (dpadUp && !lastDpadUp) {
+            farShootingEnabled = !farShootingEnabled;
+        }
+        lastDpadUp = dpadUp;
+
+        // Update localization
         follower.update();
 
-        // --- snap-to-pose: gamepad1.x ---
+        // Snap pose on X
         boolean xPressed = gamepad1.x;
         if (xPressed && !lastX) {
             double snapHeadingRad = Math.toRadians(SNAP_HEADING_DEG);
-            // Set pose using Follower
             follower.setPose(new Pose(SNAP_X, SNAP_Y, snapHeadingRad));
         }
         lastX = xPressed;
 
-        // Drive controls - matching VelocityFinder setup
-        double y = -gamepad1.right_stick_y;
-        double x = gamepad1.right_stick_x * 1.1;
-        double rx = gamepad1.left_stick_x;
+        // Drive
+        double y  = -gamepad1.right_stick_y;
+        double x  =  gamepad1.right_stick_x * 1.1;
+        double rx =  gamepad1.left_stick_x;
 
-        double scale = 1;
+        double scale = 1.0;
         double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1.0);
 
         double flPower = (y + x + rx) / denominator * scale;
@@ -354,75 +306,55 @@ public class CosmobotsBlueTeleop extends OpMode {
         bl.setPower(blPower);
         br.setPower(brPower);
 
-        // Get current position from Follower (Pinpoint localization)
+        // Pose
         Pose currentPose = follower.getPose();
-        double currentX = currentPose.getX();
-        double currentY = currentPose.getY();
+        double currentX  = currentPose.getX();
+        double currentY  = currentPose.getY();
+        double currentHeading = currentPose.getHeading();
 
-        // Calculate distance and angle to target (for turret aiming)
+        // Turret targeting
         double deltaX = targetX - currentX;
         double deltaY = targetY - currentY;
         double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-        // Calculate angle to target relative to field (0 degrees = east, 90 = north)
         double angleToTargetField = Math.atan2(deltaY, deltaX);
-
-        // Calculate angle relative to robot (turret angle needed)
-        // Subtract robot heading to get relative angle
-        double currentHeading = currentPose.getHeading();
         double turretAngle = angleToTargetField - currentHeading;
 
-        // Normalize angle to [-PI, PI]
-        while (turretAngle > Math.PI) turretAngle -= 2 * Math.PI;
+        while (turretAngle > Math.PI)  turretAngle -= 2 * Math.PI;
         while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
 
-        // Convert to degrees
         double turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
-
-        // Calculate servo position
-        // Clamp angle to valid range
         double clampedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
 
-        // Convert angle to servo position (FLIPPED)
         double servoPosition;
         if (clampedAngle >= 0) {
-            // Positive angle = turn right
-            double servoRange = turretRightPosition - turretCenterPosition; // 0.235
+            double servoRange = turretRightPosition - turretCenterPosition;
             servoPosition = turretCenterPosition + (clampedAngle / turretMaxAngle) * servoRange;
         } else {
-            // Negative angle = turn left
-            double servoRange = turretCenterPosition - turretLeftPosition; // 0.235
+            double servoRange = turretCenterPosition - turretLeftPosition;
             servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
         }
 
-        // Set servo positions
-        // Set servo positions with backlash compensation on turret1 only
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
-        // clamp to [0,1] so it never explodes
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
 
-        turret1.setPosition(turret1Pos-0.01);
-        turret2.setPosition(servoPosition-0.01);
+        turret1.setPosition(turret1Pos - 0.01);
+        turret2.setPosition(servoPosition - 0.01);
 
-
-        // ===== SHOOTER CONTROL =====
-        // Intake controls - split between bumpers
-        // Left bumper: back intake
+        // Intake bumpers
         if (gamepad1.left_bumper) {
             intakeback.setPower(1.0);
-        } else {
+        } else if (!autoTransfer && !farSingleShot) {
             intakeback.setPower(0);
         }
 
-        // Right bumper: front intake
         if (gamepad1.right_bumper) {
             intakefront.setPower(1.0);
-        } else {
+        } else if (!autoTransfer && !farSingleShot) {
             intakefront.setPower(0);
         }
 
-
-        // Far vs near for auto-shoot timing
+        // Distance for timing / near vs far
         double deltaGoalXForTiming = goalZoneX - currentX;
         double deltaGoalYForTiming = goalZoneY - currentY;
         double distanceFeetForTiming = Math.sqrt(
@@ -430,46 +362,40 @@ public class CosmobotsBlueTeleop extends OpMode {
                         deltaGoalYForTiming * deltaGoalYForTiming
         ) / 12.0;
 
-        // "Far" shots: double the time between shots
         boolean isFarForShots = distanceFeetForTiming >= 6.0;
         double shotTimeScale = isFarForShots ? 16.0 : 1.0;
-        // NEW: for left-trigger behavior (single-shot vs auto-transfer)
-        boolean isFarForTransfer = distanceFeetForTiming >= 7.0;  // ≥7ft = far
 
-        // ==================== AUTO-SHOOT CONTROL ====================
-        // Detect A button press for auto-shoot sequence
+        boolean isFarForTransfer = distanceFeetForTiming >= 18.0;  // comment says ≥7ft, but left as-is
+
+        // A button auto-shoot
         boolean currentA = gamepad1.a;
         if (currentA && !lastA && !shooting) {
-            // Start 3-ball shooting sequence
             shooting = true;
             shootState = 0;
             shootTimer.reset();
         }
         lastA = currentA;
 
-        // Run shooting state machine (3 shots)
         String shootStatus = "Ready";
         if (shooting) {
             switch (shootState) {
-                case 0: // Spin up shooter
+                case 0:
                     shootStatus = "Spinning up...";
-                    if (shootTimer.seconds() > 1.0) {   // keep spinup the same
+                    if (shootTimer.seconds() > 1.0) {
                         shootState = 1;
                         shootTimer.reset();
                     }
                     break;
-
-                case 1: // Start intakes
+                case 1:
                     shootStatus = "Starting intakes...";
                     intakefront.setPower(-1.0);
                     intakeback.setPower(-1.0);
-                    if (shootTimer.seconds() > 0.1) {   // keep intake start the same
+                    if (shootTimer.seconds() > 0.1) {
                         shootState = 2;
                         shootTimer.reset();
                     }
                     break;
-
-                case 2: // Fire shot 1
+                case 2:
                     shootStatus = "Firing shot 1/3";
                     launchgate.setPosition(0.8);
                     if (shootTimer.seconds() > 0.2 * shotTimeScale) {
@@ -477,8 +403,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         shootTimer.reset();
                     }
                     break;
-
-                case 3: // Reset gate 1
+                case 3:
                     shootStatus = "Reset 1/3";
                     launchgate.setPosition(0.5);
                     if (shootTimer.seconds() > 0.3 * shotTimeScale) {
@@ -486,8 +411,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         shootTimer.reset();
                     }
                     break;
-
-                case 4: // Fire shot 2
+                case 4:
                     shootStatus = "Firing shot 2/3";
                     launchgate.setPosition(0.8);
                     if (shootTimer.seconds() > 0.2 * shotTimeScale) {
@@ -495,8 +419,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         shootTimer.reset();
                     }
                     break;
-
-                case 5: // Reset gate 2
+                case 5:
                     shootStatus = "Reset 2/3";
                     launchgate.setPosition(0.5);
                     if (shootTimer.seconds() > 0.3 * shotTimeScale) {
@@ -504,8 +427,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         shootTimer.reset();
                     }
                     break;
-
-                case 6: // Fire shot 3
+                case 6:
                     shootStatus = "Firing shot 3/3";
                     launchgate.setPosition(0.8);
                     if (shootTimer.seconds() > 0.2 * shotTimeScale) {
@@ -513,8 +435,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         shootTimer.reset();
                     }
                     break;
-
-                case 7: // Reset gate 3 and stop
+                case 7:
                     shootStatus = "Complete!";
                     launchgate.setPosition(0.5);
                     intakefront.setPower(0);
@@ -524,115 +445,91 @@ public class CosmobotsBlueTeleop extends OpMode {
                         shootState = 0;
                     }
                     break;
-
             }
         }
 
-        // Shooter velocity control - controlled by shootingconstant (always true) OR auto-shoot active
+        // Y toggles shooterconstant
         boolean yPressed = gamepad1.y;
-
-        // Toggle shootingconstant on rising edge of Y
         if (yPressed && !lastY) {
             shootingconstant = !shootingconstant;
         }
         lastY = yPressed;
+
         boolean shooterOn = shootingconstant || shooting;
 
-        // Calculate distance to goal zone for RPM calculation
+        // Distance to goal zone for RPM / hood
         double deltaGoalX = goalZoneX - currentX;
         double deltaGoalY = goalZoneY - currentY;
         double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
-        double distanceToGoalFeet = distanceToGoalInches / 12.0;  // Convert inches to feet
+        double distanceToGoalFeet = distanceToGoalInches / 12.0;
 
-        // Calculate target RPM using linear regression: RPM = 100 * (feet) + 1150
-        // Calculate target RPM: use formula up to 7 feet, then cap at FAR_SHOOTING_RPM_MAX
-        // Calculate target RPM
+        // === TARGET RPM CALCULATION WITH FAR TOGGLE ===
         double calculatedTargetRPM;
 
         if (lowPowerMode) {
-            // Low-power mode: fixed 800 RPM to reduce current draw
+            // Force low RPM
             calculatedTargetRPM = LOW_POWER_RPM;
         } else {
-            // Distance-based regression with clamp
-            if (distanceToGoalFeet >= 9.0) {
-                calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;  // far shooting RPM stays the same
+            double clampMax = farShootingEnabled ? FAR_SHOOTING_RPM_MAX : NORMAL_SHOOTING_RPM_MAX;
+
+            if (farShootingEnabled && distanceToGoalFeet >= 9.0) {
+                // Only if far mode is ON and we are far, jump to far cap
+                calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;
             } else {
+                // Regular distance-based RPM, with a lower cap when far mode is OFF
                 calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
-                calculatedTargetRPM = Math.max(1150.0, Math.min(FAR_SHOOTING_RPM_MAX, calculatedTargetRPM));
+                calculatedTargetRPM = Math.max(1150.0, Math.min(clampMax, calculatedTargetRPM));
             }
         }
 
-
-
-        // Determine if we're shooting long range (>= 6 feet)
         boolean isLongRange = distanceToGoalFeet >= 6.0;
 
-        // Use appropriate PIDF values based on distance
-        double currentP = isLongRange ? pLong : p;
-        double currentI = isLongRange ? iLong : i;
-        double currentD = isLongRange ? dLong : d;
-        double currentF = isLongRange ? fLong : f;
-        double currentKV = isLongRange ? kVLong : kV;
-        double currentKS = isLongRange ? kSLong : kS;
+        double currentP     = isLongRange ? pLong : p;
+        double currentI     = isLongRange ? iLong : i;
+        double currentD     = isLongRange ? dLong : d;
+        double currentF     = isLongRange ? fLong : f;
+        double currentKV    = isLongRange ? kVLong : kV;
+        double currentKS    = isLongRange ? kSLong : kS;
         double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
 
-        // --- HOOD REGRESSION (distance-based between HOOD_MAX_POS and HOOD_MIN_POS) ---
+        // Hood regression
         double hoodT = (distanceToGoalFeet - HOOD_MIN_DIST_FT) / (HOOD_MAX_DIST_FT - HOOD_MIN_DIST_FT);
-        // clamp 0–1
         hoodT = Math.max(0.0, Math.min(1.0, hoodT));
-
-        // interpolate: close (small distance) → HOOD_MAX_POS, far → HOOD_MIN_POS
         double currentHoodPos = HOOD_MAX_POS + hoodT * (HOOD_MIN_POS - HOOD_MAX_POS);
-
-        // clamp servo range just in case
         currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
+        hood1.setPosition(currentHoodPos);
 
-        // Update PIDF coefficients
         shooterPID.setPIDF(currentP, currentI, currentD, currentF);
         shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
 
-        // Set hood position based on regression
-        hood1.setPosition(currentHoodPos);
-
-
-        // Convert target RPM to ticks per second
         double targetTPS = rpmToTicksPerSec(calculatedTargetRPM);
 
-        // Read current velocities
         double vR = shootr.getVelocity();
         double vL = shootl.getVelocity();
         double vAvg = 0.5 * (vR + vL);
 
-        // Convert to RPM for display
         double shootrVelocityRPM = ticksPerSecToRPM(vR);
         double shootlVelocityRPM = ticksPerSecToRPM(vL);
-        double avgVelocityRPM = ticksPerSecToRPM(vAvg);
+        double avgVelocityRPM    = ticksPerSecToRPM(vAvg);
 
         double shooterPower = 0;
         double pidfOutput = 0;
         double additionalFF = 0;
 
         if (shooterOn) {
-            // PIDF control (F term is built-in and multiplied by setpoint)
             pidfOutput = shooterPID.calculate(vAvg, targetTPS);
 
-            // Additional feedforward using kV and kS (use current values based on distance)
             double sgn = Math.signum(targetTPS);
             additionalFF = (Math.abs(targetTPS) > 1e-6) ? (currentKS * sgn + currentKV * targetTPS) : 0.0;
 
-            // Total power (PIDF output already includes F*setpoint)
-            // If using only F term, set kS and kV to 0
             shooterPower = pidfOutput + additionalFF;
 
-            // Safety: prevent overshoot
             if (avgVelocityRPM >= calculatedTargetRPM && shooterPower > 0) {
                 shooterPower = Math.min(shooterPower, 0.5);
             }
 
-            // Clamp
             shooterPower = Math.max(-1.0, Math.min(1.0, shooterPower));
 
-            // Voltage compensation (always on): power * (12V / currentVoltage)
             double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
             double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
@@ -645,22 +542,16 @@ public class CosmobotsBlueTeleop extends OpMode {
             shooterPID.reset();
         }
 
-        // ==================== LEFT TRIGGER SIMPLE SEQUENCE ====================
-        // ==================== LEFT TRIGGER CONTROL ====================
+        // LEFT TRIGGER
         boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
 
-        // Detect left trigger press
         if (currentLeftTrigger && !lastLeftTrigger) {
             if (isFarForTransfer) {
-                // FAR SHOT (≥7 ft): single-fire only
                 farSingleShot = true;
                 farShotTimer.reset();
-
-                // Make sure auto-transfer is not running
                 autoTransfer = false;
                 transferState = 0;
             } else if (!autoTransfer) {
-                // CLOSE SHOT (<7 ft): keep existing 4-ball auto-transfer
                 autoTransfer = true;
                 transferState = 0;
                 transferTimer.reset();
@@ -670,35 +561,29 @@ public class CosmobotsBlueTeleop extends OpMode {
 
         String transferStatus = "Ready";
 
-        // FAR SHOTS: single-fire sequence
         if (farSingleShot) {
             transferStatus = "Far single shot";
 
             double t = farShotTimer.seconds();
 
             if (t < 0.05) {
-                // QUICK OPEN
                 launchgate.setPosition(0.8);
                 intakeback.setPower(1);
                 intakefront.setPower(1);
             } else if (t < 0.15) {
-                // CLOSE, keep intakes running briefly
                 launchgate.setPosition(0.5);
                 intakeback.setPower(1);
                 intakefront.setPower(1);
             } else {
-                // DONE: reset gate + stop intakes
                 launchgate.setPosition(0.5);
                 intakeback.setPower(0);
                 intakefront.setPower(0);
                 farSingleShot = false;
             }
 
-            // CLOSE SHOTS: your existing 4-ball auto-transfer state machine
         } else if (autoTransfer) {
             switch (transferState) {
-
-                case 0: // FIRE 1 - open
+                case 0:
                     transferStatus = "Fire 1 OPEN";
                     launchgate.setPosition(0.8);
                     intakeback.setPower(1);
@@ -708,8 +593,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         transferTimer.reset();
                     }
                     break;
-
-                case 1: // FIRE 1 - close
+                case 1:
                     transferStatus = "Fire 1 CLOSE";
                     launchgate.setPosition(0.5);
                     intakeback.setPower(1);
@@ -719,8 +603,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         transferTimer.reset();
                     }
                     break;
-
-                case 2: // FIRE 2 - open
+                case 2:
                     transferStatus = "Fire 2 OPEN";
                     launchgate.setPosition(0.8);
                     intakeback.setPower(1);
@@ -730,8 +613,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         transferTimer.reset();
                     }
                     break;
-
-                case 3: // FIRE 2 - close
+                case 3:
                     transferStatus = "Fire 2 CLOSE";
                     launchgate.setPosition(0.5);
                     intakeback.setPower(1);
@@ -741,8 +623,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         transferTimer.reset();
                     }
                     break;
-
-                case 4: // FIRE 3 - open
+                case 4:
                     transferStatus = "Fire 3 OPEN";
                     launchgate.setPosition(0.8);
                     intakeback.setPower(1);
@@ -752,8 +633,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         transferTimer.reset();
                     }
                     break;
-
-                case 5: // FIRE 3 - close
+                case 5:
                     transferStatus = "Fire 3 CLOSE";
                     launchgate.setPosition(0.5);
                     intakeback.setPower(1);
@@ -763,8 +643,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         transferTimer.reset();
                     }
                     break;
-
-                case 6: // FIRE 4 - open
+                case 6:
                     transferStatus = "Fire 4 OPEN";
                     launchgate.setPosition(0.8);
                     intakeback.setPower(1);
@@ -774,8 +653,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                         transferTimer.reset();
                     }
                     break;
-
-                case 7: // FIRE 4 - close + end
+                case 7:
                     transferStatus = "Fire 4 CLOSE";
                     launchgate.setPosition(0.5);
                     intakeback.setPower(1);
@@ -786,59 +664,47 @@ public class CosmobotsBlueTeleop extends OpMode {
                     }
                     break;
             }
-
-            // Default gate position when no sequence is active
         } else if (!currentLeftTrigger && !autoTransfer && !farSingleShot) {
             launchgate.setPosition(0.5);
         }
 
-        // ---------- LED STATE LOGIC ----------
-        // Priority:
-        // 1) Red  = shooter ON but NOT at target RPM
-        // 2) Blue = auto-shooting or auto-transfer sequence
-        // 3) Yellow = intaking with either bumper
-        // 4) Green = normal
-
+        // LED state
         boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
         boolean intakeActive  = gamepad1.left_bumper || gamepad1.right_bumper;
 
-        double ledColor = LED_GREEN;  // default
+        double ledColor = LED_GREEN;
 
         if (shooterOn && !atTargetSpeed) {
-            // Shooter running but not at speed yet
             ledColor = LED_RED;
         } else if (shooting || autoTransfer) {
-            // Actively firing sequence
             ledColor = LED_BLUE;
         } else if (intakeActive) {
-            // Just intaking
             ledColor = LED_YELLOW;
         }
-
         setLedColor(ledColor);
-        // ---------- END LED STATE LOGIC ----------
 
-
+        // Telemetry
         telemetryA.addData("x", currentX);
         telemetryA.addData("y", currentY);
-        telemetryA.addData("heading (rad)", currentHeading);
         telemetryA.addData("heading (deg)", Math.toDegrees(currentHeading));
-        telemetryA.addData("", ""); // Empty line
+        telemetryA.addData("", "");
+
         telemetryA.addLine("=== AIMING ===");
         telemetryA.addData("Turret Target", "(%.1f, %.1f)", targetX, targetY);
         telemetryA.addData("Distance to Target", "%.2f inches", distance);
         telemetryA.addData("Turret Angle", "%.2f degrees", turretAngleDegrees);
         telemetryA.addData("Turret Servo Position", "%.3f", servoPosition);
+        telemetryA.addData("Turret Trim (deg)", "%.1f", turretTrimDeg);
+        telemetryA.addData("Far Shooting Enabled", farShootingEnabled ? "ON (D-pad UP)" : "OFF");
         if (turretAngleDegrees < -turretMaxAngle || turretAngleDegrees > turretMaxAngle) {
             telemetryA.addData("WARNING", "Target out of turret range!");
         }
         telemetryA.addData("Low Power Mode", lowPowerMode ? "RT: 800 RPM" : "OFF");
 
-        // Add shooter telemetry
-        telemetryA.addData("", ""); // Empty line
+        telemetryA.addData("", "");
         telemetryA.addLine("=== Shooter Status ===");
         telemetryA.addData("Shooter", shooterOn ? "RUNNING" : "STOPPED");
-        telemetryA.addData("At Target Speed", Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE ? "✓ YES" : "NO");
+        telemetryA.addData("At Target Speed", atTargetSpeed ? "✓ YES" : "NO");
         if (shooting) {
             telemetryA.addData("Auto-Shoot", shootStatus);
             telemetryA.addData("State", shootState);
@@ -847,10 +713,12 @@ public class CosmobotsBlueTeleop extends OpMode {
             telemetryA.addData("Auto-Transfer", transferStatus);
             telemetryA.addData("Transfer State", transferState);
         }
-        telemetryA.addData("Distance Range", isLongRange ? "LONG (≥6ft) - p=0.01, hood=0.45" : "SHORT (<6ft) - p=0.002, hood=0.54");
+
+        telemetryA.addData("Distance Range",
+                isLongRange ? "LONG (≥6ft)" : "SHORT (<6ft)");
         telemetryA.addData("Goal Zone (RPM calc)", "(%.1f, %.1f)", goalZoneX, goalZoneY);
-        telemetryA.addData("Distance to Goal", "%.2f inches (%.2f feet)", distanceToGoalInches, distanceToGoalFeet);
-        telemetryA.addData("Calculated Target RPM", "%.0f (RPM = 100*%.2f + 1150)", calculatedTargetRPM, distanceToGoalFeet);
+        telemetryA.addData("Distance to Goal", "%.2f in (%.2f ft)", distanceToGoalInches, distanceToGoalFeet);
+        telemetryA.addData("Calculated Target RPM", "%.0f", calculatedTargetRPM);
         telemetryA.addData("Current RPM", "%.0f", avgVelocityRPM);
         telemetryA.addData("Right Motor RPM", "%.0f", shootrVelocityRPM);
         telemetryA.addData("Left Motor RPM", "%.0f", shootlVelocityRPM);
@@ -858,47 +726,32 @@ public class CosmobotsBlueTeleop extends OpMode {
 
         double currentVoltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
         double compensationFactor = NOMINAL_VOLTAGE / currentVoltage;
-
         telemetryA.addData("Battery Voltage", "%.2f V", currentVoltage);
-        telemetryA.addData("Voltage Comp", "×%.3f (12V/%.2fV)", compensationFactor, currentVoltage);
+        telemetryA.addData("Voltage Comp", "×%.3f", compensationFactor);
         telemetryA.addData("Shooter Power (calc)", "%.3f", shooterPower);
 
         if (shooterOn) {
             double compensatedPower = shooterPower * compensationFactor;
             telemetryA.addData("Actual Motor Power", "%.3f", compensatedPower);
+            telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
+            telemetryA.addData("Additional FF", "%.4f", additionalFF);
         }
 
-        if (shooterOn) {
-            telemetryA.addData("PIDF Output", "%.4f", pidfOutput);
-            telemetryA.addData("Additional FF", "%.4f (kS=%.4f + kV*TPS=%.4f)",
-                    additionalFF, currentKS * Math.signum(targetTPS), currentKV * targetTPS);
-            telemetryA.addData("F Term Contribution", "%.4f (F*setpoint = %.4f*%.1f)",
-                    currentF * targetTPS, currentF, targetTPS);
-        }
         telemetryA.addData("Front Intake", gamepad1.right_bumper ? "RUNNING" : "STOPPED");
         telemetryA.addData("Back Intake", gamepad1.left_bumper ? "RUNNING" : "STOPPED");
-        telemetryA.addData("Launch Gate", gamepad1.left_trigger > 0.1 ? "FIRING" : "RESET");
+        telemetryA.addData("Launch Gate", (autoTransfer || farSingleShot) ? "AUTO" : "MANUAL/IDLE");
         telemetryA.addData("Hood Position", "%.2f", currentHoodPos);
-        telemetryA.addData("", "");
-        telemetryA.addLine("=== PIDF Tuning ===");
-        telemetryA.addData("P", "%.6f", p);
-        telemetryA.addData("I", "%.6f", i);
-        telemetryA.addData("D", "%.6f", d);
-        telemetryA.addData("F", "%.6f (NEW - tune this!)", f);
-        telemetryA.addData("kV", "%.6f (optional, can set to 0)", kV);
-        telemetryA.addData("kS", "%.6f (optional, can set to 0)", kS);
         telemetryA.addData("Snap Button (X)", xPressed ? "pressed" : "idle");
 
-        // Add Limelight data
+        // Limelight telemetry unchanged...
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {
-                telemetryA.addData("", ""); // Empty line
+                telemetryA.addData("", "");
                 telemetryA.addLine("=== Limelight Data ===");
                 telemetryA.addData("tx (degrees)", "%.2f", result.getTx());
                 telemetryA.addData("ty (degrees)", "%.2f", result.getTy());
 
-                // Display AprilTag fiducial results
                 List<LLResultTypes.FiducialResult> fiducialResults = result.getFiducialResults();
                 if (!fiducialResults.isEmpty()) {
                     telemetryA.addData("AprilTags Detected", fiducialResults.size());
@@ -907,36 +760,29 @@ public class CosmobotsBlueTeleop extends OpMode {
                         double ty = fr.getTargetYDegrees();
 
                         telemetryA.addData("  Tag ID", "%d", fr.getFiducialId());
-                        telemetryA.addData("    X (degrees)", "%.2f", tx);
-                        telemetryA.addData("    Y (degrees)", "%.2f", ty);
+                        telemetryA.addData("    X (deg)", "%.2f", tx);
+                        telemetryA.addData("    Y (deg)", "%.2f", ty);
 
-                        // Calculate distance using height difference, mount angle, and vertical angle
                         double angleToTarget = limelightMountAngle + ty;
 
-                        if (Math.abs(angleToTarget) > 0.5) { // Only calculate if we have a valid angle
-                            // Horizontal distance calculation accounting for mount angle
+                        if (Math.abs(angleToTarget) > 0.5) {
                             double horizontalDistance = heightDifference / Math.tan(Math.toRadians(angleToTarget));
-
-                            // Diagonal distance from lens to center of AprilTag
                             double diagonalDistance = Math.sqrt(
                                     horizontalDistance * horizontalDistance +
                                             heightDifference * heightDifference
                             );
-
-                            // Convert horizontal angle to inches offset
                             double x_inches = horizontalDistance * Math.tan(Math.toRadians(tx));
 
                             telemetryA.addData("    Angle to Target", "%.2f deg", angleToTarget);
-                            telemetryA.addData("    Horizontal Dist", "%.2f inches", horizontalDistance);
-                            telemetryA.addData("    Diagonal Dist", "%.2f inches", diagonalDistance);
-                            telemetryA.addData("    X Offset", "%.2f inches", x_inches);
-                            telemetryA.addData("    Height Diff", "%.2f inches", heightDifference);
+                            telemetryA.addData("    Horizontal Dist", "%.2f in", horizontalDistance);
+                            telemetryA.addData("    Diagonal Dist", "%.2f in", diagonalDistance);
+                            telemetryA.addData("    X Offset", "%.2f in", x_inches);
+                            telemetryA.addData("    Height Diff", "%.2f in", heightDifference);
                         } else {
                             telemetryA.addData("    Distance", "Invalid angle");
                         }
 
-                        // Also show the 3D pose data if available
-                        org.firstinspires.ftc.robotcore.external.navigation.Pose3D targetPose = fr.getRobotPoseTargetSpace();
+                        Pose3D targetPose = fr.getRobotPoseTargetSpace();
                         if (targetPose != null && targetPose.getPosition() != null) {
                             telemetryA.addData("    Pose X", "%.2f", targetPose.getPosition().x);
                             telemetryA.addData("    Pose Y", "%.2f", targetPose.getPosition().y);
@@ -947,39 +793,24 @@ public class CosmobotsBlueTeleop extends OpMode {
                     telemetryA.addData("AprilTags", "None detected");
                 }
             } else {
-                telemetryA.addData("", ""); // Empty line
+                telemetryA.addData("", "");
                 telemetryA.addData("Limelight", "No valid data");
             }
         }
 
         telemetryA.update();
-
-        // TODO: Drawing removed
-        // Drawing.drawPoseHistory(dashboardPoseTracker, "#4CAF50");
-        // TODO: Drawing removed
-        // TODO: PoseUpdater removed
-        // TODO: PoseUpdater removed
-        // // // Drawing.drawRobot(poseUpdater.getPose(), "#4CAF50");
-        // TODO: Drawing removed
-        // Drawing.sendPacket();
     }
 
-    /**
-     * Convert RPM to ticks per second
-     */
     private static double rpmToTicksPerSec(double rpm) {
         double motorRPM = rpm * GEAR_RATIO;
         return (motorRPM / 60.0) * TICKS_PER_REV;
     }
 
-    /**
-     * Convert ticks per second to RPM
-     */
     private static double ticksPerSecToRPM(double tps) {
         double motorRPM = (tps / TICKS_PER_REV) * 60.0;
         return motorRPM / GEAR_RATIO;
     }
-    // Set both LED strips to the same color
+
     private void setLedColor(double position) {
         if (led1 != null) led1.setPosition(position);
         if (led2 != null) led2.setPosition(position);
@@ -987,7 +818,6 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     @Override
     public void stop() {
-        // Stop all motors on OpMode stop
         shootr.setPower(0);
         shootl.setPower(0);
         intakefront.setPower(0);
