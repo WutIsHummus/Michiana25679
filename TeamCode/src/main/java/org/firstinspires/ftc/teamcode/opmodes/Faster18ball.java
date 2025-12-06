@@ -44,7 +44,7 @@ public class Faster18ball extends PathChainAutoOpMode {
 
     // Trim + backlash
     public static double turretTrimDeg = 0.0;
-    public static double TURRET1_BACKLASH_OFFSET = 0.02;
+    public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
     @Override
     public void init() {
@@ -103,7 +103,7 @@ public class Faster18ball extends PathChainAutoOpMode {
         updateTurretFromPose();
 
         // keep shooter spun up (tune as needed)
-        run(actions.holdShooterAtRPMclose(1350, 30));
+        run(actions.holdShooterAtRPMclose(1340, 30));
 
         runTasks();
 
@@ -141,7 +141,7 @@ public class Faster18ball extends PathChainAutoOpMode {
 //                .addPath(new BezierPoint(
 //                        new Pose(56.579, 87.421, shooterHeading)))
 //                .setConstantHeadingInterpolation(230)
-                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.45)
                 .addParametricCallback(0.8, () -> run(actions.launch3faster()))
                 .build();
 
@@ -149,7 +149,7 @@ public class Faster18ball extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.421),
-                        new Pose(20, 82)))
+                        new Pose(18, 79)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
@@ -157,7 +157,7 @@ public class Faster18ball extends PathChainAutoOpMode {
         // === Path3: (20,82) -> (56.792,87.421), then settle at shooter pose ===
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(20, 82),
+                        new Pose(20, 79),
                         new Pose(56.792, 87.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
@@ -165,16 +165,15 @@ public class Faster18ball extends PathChainAutoOpMode {
 //                .addPath(new BezierPoint(
 //                        new Pose(56.792, 87.421, shooterHeading)))
 //                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.45)
                 .addParametricCallback(0.8, () -> run(actions.launch3faster()))
                 .build();
-
 
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.634),
-                        new Pose(54.665, 35.734),
-                        new Pose(10, 25)))
+                        new Pose(54.665, 31),
+                        new Pose(9, 25)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
@@ -182,15 +181,15 @@ public class Faster18ball extends PathChainAutoOpMode {
         // === Path7: (10,28) -> (56.579,87.634), then settle at shooter pose ===
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(10, 25),
+                        new Pose(9, 25),
                         new Pose(54.665, 35.734),
                         new Pose(56.579, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
 //                .addPath(new BezierPoint(
 //                        new Pose(56.579, 87.634, shooterHeading)))
 //                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.8, () -> run(actions.launch3faster()))
+                .setGlobalDeceleration(0.45)
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
 
                 .build();
         // === Path4: (56.792,87.421) -> curve to (14,52), intake path ===
@@ -198,8 +197,8 @@ public class Faster18ball extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                                 new Pose(56.000, 87.000),
                                 new Pose(39.988, 52.538),
-                                new Pose(17.867, 56),
-                                new Pose(13.188, 58)))
+                                new Pose(19, 57),
+                                new Pose(14, 60)))
                 .setTangentHeadingInterpolation()
                 //.setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(170))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
@@ -208,7 +207,7 @@ public class Faster18ball extends PathChainAutoOpMode {
         // === Path5: (14,52) curve -> (56.792,87.634), then settle at shooter pose ===
         path7 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(11.486, 58),
+                        new Pose(12, 58),
                         new Pose(24, 50),
                         new Pose(56.792, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
@@ -217,7 +216,7 @@ public class Faster18ball extends PathChainAutoOpMode {
 //                .addPath(new BezierPoint(
 //                        new Pose(56.792, 87.634, shooterHeading)))
 //                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.45)
 
                 .addParametricCallback(0.8, () -> run(actions.launch3faster()))
                 .build();
@@ -232,7 +231,7 @@ public class Faster18ball extends PathChainAutoOpMode {
                                 new Pose(53.176, 89.335),
                                 new Pose(13, 62.109),
                                 new Pose(9, 51.261),
-                                new Pose(9, 10)
+                                new Pose(7, 12)
                         )
                 )
                 .setTangentHeadingInterpolation()
@@ -248,7 +247,7 @@ public class Faster18ball extends PathChainAutoOpMode {
 //                .addPath(new BezierPoint(
 //                        new Pose(56.579, 87.634, shooterHeading)))
 //                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.45)
                 .addParametricCallback(0.9, () -> run(actions.launch3faster()))
 
                 .build();
@@ -259,23 +258,23 @@ public class Faster18ball extends PathChainAutoOpMode {
                         new BezierCurve(
                                 new Pose(56.579, 87.634),
                                 new Pose(70, 11),
-                                new Pose(11.061, 8.721)
+                                new Pose(8, 8.721)
                         )
                 )
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
+
         // === Path12: (11.486,11.273) -> (56.579,87.634), then settle at shooter pose ===
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(20, 11.273),
-                        new Pose(56.579, 110)))
+                        new Pose(62,102)))
                 .setTangentHeadingInterpolation().setReversed()
 //                .addPath(new BezierPoint(
 //                        new Pose(56.579, 87.634, shooterHeading)))
-//                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.45)
                 .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
@@ -306,7 +305,7 @@ public class Faster18ball extends PathChainAutoOpMode {
         tasks.add(path5Task);
 
         // Path6: intake only
-        addPath(path6, 0.5);
+        addPath(path6, 0);
 
         // Shoot after Path7
         PathChainTask path7Task = new PathChainTask(path7, 0.7);
@@ -323,7 +322,7 @@ public class Faster18ball extends PathChainAutoOpMode {
         addPath(path11, 0);
 
         // Shoot after Path12
-        PathChainTask path12Task = new PathChainTask(path12, 0.7);
+        PathChainTask path12Task = new PathChainTask(path12, 3);
 
         tasks.add(path12Task);
 

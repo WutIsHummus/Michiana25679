@@ -28,8 +28,8 @@ import com.pedropathing.geometry.Pose;
 import java.util.List;
 
 @Config
-@TeleOp(name = "1 - Cosmobots - Blue")
-public class CosmobotsBlueTeleop extends OpMode {
+@TeleOp(name = "Sunnyred")
+public class SunnyRed extends OpMode {
     private Follower follower;  // Follower includes Pinpoint localization
     private Telemetry telemetryA;
 
@@ -46,22 +46,22 @@ public class CosmobotsBlueTeleop extends OpMode {
     private Servo reargate, launchgate, hood1;
     private PIDFController shooterPID;
 
-    // === Blue-Side Mirrored Field Constants ===
-    public static double targetX = 144.0 - 128.0; // mirror of Red-side 128.0 → 16.0
+    // === Red-Side Field Constants (unmirrored) ===
+    public static double targetX = 128.0;
     public static double targetY = 125.0;
 
     // Low-power shooter mode (Right Trigger)
     public static double LOW_POWER_RPM = 800.0;
     public static double LOW_POWER_TRIGGER_THRESHOLD = 0.1;
 
-    // Goal zone coordinates (mirrored X)
-    public static double goalZoneX = 144.0 - 116.0; // mirror of Red-side 116.0 → 28.0
+    // Goal zone coordinates (red side)
+    public static double goalZoneX = 116.0;
     public static double goalZoneY = 116.0;
 
-    // Snap-to-pose (mirrored X and heading)
-    public static double SNAP_X = 144.0 - 101.3293; // mirror of Red-side snap point → 42.6707
+    // Snap-to-pose (red side)
+    public static double SNAP_X = 101.3293;
     public static double SNAP_Y = 123.7003;
-    public static double SNAP_HEADING_DEG = (180.0 - 359.0 + 360.0) % 360.0; // mirrors 359° → 181°
+    public static double SNAP_HEADING_DEG = 359.0;
 
     public static double turretTrimDeg = 0.0;
     public static double TRIM_STEP_DEG = 3.0;
@@ -176,7 +176,9 @@ public class CosmobotsBlueTeleop extends OpMode {
         } catch (Exception ignored) {
             follower.setStartingPose(new Pose(0, 0, 0));
         }
-        follower.startTeleopDrive();
+
+        // We are NOT using Pedro's built-in teleop drive here
+        // follower.startTeleopDrive();
 
         // Drive motors
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
@@ -220,7 +222,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         shooterPID = new PIDFController(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
 
-        shootTimer   = new ElapsedTime();
+        shootTimer    = new ElapsedTime();
         transferTimer = new ElapsedTime();
         farShotTimer  = new ElapsedTime();
 
@@ -242,7 +244,7 @@ public class CosmobotsBlueTeleop extends OpMode {
             limelight = null;
         }
 
-        telemetryA.addLine("Full Testing OpMode - Localization + Shooter");
+        telemetryA.addLine("Sunny Red TeleOp - Localization + Shooter");
         telemetryA.update();
     }
 
@@ -277,7 +279,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
         lastDpadUp = dpadUp;
 
-        // Update localization
+        // Update localization only; drive is fully manual
         follower.update();
 
         // Snap pose on X
@@ -288,23 +290,23 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
         lastX = xPressed;
 
-        // Drive
-        double y  = -gamepad1.right_stick_y;
-        double x  =  gamepad1.right_stick_x * 1.1;
-        double rx =  gamepad1.left_stick_x;
+        // ================== MANUAL MECANUM DRIVE ==================
+        double y  = -gamepad1.left_stick_y;      // forward
+        double x  =  gamepad1.left_stick_x * 1.1; // strafe
+        double rx =  gamepad1.right_stick_x;     // rotate
 
-        double scale = 1.0;
         double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1.0);
 
-        double flPower = (y + x + rx) / denominator * scale;
-        double blPower = (y - x + rx) / denominator * scale;
-        double frPower = (y - x - rx) / denominator * scale;
-        double brPower = (y + x - rx) / denominator * scale;
+        double flPower = (y + x + rx) / denominator;
+        double blPower = (y - x + rx) / denominator;
+        double frPower = (y - x - rx) / denominator;
+        double brPower = (y + x - rx) / denominator;
 
         fl.setPower(flPower);
         fr.setPower(frPower);
         bl.setPower(blPower);
         br.setPower(brPower);
+        // ================== END MANUAL DRIVE ==================
 
         // Pose
         Pose currentPose = follower.getPose();
@@ -363,9 +365,9 @@ public class CosmobotsBlueTeleop extends OpMode {
         ) / 12.0;
 
         boolean isFarForShots = distanceFeetForTiming >= 6.0;
-        double shotTimeScale = isFarForShots ? 30 : 1.0;
+        double shotTimeScale = isFarForShots ? 16.0 : 1.0;
 
-        boolean isFarForTransfer = distanceFeetForTiming >= 18.0;  // comment says ≥7ft, but left as-is
+        boolean isFarForTransfer = distanceFeetForTiming >= 18.0;  // left as-is
 
         // A button auto-shoot
         boolean currentA = gamepad1.a;
@@ -467,16 +469,13 @@ public class CosmobotsBlueTeleop extends OpMode {
         double calculatedTargetRPM;
 
         if (lowPowerMode) {
-            // Force low RPM
             calculatedTargetRPM = LOW_POWER_RPM;
         } else {
             double clampMax = farShootingEnabled ? FAR_SHOOTING_RPM_MAX : NORMAL_SHOOTING_RPM_MAX;
 
             if (farShootingEnabled && distanceToGoalFeet >= 9.0) {
-                // Only if far mode is ON and we are far, jump to far cap
                 calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;
             } else {
-                // Regular distance-based RPM, with a lower cap when far mode is OFF
                 calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
                 calculatedTargetRPM = Math.max(1150.0, Math.min(clampMax, calculatedTargetRPM));
             }
@@ -743,7 +742,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         telemetryA.addData("Hood Position", "%.2f", currentHoodPos);
         telemetryA.addData("Snap Button (X)", xPressed ? "pressed" : "idle");
 
-        // Limelight telemetry unchanged...
+        // Limelight telemetry
         if (limelight != null) {
             LLResult result = limelight.getLatestResult();
             if (result != null && result.isValid()) {

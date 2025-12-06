@@ -1,22 +1,21 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.pedropathing.follower.Follower;
+import com.pedropathing.geometry.BezierCurve;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
-import com.pedropathing.geometry.BezierCurve;
-import com.pedropathing.geometry.BezierLine;
-import com.pedropathing.paths.PathChain;
-
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "Working 18 ball")
-public class Working18ball extends PathChainAutoOpMode {
+@Autonomous(name = "1 - 18AutoRed")
+public class Red18ball extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -27,25 +26,26 @@ public class Working18ball extends PathChainAutoOpMode {
     private RobotActions actions;
 
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11, path12;
-    // --- Turret + goal constants (copied from Blue teleop) ---
 
-    // Field target for turret aim (mirrored blue-side coords)
-    public static double targetX = 144.0 - 128.0; // 16.0
+    // --- Turret + goal constants (mirrored to Red side) ---
+
+    // Blue: 144 - 128 = 16  → Red targetX = 128
+    public static double targetX = 128.0;
     public static double targetY = 125.0;
 
-    // Goal “zone” center (for distance telemetry if you want)
-    public static double goalZoneX = 144.0 - 116.0; // 28.0
+    // Blue: 144 - 116 = 28 → Red goalZoneX = 116
+    public static double goalZoneX = 116.0;
     public static double goalZoneY = 116.0;
 
     // Turret servo constants
     public static double turretCenterPosition = 0.51;   // 0 deg
-    public static double turretLeftPosition   = 0.15;  // max left
-    public static double turretRightPosition  = 0.85;  // max right
-    public static double turretMaxAngle       = 140;   // deg left/right from center
+    public static double turretLeftPosition   = 0.15;   // max left
+    public static double turretRightPosition  = 0.85;   // max right
+    public static double turretMaxAngle       = 135;    // deg left/right from center
 
     // Trim + backlash
     public static double turretTrimDeg = 0.0;
-    public static double TURRET1_BACKLASH_OFFSET = 0.025;
+    public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
     @Override
     public void init() {
@@ -73,20 +73,19 @@ public class Working18ball extends PathChainAutoOpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        // Servo init
+        // Servo init (mirrored turret from Blue: around center 0.51)
         hood1.setPosition(0.48);
-        turret1.setPosition(0.275);
-        turret2.setPosition(0.25);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
-
-
+        // Blue: turret1=0.175, turret2=0.15 → Red ≈ 0.845, 0.87
+        turret1.setPosition(0.81);
+        turret2.setPosition(0.82);
 
         actions = new RobotActions(intakefront, intakeback, shootr, shootl,
                 launchgate, reargate, turret1, turret2, hood1);
 
-        // Start pose matches Path1 start
-        follower.setStartingPose(new Pose(56.0, 8.0, Math.toRadians(270)));
+        // Start pose Blue: (56, 8, 270°) → Red: (144-56=88, 8, 270° mirrored is still 270°)
+        follower.setStartingPose(new Pose(88.0, 8.0, Math.toRadians(270)));
 
         buildPathChains();
         buildTaskList();
@@ -106,7 +105,7 @@ public class Working18ball extends PathChainAutoOpMode {
         updateTurretFromPose();
 
         // keep shooter spun up (tune as needed)
-        run(actions.holdShooterAtRPMclose(1350, 30));
+        run(actions.holdShooterAtRPMclose(1340, 30));
 
         runTasks();
 
@@ -129,164 +128,163 @@ public class Working18ball extends PathChainAutoOpMode {
 
     @Override
     protected void buildPathChains() {
-        // Shooter heading we want to hold at the end
-        double shooterHeading = Math.toRadians(215);
+        double shooterHeading = Math.toRadians(215); // unused but kept for symmetry
 
-        // === Path1: (56,8) -> (56.579,87.421), then settle at shooter pose ===
+        // Mirror rule: x' = 144 - x, y' = y
+        // Heading for linearInterp: θ' = 180° - θ
+
+        // === Path1: (56,8) -> (56.579,87.421) mirrored ===
+        // (56,8)          -> (88,8)
+        // (56.579,87.421) -> (87.421,87.421)
         path1 = follower.pathBuilder()
-                // Main drive segment, tangent heading but reversed so it drives backwards
                 .addPath(new BezierLine(
-                        new Pose(56.000, 8.000),
-                        new Pose(56.579, 87.421)))
+                        new Pose(88.000, 8.000),
+                        new Pose(87.421, 87.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
-                // Final settle as a BezierPoint at the same shooter pose with explicit heading
-//                .addPath(new BezierPoint(
-//                        new Pose(56.579, 87.421, shooterHeading)))
-//                .setConstantHeadingInterpolation(230)
-                .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .setGlobalDeceleration(0.45)
+                .addParametricCallback(0.8, () -> run(actions.launch3faster()))
                 .build();
 
-        // === Path2: (56.579,87.421) -> (20,82), intake path (not a shooter path) ===
+        // === Path2: (56.579,87.421) -> (18,79) mirrored ===
+        // (56.579,87.421) -> (87.421,87.421)
+        // (18,79)         -> (126,79)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(56.579, 87.421),
-                        new Pose(20, 82)))
+                        new Pose(87.421, 87.421),
+                        new Pose(125, 79.0)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path3: (20,82) -> (56.792,87.421), then settle at shooter pose ===
+        // === Path3: (20,79) -> (56.792,87.421) mirrored ===
+        // (20,79)         -> (124,79)
+        // (56.792,87.421) -> (87.208,87.421)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(20, 82),
-                        new Pose(56.792, 87.421)))
+                        new Pose(124.0, 79.0),
+                        new Pose(87.208, 87.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
-
-//                .addPath(new BezierPoint(
-//                        new Pose(56.792, 87.421, shooterHeading)))
-//                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .setGlobalDeceleration(0.45)
+                .addParametricCallback(0.8, () -> run(actions.launch3faster()))
                 .build();
 
-
+        // === Path4: (56.792,87.634)->(54.665,31)->(9,25) mirrored ===
+        // (56.792,87.634) -> (87.208,87.634)
+        // (54.665,31)     -> (89.335,31)
+        // (9,25)          -> (135,25)
+        // Heading 230°→310°, 180°→0°
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(56.792, 87.634),
-                        new Pose(54.665, 35.734),
-                        new Pose(10, 25)))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                        new Pose(87.208, 87.634),
+                        new Pose(89.335, 31.000),
+                        new Pose(135.0, 25.0)))
+                .setLinearHeadingInterpolation(Math.toRadians(310), Math.toRadians(0))
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path7: (10,28) -> (56.579,87.634), then settle at shooter pose ===
+        // === Path5: (9,25)->(54.665,35.734)->(56.579,87.634) mirrored ===
+        // (9,25)          -> (135,25)
+        // (54.665,35.734) -> (89.335,35.734)
+        // (56.579,87.634) -> (87.421,87.634)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(10, 25),
-                        new Pose(54.665, 35.734),
-                        new Pose(56.579, 87.634)))
+                        new Pose(135.0, 25.0),
+                        new Pose(89.335, 35.734),
+                        new Pose(87.421, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
-//                .addPath(new BezierPoint(
-//                        new Pose(56.579, 87.634, shooterHeading)))
-//                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.7, () -> run(actions.stopIntake()))
-                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
-
+                .setGlobalDeceleration(0.45)
+                .addParametricCallback(0.8, () -> run(actions.launch3faster()))
                 .build();
-        // === Path4: (56.792,87.421) -> curve to (14,52), intake path ===
+
+        // === Path6: (56,87)->(39.988,52.538)->(19,57)->(14,60) mirrored ===
+        // (56,87)          -> (88,87)
+        // (39.988,52.538)  -> (104.012,52.538)
+        // (19,57)          -> (125,57)
+        // (14,60)          -> (130,60)
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(56.792, 87.421),
-                        new Pose(41.903, 58.919),
-                        new Pose(14, 52)))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(160))
+                        new Pose(88.000, 87.000),
+                        new Pose(104.012, 52.538),
+                        new Pose(125.0, 57.0),
+                        new Pose(131, 60.0)))
+                .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path5: (14,52) curve -> (56.792,87.634), then settle at shooter pose ===
+        // === Path7: (12,58)->(24,50)->(56.792,87.634) mirrored ===
+        // (12,58)          -> (132,58)
+        // (24,50)          -> (120,50)
+        // (56.792,87.634)  -> (87.208,87.634)
         path7 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(14, 52),
-                        new Pose(24, 50),
-                        new Pose(56.792, 87.634)))
+                        new Pose(132.0, 58.0),
+                        new Pose(120.0, 50.0),
+                        new Pose(87.208, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
-
-//                .addPath(new BezierPoint(
-//                        new Pose(56.792, 87.634, shooterHeading)))
-//                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.7, () -> run(actions.stopIntake()))
-
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .setGlobalDeceleration(0.45)
+                .addParametricCallback(0.8, () -> run(actions.launch3faster()))
                 .build();
 
-        // === Path6: (56.792,87.634) curve -> (10,28), intake path ===
-
-
-        // === Path8: (56.579,87.634) -> (11.486,11.273), intake path ===
+        // === Path8: (53.176,89.335)->(13,62.109)->(9,51.261)->(7,12) mirrored ===
+        // (53.176,89.335)  -> (90.824,89.335)
+        // (13,62.109)      -> (131,62.109)
+        // (9,51.261)       -> (135,51.261)
+        // (7,12)           -> (137,12)
         path8 = follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(53.176, 89.335),
-                                new Pose(13, 62.109),
-                                new Pose(9, 51.261),
-                                new Pose(9, 10)
+                                new Pose(90.824, 89.335),
+                                new Pose(131.0, 62.109),
+                                new Pose(135.0, 51.261),
+                                new Pose(137.0, 12.0)
                         )
                 )
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path9: (11.486,11.273) -> (56.579,87.634), then settle at shooter pose ===
+        // === Path9: (11.486,11.273)->(56.579,87.634) mirrored ===
+        // (11.486,11.273)  -> (132.514,11.273)
+        // (56.579,87.634)  -> (87.421,87.634)
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(11.486, 11.273),
-                        new Pose(56.579, 87.634)))
+                        new Pose(132.514, 11.273),
+                        new Pose(87.421, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
-//                .addPath(new BezierPoint(
-//                        new Pose(56.579, 87.634, shooterHeading)))
-//                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
-                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
-
+                .setGlobalDeceleration(0.45)
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
-        // === Path11: (56.579,87.634) -> (11.486,11.273), intake path ===
+        // === Path11: (56.579,87.634)->(70,11)->(8,8.721) mirrored ===
+        // (56.579,87.634)  -> (87.421,87.634)
+        // (70,11)          -> (74,11)
+        // (8,8.721)        -> (136,8.721)
         path11 = follower.pathBuilder()
                 .addPath(
                         new BezierCurve(
-                                new Pose(56.579, 87.634),
-                                new Pose(70, 11),
-                                new Pose(11.061, 8.721)
+                                new Pose(87.421, 87.634),
+                                new Pose(74.0, 11.0),
+                                new Pose(136.0, 8.721)
                         )
                 )
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path12: (11.486,11.273) -> (56.579,87.634), then settle at shooter pose ===
+        // === Path12: (20,11.273)->(62,102) mirrored ===
+        // (20,11.273)      -> (124,11.273)
+        // (62,102)         -> (82,102)
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(20, 11.273),
-                        new Pose(56.579, 95)))
+                        new Pose(124.0, 11.273),
+                        new Pose(82.0, 102.0)))
                 .setTangentHeadingInterpolation().setReversed()
-//                .addPath(new BezierPoint(
-//                        new Pose(56.579, 87.634, shooterHeading)))
-//                .setConstantHeadingInterpolation(shooterHeading)
-                .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .setGlobalDeceleration(0.45)
                 .addParametricCallback(0.95, () -> run(actions.launch3faster()))
-
                 .build();
-
-        // === Path10: (56.579,87.634) -> (46.157,76.360), simple reposition ===
-
     }
 
     @Override
@@ -308,55 +306,29 @@ public class Working18ball extends PathChainAutoOpMode {
         addPath(path4, 0);
 
         // Shoot after Path5
-        PathChainTask path5Task = new PathChainTask(path5, 1)
-                .addWaitAction(
-                        0,
-                        actions.launch3faster()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
+        PathChainTask path5Task = new PathChainTask(path5, 0.7);
         tasks.add(path5Task);
 
         // Path6: intake only
-        addPath(path6, 0.5);
+        addPath(path6, 0);
 
         // Shoot after Path7
-        PathChainTask path7Task = new PathChainTask(path7, 1)
-                .addWaitAction(
-                        0,
-                        actions.launch3faster()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
+        PathChainTask path7Task = new PathChainTask(path7, 0.7);
         tasks.add(path7Task);
 
         // Path8: intake only
         addPath(path8, 0);
 
         // Shoot after Path9
-        PathChainTask path9Task = new PathChainTask(path9, 1)
-                .addWaitAction(
-                        0,
-                        actions.launch3faster()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
+        PathChainTask path9Task = new PathChainTask(path9, 1);
         tasks.add(path9Task);
 
         // Path11: intake only
         addPath(path11, 0);
 
         // Shoot after Path12
-        PathChainTask path12Task = new PathChainTask(path12, 1)
-                .addWaitAction(
-                        0,
-                        actions.launch3faster()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
+        PathChainTask path12Task = new PathChainTask(path12, 3);
         tasks.add(path12Task);
-
-        // Final reposition
     }
 
     @Override
@@ -383,6 +355,7 @@ public class Working18ball extends PathChainAutoOpMode {
     protected void startTurn(TurnTask task) {
         // Not used in this auto
     }
+
     /**
      * Uses Pedro pose to:
      *  - compute angle to goal
@@ -450,11 +423,10 @@ public class Working18ball extends PathChainAutoOpMode {
         telemetry.addData("Turret servo", "%.3f", servoPosition);
     }
 
-
     @Override
     public void stop() {
         try {
-            org.firstinspires.ftc.teamcode.opmodes.PoseStore.save(follower.getPose());
+            PoseStore.save(follower.getPose());
         } catch (Exception ignored) {}
         super.stop();
     }

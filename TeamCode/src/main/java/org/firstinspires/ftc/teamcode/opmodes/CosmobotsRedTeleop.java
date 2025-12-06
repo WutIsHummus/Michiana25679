@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDFController;
 // TODO: PoseUpdater removed in PedroPathing 2.0
@@ -27,9 +26,9 @@ import com.pedropathing.geometry.Pose;
 
 import java.util.List;
 
-@Config
-@TeleOp(name = "1 - Cosmobots - Blue")
-public class CosmobotsBlueTeleop extends OpMode {
+@TeleOp(name = "1 - Cosmobots - Red")
+public class CosmobotsRedTeleop extends OpMode {
+
     private Follower follower;  // Follower includes Pinpoint localization
     private Telemetry telemetryA;
 
@@ -46,22 +45,23 @@ public class CosmobotsBlueTeleop extends OpMode {
     private Servo reargate, launchgate, hood1;
     private PIDFController shooterPID;
 
-    // === Blue-Side Mirrored Field Constants ===
-    public static double targetX = 144.0 - 128.0; // mirror of Red-side 128.0 → 16.0
+    // === Red-Side Base Field Constants (unmirrored) ===
+    // Goal / target on original red side
+    public static double targetX = 128.0;
     public static double targetY = 125.0;
 
     // Low-power shooter mode (Right Trigger)
     public static double LOW_POWER_RPM = 800.0;
     public static double LOW_POWER_TRIGGER_THRESHOLD = 0.1;
 
-    // Goal zone coordinates (mirrored X)
-    public static double goalZoneX = 144.0 - 116.0; // mirror of Red-side 116.0 → 28.0
+    // Goal zone coordinates (original red-side)
+    public static double goalZoneX = 116.0;
     public static double goalZoneY = 116.0;
 
-    // Snap-to-pose (mirrored X and heading)
-    public static double SNAP_X = 144.0 - 101.3293; // mirror of Red-side snap point → 42.6707
+    // Snap-to-pose (original red-side snap point)
+    public static double SNAP_X = 101.3293;
     public static double SNAP_Y = 123.7003;
-    public static double SNAP_HEADING_DEG = (180.0 - 359.0 + 360.0) % 360.0; // mirrors 359° → 181°
+    public static double SNAP_HEADING_DEG = 359.0;
 
     public static double turretTrimDeg = 0.0;
     public static double TRIM_STEP_DEG = 3.0;
@@ -95,7 +95,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     // Long range PIDF (>= 6 feet)
     public static double pLong = 0.0015;
     public static double iLong = 0.0;
-    public static double dLong = 0;
+    public static double dLong = 0.0;
     public static double fLong = 0.00089;
     public static double kVLong = 0.0008;
     public static double kSLong = 0.0;
@@ -139,7 +139,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     // --- Hood regression (distance-based) ---
     public static double HOOD_MIN_POS = 0.45;
     public static double HOOD_MAX_POS = 0.54;
-    public static double HOOD_MIN_DIST_FT = -1;
+    public static double HOOD_MIN_DIST_FT = -1.0;
     public static double HOOD_MAX_DIST_FT = 7.0;
 
     // --- Turret backlash compensation ---
@@ -220,7 +220,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         shooterPID = new PIDFController(p, i, d, f);
         shooterPID.setIntegrationBounds(-I_ZONE, I_ZONE);
 
-        shootTimer   = new ElapsedTime();
+        shootTimer    = new ElapsedTime();
         transferTimer = new ElapsedTime();
         farShotTimer  = new ElapsedTime();
 
@@ -242,7 +242,7 @@ public class CosmobotsBlueTeleop extends OpMode {
             limelight = null;
         }
 
-        telemetryA.addLine("Full Testing OpMode - Localization + Shooter");
+        telemetryA.addLine("Red TeleOp - Localization + Shooter");
         telemetryA.update();
     }
 
@@ -288,7 +288,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
         lastX = xPressed;
 
-        // Drive
+        // Drive (robot-centric, same as blue)
         double y  = -gamepad1.right_stick_y;
         double x  =  gamepad1.right_stick_x * 1.1;
         double rx =  gamepad1.left_stick_x;
@@ -354,7 +354,7 @@ public class CosmobotsBlueTeleop extends OpMode {
             intakefront.setPower(0);
         }
 
-        // Distance for timing / near vs far
+        // Distance for timing / near vs far (use goalZone)
         double deltaGoalXForTiming = goalZoneX - currentX;
         double deltaGoalYForTiming = goalZoneY - currentY;
         double distanceFeetForTiming = Math.sqrt(
@@ -365,7 +365,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         boolean isFarForShots = distanceFeetForTiming >= 6.0;
         double shotTimeScale = isFarForShots ? 30 : 1.0;
 
-        boolean isFarForTransfer = distanceFeetForTiming >= 18.0;  // comment says ≥7ft, but left as-is
+        boolean isFarForTransfer = distanceFeetForTiming >= 18.0;  // kept as-is from blue
 
         // A button auto-shoot
         boolean currentA = gamepad1.a;
@@ -467,16 +467,13 @@ public class CosmobotsBlueTeleop extends OpMode {
         double calculatedTargetRPM;
 
         if (lowPowerMode) {
-            // Force low RPM
             calculatedTargetRPM = LOW_POWER_RPM;
         } else {
             double clampMax = farShootingEnabled ? FAR_SHOOTING_RPM_MAX : NORMAL_SHOOTING_RPM_MAX;
 
             if (farShootingEnabled && distanceToGoalFeet >= 9.0) {
-                // Only if far mode is ON and we are far, jump to far cap
                 calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;
             } else {
-                // Regular distance-based RPM, with a lower cap when far mode is OFF
                 calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
                 calculatedTargetRPM = Math.max(1150.0, Math.min(clampMax, calculatedTargetRPM));
             }
