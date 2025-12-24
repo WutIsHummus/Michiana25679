@@ -2,24 +2,22 @@ package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
-import com.pedropathing.geometry.BezierPoint;
+import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
+import com.pedropathing.geometry.BezierLine;
+import com.pedropathing.geometry.Pose;
+import com.pedropathing.paths.PathChain;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import com.pedropathing.follower.Follower;
-import com.pedropathing.geometry.Pose;
-import com.pedropathing.geometry.BezierLine;
-import com.pedropathing.paths.PathChain;
-
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "farautotest")
-public class FarAutoTest extends PathChainAutoOpMode {
+@Autonomous(name = "1 - bluefar21nospike")
+public class OS18far extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -29,7 +27,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
 
     private RobotActions actions;
 
-    private PathChain path1, path2, path3, path4, path5;
+    private PathChain path1, path2, path3, path4, path5, sus, sus2;
 
     // --- Turret constants ---
 
@@ -37,7 +35,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
     public static double turretCenterPosition = 0.51;   // 0 deg
     public static double turretLeftPosition   = 0.15;   // max left
     public static double turretRightPosition  = 0.85;   // max right
-    public static double turretMaxAngle       = 140;    // deg left/right from center
+    public static double turretMaxAngle       = 137;    // deg left/right from center
 
     // Trim + backlash
     public static double turretTrimDeg = 0.0;
@@ -96,7 +94,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
         // Start pose matches Path1 start
         follower.setStartingPose(new Pose(57.430, 8.934, Math.toRadians(180)));
 
-        // ⭕ Turret now uses auto-aim from pose
+        //  Turret now uses auto-aim from pose
 
         buildPathChains();
         buildTaskList();
@@ -113,11 +111,11 @@ public class FarAutoTest extends PathChainAutoOpMode {
         super.loop();
         follower.update();
 
-        // ⭕ Continuously auto-aim turret to target using localization
+        //  Continuously auto-aim turret to target using localization
         updateTurretAutoAim();
 
         // keep shooter spun up (tune as needed)
-        run(actions.holdShooterAtRPMclose(1750, 30));
+        run(actions.holdShooterAtRPMclose(1325, 30));
 
         runTasks();
 
@@ -175,10 +173,30 @@ public class FarAutoTest extends PathChainAutoOpMode {
         // === Path2: (57.217, 15.315) -> (10, 8) ===
         path2 = follower.pathBuilder()
                 .addPath(
-                        new BezierLine(
+                        new BezierCurve(
                                 new Pose(57.217, 15.315),
-                                new Pose(10, 8)))
+                                new Pose(40,10),
+                                new Pose(12, 8)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                .setNoDeceleration()
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .build();
+
+        sus = follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(12, 8),
+                                new Pose(15, 9)))
+                .setLinearHeadingInterpolation(Math.toRadians(170), Math.toRadians(190))
+                .setNoDeceleration()
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .build();
+        sus2 = follower.pathBuilder()
+                .addPath(
+                        new BezierLine(
+                                new Pose(15, 9),
+                                new Pose(12, 8)))
+                .setLinearHeadingInterpolation(Math.toRadians(190), Math.toRadians(180))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
@@ -187,11 +205,11 @@ public class FarAutoTest extends PathChainAutoOpMode {
         path3 = follower.pathBuilder()
                 .addPath(
                         new BezierLine(
-                                new Pose(10, 8),
-                                new Pose(57.217, 15.315)))
+                                new Pose(12, 8),
+                                new Pose(57.217, 13)))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .setGlobalDeceleration(0.5)
-                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
+                .setGlobalDeceleration(0.45)
+                .addParametricCallback(0.9, () -> run(actions.launch3far()))
                 .build();
 
         // === Path4: shooter -> stack 2 via curve ===
@@ -218,8 +236,8 @@ public class FarAutoTest extends PathChainAutoOpMode {
                         )
                 )
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.9, () -> run(actions.stopIntake()))
-                .setGlobalDeceleration(0.5)
+                .addParametricCallback(0.9, () -> run(actions.launch3far()))
+                .setGlobalDeceleration(0.45)
                 .build();
     }
 
@@ -228,12 +246,12 @@ public class FarAutoTest extends PathChainAutoOpMode {
         tasks.clear();
 
         // === Path1: drive to shooter, then WAIT, then LAUNCH ===
-        PathChainTask path1Task = new PathChainTask(path1, 3)
+        PathChainTask path1Task = new PathChainTask(path1, 4)
                 .addWaitAction(
                         0,
                         new SequentialAction(
-                                new SleepAction(1),    // wait a bit
-                                actions.launch3slow()  // then fire 3
+                                new SleepAction(2),    // wait a bit
+                                actions.launch3faster()  // then fire 3
                         )
                 )
                 .setMaxWaitTime(6.0)
@@ -242,51 +260,29 @@ public class FarAutoTest extends PathChainAutoOpMode {
 
         // === First cycle: Path2 (out) + Path3 (back & shoot) ===
         addPath(path2, 0);  // intake-only drive
+        addPath(sus,0);
+        addPath(sus2,0);
 
-        PathChainTask path3Task = new PathChainTask(path3, 1.0)
-                .addWaitAction(
-                        0,
-                        actions.launch3slow()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
-        tasks.add(path3Task);
-
-        // === Second cycle: Path4 (curved out) + Path5 (back & shoot) ===
-        addPath(path4, 0);  // intake-only curve
-
-        PathChainTask path5Task = new PathChainTask(path5, 1.0)
-                .addWaitAction(
-                        0,
-                        actions.launch3slow()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
-        tasks.add(path5Task);
+        addPath(path3,1);
 
         // === Repeat Path2 + Path3 two more times ===
 
         // Repeat 1
         addPath(path2, 0);
-        PathChainTask path3TaskRepeat1 = new PathChainTask(path3, 1.0)
-                .addWaitAction(
-                        0,
-                        actions.launch3slow()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
-        tasks.add(path3TaskRepeat1);
+        addPath(path3,1);
 
         // Repeat 2
         addPath(path2, 0);
-        PathChainTask path3TaskRepeat2 = new PathChainTask(path3, 1.0)
-                .addWaitAction(
-                        0,
-                        actions.launch3slow()
-                )
-                .setMaxWaitTime(6.0)
-                .setWaitCondition(() -> true);
-        tasks.add(path3TaskRepeat2);
+        addPath(path3,1);
+
+        addPath(path2, 0);
+        addPath(path3,1);
+        addPath(path2,0);
+        addPath(path3,1);
+        addPath(path2,0);
+        addPath(path3,1);
+        addPath(path2,0);
+
     }
 
     @Override
@@ -379,7 +375,7 @@ public class FarAutoTest extends PathChainAutoOpMode {
     @Override
     public void stop() {
         try {
-            org.firstinspires.ftc.teamcode.opmodes.PoseStore.save(follower.getPose());
+            PoseStore.save(follower.getPose());
         } catch (Exception ignored) {}
         super.stop();
     }

@@ -13,7 +13,7 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "Close3ballblue")
+@Autonomous(name = "bluenxt3ball")
 public class Close3ball extends PathChainAutoOpMode {
 
     private Follower follower;
@@ -115,7 +115,7 @@ public class Close3ball extends PathChainAutoOpMode {
         updateTurretFromPose();
 
         // Keep shooter spun up (same idea as 18-ball, RPM/tolerance tweakable)
-        run(actions.holdShooterAtRPMclose(1350, 30));
+        run(actions.holdShooterAtRPMclose(1170, 30));
 
         runTasks();
 
