@@ -17,13 +17,14 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMo
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 @Autonomous(name = "1 - redfar21withspike")
-public class Redfarshoot extends PathChainAutoOpMode {
+public class redfar21withspike extends PathChainAutoOpMode {
 
     private Follower follower;
 
     private DcMotor intakefront, intakeback;
     private DcMotorEx shootr, shootl;
     private Servo reargate, launchgate, hood1, turret1, turret2;
+    private Servo indexfront, indexback;
 
     private RobotActions actions;
 
@@ -70,6 +71,8 @@ public class Redfarshoot extends PathChainAutoOpMode {
         turret2     = hardwareMap.get(Servo.class, "turret2");
         reargate    = hardwareMap.get(Servo.class, "reargate");
         launchgate  = hardwareMap.get(Servo.class, "launchgate");
+        indexfront  = hardwareMap.get(Servo.class, "indexfront");
+        indexback   = hardwareMap.get(Servo.class, "indexback");
 
         // Shooter motor direction
         shootl.setDirection(DcMotor.Direction.REVERSE);
@@ -84,9 +87,17 @@ public class Redfarshoot extends PathChainAutoOpMode {
         hood1.setPosition(0.47);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
+        indexfront.setPosition(RobotActions.INDEX_FRONT_EXTENDED);
+        indexback.setPosition(RobotActions.INDEX_BACK_RETRACTED);
 
-        actions = new RobotActions(intakefront, intakeback, shootr, shootl,
-                launchgate, reargate, turret1, turret2, hood1);
+        actions = new RobotActions(
+                intakefront, intakeback, shootr, shootl,
+                launchgate, reargate,
+                hood1, turret1, turret2,
+                indexfront, indexback,
+                hardwareMap.voltageSensor.iterator().next()
+        );
+        run(actions.safeindexer());
 
         // === Mirrored start pose ===
         // Blue: (57.430, 8.934, 180°)

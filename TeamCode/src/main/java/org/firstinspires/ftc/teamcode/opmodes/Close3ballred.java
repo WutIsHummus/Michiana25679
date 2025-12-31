@@ -21,6 +21,7 @@ public class Close3ballred extends PathChainAutoOpMode {
     private DcMotor intakefront, intakeback;
     private DcMotorEx shootr, shootl;
     private Servo reargate, launchgate, hood1, turret1, turret2;
+    private Servo indexfront, indexback;
 
     private RobotActions actions;
 
@@ -63,6 +64,8 @@ public class Close3ballred extends PathChainAutoOpMode {
         turret2     = hardwareMap.get(Servo.class, "turret2");
         reargate    = hardwareMap.get(Servo.class, "reargate");
         launchgate  = hardwareMap.get(Servo.class, "launchgate");
+        indexfront  = hardwareMap.get(Servo.class, "indexfront");
+        indexback   = hardwareMap.get(Servo.class, "indexback");
 
         // Shooter motor direction
         shootl.setDirection(DcMotor.Direction.REVERSE);
@@ -79,18 +82,17 @@ public class Close3ballred extends PathChainAutoOpMode {
         reargate.setPosition(0.7);
         turret1.setPosition(0.175);
         turret2.setPosition(0.15);
+        indexfront.setPosition(RobotActions.INDEX_FRONT_EXTENDED);
+        indexback.setPosition(RobotActions.INDEX_BACK_RETRACTED);
 
         actions = new RobotActions(
-                intakefront,
-                intakeback,
-                shootr,
-                shootl,
-                launchgate,
-                reargate,
-                turret1,
-                turret2,
-                hood1
+                intakefront, intakeback, shootr, shootl,
+                launchgate, reargate,
+                hood1, turret1, turret2,
+                indexfront, indexback,
+                hardwareMap.voltageSensor.iterator().next()
         );
+        run(actions.safeindexer());
 
         // --- MIRRORED START POSE ---
         // Original: (23.185, 125.920, 144°)

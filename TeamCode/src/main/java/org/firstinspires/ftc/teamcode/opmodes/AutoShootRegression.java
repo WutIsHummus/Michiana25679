@@ -74,13 +74,7 @@ public class AutoShootRegression extends OpMode {
         // ========================================
         // CREATE ROBOT ACTIONS
         // ========================================
-        actions = new RobotActions(
-            intakefront, intakeback,
-            shootr, shootl,
-            launchgate, reargate,
-            hood1, turret1, turret2,
-            voltageSensor
-        );
+
         
         // Set starting pose
         follower.setStartingPose(new Pose(10, 10, Math.toRadians(0)));

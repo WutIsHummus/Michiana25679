@@ -17,19 +17,26 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMo
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 @Autonomous(name = "1 - bluefar21nospike")
-public class OS18far extends PathChainAutoOpMode {
+public class bluefar21nospike extends PathChainAutoOpMode {
 
     private Follower follower;
 
     private DcMotor intakefront, intakeback;
     private DcMotorEx shootr, shootl;
     private Servo reargate, launchgate, hood1, turret1, turret2;
+    private Servo indexfront, indexback;
 
     private RobotActions actions;
 
     private PathChain path1, path2, path3, path4, path5, sus, sus2;
 
-    // --- Turret constants ---
+    // =========================
+    // Turret + goal constants (BLUE)
+    // =========================
+
+    // Field target (BLUE) — mirror of RED (128,125) across field width 144 => (16,125)
+    public static double targetX = 16.0;
+    public static double targetY = 125.0;
 
     // Turret servo constants
     public static double turretCenterPosition = 0.51;   // 0 deg
@@ -41,25 +48,15 @@ public class OS18far extends PathChainAutoOpMode {
     public static double turretTrimDeg = 0.0;
     public static double TURRET1_BACKLASH_OFFSET = 0.027;
 
-    // This is the OG tuned angle when robot pose = (57.217,15.315, heading 180°)
-    // and facing the right/backdrop.
-    public static double FIXED_TURRET_ANGLE_DEG = -68.55;
-
-    // === Field target (BLUE) ===
-    // Same as your Blue TeleOp:
-    // Red-side 128,125 mirrored across field width 144 → (16,125)
-    public static double targetX = 144.0 - 128.0;  // 16.0
-    public static double targetY = 125.0;
-
-    // Small calibration offset so that at the shooter pose
-    // the field-based angle matches the empirically tuned -68.55°.
-    // Geometry at (57.217,15.315, heading 180) gives about -69.40°,
-    // so we add +0.85°.
+    // Small calibration offset (deg). Keep as your tuned value.
     public static double TURRET_CAL_OFFSET_DEG = -1.5;
+
+    // Shooter RPM (kept as your original)
+    private static final double SHOOT_RPM_HOLD = 1325.0;
 
     @Override
     public void init() {
-        super.init();  // important so PathChainAutoOpMode can init its state
+        super.init();
 
         pathTimer.resetTimer();
         follower = Constants.createFollower(hardwareMap);
@@ -73,8 +70,9 @@ public class OS18far extends PathChainAutoOpMode {
         turret2     = hardwareMap.get(Servo.class, "turret2");
         reargate    = hardwareMap.get(Servo.class, "reargate");
         launchgate  = hardwareMap.get(Servo.class, "launchgate");
+        indexfront  = hardwareMap.get(Servo.class, "indexfront");
+        indexback   = hardwareMap.get(Servo.class, "indexback");
 
-        // Shooter motor direction
         shootl.setDirection(DcMotor.Direction.REVERSE);
 
         for (DcMotor m : new DcMotor[]{intakefront, intakeback, shootr, shootl}) {
@@ -83,18 +81,22 @@ public class OS18far extends PathChainAutoOpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        // Servo init
         hood1.setPosition(0.47);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
+        indexfront.setPosition(RobotActions.INDEX_FRONT_EXTENDED);
+        indexback.setPosition(RobotActions.INDEX_BACK_RETRACTED);
 
-        actions = new RobotActions(intakefront, intakeback, shootr, shootl,
-                launchgate, reargate, turret1, turret2, hood1);
+        actions = new RobotActions(
+                intakefront, intakeback, shootr, shootl,
+                launchgate, reargate,
+                hood1, turret1, turret2,
+                indexfront, indexback,
+                hardwareMap.voltageSensor.iterator().next()
+        );
+        run(actions.safeindexer());
 
-        // Start pose matches Path1 start
         follower.setStartingPose(new Pose(57.430, 8.934, Math.toRadians(180)));
-
-        //  Turret now uses auto-aim from pose
 
         buildPathChains();
         buildTaskList();
@@ -102,7 +104,7 @@ public class OS18far extends PathChainAutoOpMode {
 
     @Override
     public void start() {
-        super.start();  // important so task state is reset correctly
+        super.start();
         pathTimer.resetTimer();
     }
 
@@ -111,11 +113,11 @@ public class OS18far extends PathChainAutoOpMode {
         super.loop();
         follower.update();
 
-        //  Continuously auto-aim turret to target using localization
-        updateTurretAutoAim();
+        // Turret auto-aim every loop
+        updateTurretAutoAimBlueSide();
 
-        // keep shooter spun up (tune as needed)
-        run(actions.holdShooterAtRPMclose(1325, 30));
+        // Keep shooter spun up
+        run(actions.holdShooterAtRPMclose(SHOOT_RPM_HOLD, 30));
 
         runTasks();
 
@@ -129,115 +131,102 @@ public class OS18far extends PathChainAutoOpMode {
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
         telemetry.addData("T", follower.getCurrentTValue());
         telemetry.addData("PathBusy", follower.isBusy());
+
         telemetry.addLine("=== SHOOTER ===");
         telemetry.addData("RPM R", "%.0f", rpmR);
         telemetry.addData("RPM L", "%.0f", rpmL);
         telemetry.addData("RPM avg", "%.0f", avg);
-        telemetry.addLine("=== TURRET AUTO-AIM ===");
 
-        // For debug: show current pose and computed turret angle
+        telemetry.addLine("=== TURRET AUTO-AIM ===");
         Pose pose = follower.getPose();
         telemetry.addData("Pose", "(%.1f, %.1f, %.1f°)",
                 pose.getX(), pose.getY(), Math.toDegrees(pose.getHeading()));
         telemetry.addData("Target", "(%.1f, %.1f)", targetX, targetY);
 
-        // Recompute angle for telemetry
-        double dx = targetX - pose.getX();
-        double dy = targetY - pose.getY();
-        double fieldAngle = Math.atan2(dy, dx);
-        double turretAngleRad = fieldAngle - pose.getHeading();
-        while (turretAngleRad > Math.PI)  turretAngleRad -= 2 * Math.PI;
-        while (turretAngleRad < -Math.PI) turretAngleRad += 2 * Math.PI;
-        double turretAngleDeg = Math.toDegrees(turretAngleRad)
-                + turretTrimDeg + TURRET_CAL_OFFSET_DEG;
-
-        telemetry.addData("Turret angle (deg)", "%.2f", turretAngleDeg);
+        double turretDeg = computeTurretAngleDeg(pose);
+        telemetry.addData("Turret angle (deg)", "%.2f", turretDeg);
         telemetry.addData("Trim (deg)", "%.2f", turretTrimDeg);
+        telemetry.addData("CalOffset (deg)", "%.2f", TURRET_CAL_OFFSET_DEG);
+
         telemetry.update();
     }
 
     @Override
     protected void buildPathChains() {
-        // Use the precise shooter pose everywhere: (57.217, 15.315)
 
         // === Path1: (57.430, 8.934) -> (57.217, 15.315) ===
         path1 = follower.pathBuilder()
-                .addPath(
-                        new BezierLine(
-                                new Pose(57.430, 8.934),
-                                new Pose(57.217, 15.315)))
+                .addPath(new BezierLine(
+                        new Pose(57.430, 8.934),
+                        new Pose(57.217, 15.315)))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .setGlobalDeceleration(0.5)
                 .build();
 
-        // === Path2: (57.217, 15.315) -> (10, 8) ===
+        // === Path2: shooter -> stack ===
         path2 = follower.pathBuilder()
-                .addPath(
-                        new BezierCurve(
-                                new Pose(57.217, 15.315),
-                                new Pose(40,10),
-                                new Pose(12, 8)))
+                .addPath(new BezierCurve(
+                        new Pose(57.217, 15.315),
+                        new Pose(40, 10),
+                        new Pose(20, 8)))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         sus = follower.pathBuilder()
-                .addPath(
-                        new BezierLine(
-                                new Pose(12, 8),
-                                new Pose(15, 9)))
+                .addPath(new BezierLine(
+                        new Pose(20, 8),
+                        new Pose(15, 9)))
                 .setLinearHeadingInterpolation(Math.toRadians(170), Math.toRadians(190))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
+
         sus2 = follower.pathBuilder()
-                .addPath(
-                        new BezierLine(
-                                new Pose(15, 9),
-                                new Pose(12, 8)))
+                .addPath(new BezierLine(
+                        new Pose(15, 9),
+                        new Pose(12, 8)))
                 .setLinearHeadingInterpolation(Math.toRadians(190), Math.toRadians(180))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path3: (10, 8) -> (57.217, 15.315) ===
+        // === Path3: stack -> shooter (shoot callback at 0.9) ===
         path3 = follower.pathBuilder()
-                .addPath(
-                        new BezierLine(
-                                new Pose(12, 8),
-                                new Pose(57.217, 13)))
+                .addPath(new BezierLine(
+                        new Pose(12, 8),
+                        new Pose(57.217, 13)))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .setGlobalDeceleration(0.45)
-                .addParametricCallback(0.9, () -> run(actions.launch3far()))
+                .setGlobalDeceleration(0.54)
+                // REPLACED: launch3far -> launch3faster
+                .addParametricCallback(0.95, () -> run(new SequentialAction(new SleepAction(0.4),
+                        actions.launch3far())))
+
                 .build();
 
-        // === Path4: shooter -> stack 2 via curve ===
-        path4 = follower
-                .pathBuilder()
-                .addPath(
-                        new BezierCurve(
-                                new Pose(57.217, 15.315),
-                                new Pose(35.947, 37.648),
-                                new Pose(14.464, 35.734)
-                        )
-                )
+        // === Path4: shooter -> stack 2 (curve) ===
+        path4 = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(57.217, 15.315),
+                        new Pose(22, 35.734)
+                ))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // === Path5: stack 2 -> shooter (line) ===
-        path5 = follower
-                .pathBuilder()
-                .addPath(
-                        new BezierLine(
-                                new Pose(14.464, 35.734),
-                                new Pose(57.217, 15.315)
-                        )
-                )
+        path5 = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(22, 35.734),
+                        new Pose(57.217, 15.315)
+                ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.9, () -> run(actions.launch3far()))
-                .setGlobalDeceleration(0.45)
+                .setGlobalDeceleration(0.53)
+                // REPLACED: launch3far -> launch3faster
+                .addParametricCallback(0.95, () -> run(new SequentialAction(new SleepAction(0.4),
+                        actions.launch3far())))
+
                 .build();
     }
 
@@ -245,44 +234,42 @@ public class OS18far extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        // === Path1: drive to shooter, then WAIT, then LAUNCH ===
-        PathChainTask path1Task = new PathChainTask(path1, 4)
+        // === Path1: drive to shooter, WAIT, then LAUNCH (already launch3faster) ===
+        PathChainTask path1Task = new PathChainTask(path1, 3.2)
                 .addWaitAction(
                         0,
                         new SequentialAction(
-                                new SleepAction(2),    // wait a bit
-                                actions.launch3faster()  // then fire 3
+                                new SleepAction(1.5),
+                                actions.launch3faster()
                         )
                 )
                 .setMaxWaitTime(6.0)
                 .setWaitCondition(() -> true);
         tasks.add(path1Task);
 
-        // === First cycle: Path2 (out) + Path3 (back & shoot) ===
-        addPath(path2, 0);  // intake-only drive
-        addPath(sus,0);
-        addPath(sus2,0);
 
-        addPath(path3,1);
-
-        // === Repeat Path2 + Path3 two more times ===
-
-        // Repeat 1
-        addPath(path2, 0);
-        addPath(path3,1);
-
-        // Repeat 2
-        addPath(path2, 0);
-        addPath(path3,1);
+        // === Cycles ===
+        addPath(path2, 0.3);
+        //addPath(sus, 0);
+        //addPath(sus2, 0);
+        addPath(path3, 1.4);
 
         addPath(path2, 0);
-        addPath(path3,1);
-        addPath(path2,0);
-        addPath(path3,1);
-        addPath(path2,0);
-        addPath(path3,1);
-        addPath(path2,0);
+        addPath(path3, 1.4);
 
+        addPath(path2, 0);
+        addPath(path3, 1.4);
+
+        addPath(path2, 0);
+        addPath(path3, 1.4);
+
+        addPath(path2, 0);
+        addPath(path3, 1.4);
+
+        addPath(path2, 0);
+        addPath(path3, 1.4);
+
+        addPath(path2, 0); // final intake move as in your original
     }
 
     @Override
@@ -307,66 +294,68 @@ public class OS18far extends PathChainAutoOpMode {
 
     @Override
     protected void startTurn(TurnTask task) {
-        // Not used in this auto
+        // Not used
+    }
+
+    // =========================
+    // Turret calculations (BLUE constraint applied)
+    // =========================
+
+    private static double normalizeRadians(double a) {
+        while (a > Math.PI)  a -= 2.0 * Math.PI;
+        while (a < -Math.PI) a += 2.0 * Math.PI;
+        return a;
     }
 
     /**
-     * Auto-aim turret based on robot pose and field target.
-     * Uses the same math as TeleOp:
-     *  1) Compute angle to target in field frame.
-     *  2) Subtract robot heading to get turret angle.
-     *  3) Normalize to [-180,180], apply trim + calibration.
-     *  4) Convert angle → servo positions (with backlash on turret1).
+     * Returns the turret angle in degrees (robot-relative) with trim + calibration applied.
      */
-    private void updateTurretAutoAim() {
+    private double computeTurretAngleDeg(Pose pose) {
+        double dx = targetX - pose.getX();
+        double dy = targetY - pose.getY();
+
+        double angleToTargetField = Math.atan2(dy, dx);
+        double turretAngleRad = normalizeRadians(angleToTargetField - pose.getHeading());
+
+        return Math.toDegrees(turretAngleRad) + turretTrimDeg + TURRET_CAL_OFFSET_DEG;
+    }
+
+    /**
+     * Auto-aim turret from pose to BLUE target, with BLUE-side servo constraint:
+     * only allow lower-than-center side (<= turretCenterPosition).
+     */
+    private void updateTurretAutoAimBlueSide() {
         if (turret1 == null || turret2 == null || follower == null) return;
 
         Pose pose = follower.getPose();
-        double currentX = pose.getX();
-        double currentY = pose.getY();
-        double heading  = pose.getHeading();
 
-        // Vector from robot → target (field coordinates)
-        double dx = targetX - currentX;
-        double dy = targetY - currentY;
+        double turretAngleDeg = computeTurretAngleDeg(pose);
 
-        // Field-frame angle to target
-        double angleToTargetField = Math.atan2(dy, dx);
+        // Clamp to mechanical turret angle
+        double clampedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDeg));
 
-        // Turret angle relative to robot forward
-        double turretAngle = angleToTargetField - heading;
-
-        // Normalize to [-PI, PI]
-        while (turretAngle > Math.PI)  turretAngle -= 2 * Math.PI;
-        while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
-
-        // Convert to degrees & apply trim + calibration offset
-        double turretAngleDeg =
-                Math.toDegrees(turretAngle) + turretTrimDeg + TURRET_CAL_OFFSET_DEG;
-
-        // Clamp to mechanical range
-        double clampedAngle = Math.max(-turretMaxAngle,
-                Math.min(turretMaxAngle, turretAngleDeg));
-
-        // Map angle → servo position
+        // Map angle -> servo
         double servoPosition;
         if (clampedAngle >= 0) {
-            // Positive angle = turn right
             double servoRange = turretRightPosition - turretCenterPosition;
             servoPosition = turretCenterPosition + (clampedAngle / turretMaxAngle) * servoRange;
         } else {
-            // Negative angle = turn left
             double servoRange = turretCenterPosition - turretLeftPosition;
-            servoPosition = turretCenterPosition
-                    - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
+            servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
         }
 
-        // Clamp servo range
+        // Clamp servo to [0,1]
         servoPosition = Math.max(0.0, Math.min(1.0, servoPosition));
 
-        // Backlash compensation on turret1, plus small shift like TeleOp
+        // BLUE SIDE constraint: only lower-than-center
+        servoPosition = Math.min(turretCenterPosition, servoPosition);
+
+        // Backlash comp on turret1
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
+
+        // Apply BLUE constraint again after backlash
+        turret1Pos = Math.min(turretCenterPosition, turret1Pos);
 
         turret1.setPosition(turret1Pos - 0.01);
         turret2.setPosition(servoPosition - 0.01);

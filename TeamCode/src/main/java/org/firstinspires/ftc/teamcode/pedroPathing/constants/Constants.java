@@ -26,13 +26,13 @@ public class Constants {
             .lateralZeroPowerAcceleration(-71.0266)
             .translationalPIDFCoefficients(new PIDFCoefficients(0.02, 0, 0.004, 0.0025))
 
-            .headingPIDFCoefficients(new PIDFCoefficients(0.7, 0, 0.04, 0.02))
+            .headingPIDFCoefficients(new PIDFCoefficients(0.6, 0, 0.04, 0.02))
             //.headingPIDFSwitch(20)
             //.useSecondaryHeadingPIDF(false)
             //.secondaryHeadingPIDFCoefficients(new PIDFCoefficients(1,0,0.04,0.02))
             // Note: Original had useSecondaryHeadingPID = false, but PedroPathing 2.0 requires switch value
             // Setting to very high value (999) to effectively disable secondary PID (original behavior)
-            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.01, 0.00, 0.0001 , 0.6, 0.03))
+            .drivePIDFCoefficients(new FilteredPIDFCoefficients(0.007, 0.00, 0.0001 , 0.6, 0.03))
             //primary is fast at 0.01 p and 0.01d, but testing with 0.005 p and 0.001d
             .useSecondaryDrivePIDF(false)
             //.drivePIDFSwitch(20)

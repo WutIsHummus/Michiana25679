@@ -55,9 +55,11 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double goalZoneY = 116.0;
 
     // Snap-to-pose (mirrored X and heading)
-    public static double SNAP_X = 144.0 - 101.3293; // mirror of Red-side snap point → 42.6707
-    public static double SNAP_Y = 123.7003;
-    public static double SNAP_HEADING_DEG = (180.0 - 359.0 + 360.0) % 360.0; // mirrors 359° → 181°
+    // Snap-to-pose (manual relocalize)
+    public static double SNAP_X = 12.0;
+    public static double SNAP_Y = 8.0;
+    public static double SNAP_HEADING_DEG = 180.0;
+
 
     public static double turretTrimDeg = 0.0;
     public static double TRIM_STEP_DEG = 3.0;
@@ -72,7 +74,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double turretCenterPosition = 0.51;
     public static double turretLeftPosition = 0.15;
     public static double turretRightPosition = 0.855;
-    public static double turretMaxAngle = 132;
+    public static double turretMaxAngle = 137;
 
     // Shooter PIDF Constants
     public static double TICKS_PER_REV = 28.0;
@@ -100,7 +102,7 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     private boolean lastB = false;
 
-    private static final double RPM_SLOPE = 60;
+    private static final double RPM_SLOPE = 50;
     private static final double RPM_INTERCEPT = 790;
 
     public static double FAR_SHOOTING_RPM_MAX = 1325;
@@ -133,8 +135,8 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double HOOD_MIN_POS = 0.45;
     public static double HOOD_MAX_POS = 0.54;
 
-    public static double HOOD_MIN_DIST_FT = 1.0;
-    public static double HOOD_MAX_DIST_FT = 7.0;
+    public static double HOOD_MIN_DIST_FT = 0;
+    public static double HOOD_MAX_DIST_FT = 8.0;
 
     public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
@@ -159,7 +161,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double LAUNCHGATE_HALF     = (LAUNCHGATE_DOWN + LAUNCHGATE_FULL_UP) * 0.5; // halfway up
 
     // Active deceleration (overspeed braking)
-    public static double BRAKE_RPM_THRESHOLD = 60.0;
+    public static double BRAKE_RPM_THRESHOLD = 40.0;
     public static double BRAKE_MAX_POWER     = 0.25;
     public static double BRAKE_KP            = 0.0010;
 
