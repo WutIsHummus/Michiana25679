@@ -175,10 +175,8 @@ public class red18startclose extends PathChainAutoOpMode {
                         new Pose(87.421, 87.421)))
                 .setConstantHeadingInterpolation(Math.toRadians(-70))
                 .setTValueConstraint(0.96)
-                .setVelocityConstraint(20)
-
                 .setGlobalDeceleration(0.45)
-                .addParametricCallback(0.7, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         leave= follower.pathBuilder()

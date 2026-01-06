@@ -85,10 +85,10 @@ public class RedConstantTurret extends PathChainAutoOpMode {
 
     // --- Shooter two-stage setpoint (spin-up boost then settle) ---
     private static final double SHOOT_RPM_BOOST = 1700;
-    private static final double SHOOT_RPM_HOLD  = 1080.0;
+    private static final double SHOOT_RPM_HOLD  = 1150;
 
     // Hysteresis so it doesn't bounce between modes
-    private static final double BOOST_EXIT_RPM  = 1070.0;
+    private static final double BOOST_EXIT_RPM  = 1150;
     private static final double BOOST_REARM_RPM = 850.0;
 
     private boolean shooterBoostActive = true;
@@ -127,13 +127,13 @@ public class RedConstantTurret extends PathChainAutoOpMode {
         }
 
         // Servo init
-        hood1.setPosition(0.48);
+        hood1.setPosition(0.49);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
 
         // Mirrored turret “park” (BLUE parked on lower-than-center side; RED parks on higher-than-center side)
-        turret1.setPosition(0.85);
-        turret2.setPosition(0.85);
+        turret1.setPosition(0.61);
+        turret2.setPosition(0.61);
 
         indexfront.setPosition(RobotActions.INDEX_FRONT_EXTENDED);
         indexback.setPosition(RobotActions.INDEX_BACK_RETRACTED);
@@ -222,17 +222,17 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                 .addPath(new BezierLine(
                         new Pose(mirrorX(56.000), 8.000),
                         new Pose(mirrorX(56.579), 87.421)))
-                .setTangentHeadingInterpolation().setReversed()
+                .setLinearHeadingInterpolation(mirrorHeading(Math.toRadians(270)),mirrorHeading(Math.toRadians(180)))
                 .setTValueConstraint(0.96)
-                .setGlobalDeceleration(0.47)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .setGlobalDeceleration(0.48)
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         // === Path2: mirror of BLUE path2 ===
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(mirrorX(56.579), 87.421),
-                        new Pose(mirrorX(18.000), 81.000)))
+                        new Pose(mirrorX(24), 81.000)))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
@@ -245,7 +245,7 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                         new Pose(mirrorX(56.792), 87.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
-                .setGlobalDeceleration(0.47)
+                .setGlobalDeceleration(0.48)
                 .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
@@ -269,8 +269,8 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                         new Pose(mirrorX(54.665), 35.734),
                         new Pose(mirrorX(56.579), 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
-                .setGlobalDeceleration(0.47)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .setGlobalDeceleration(0.48)
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         // === Path6: mirror of BLUE path6 ===
@@ -279,7 +279,7 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(mirrorX(56.000), 87.000),
                         new Pose(mirrorX(55.090), 59.557),
-                        new Pose(mirrorX(8), 57)
+                        new Pose(mirrorX(14), 57)
                 ))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
@@ -290,8 +290,8 @@ public class RedConstantTurret extends PathChainAutoOpMode {
         path6_5 = follower
                 .pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(mirrorX(9.997), 57),
-                        new Pose(mirrorX(20.419), 62.109),
+                        new Pose(mirrorX(10), 57),
+                        new Pose(mirrorX(24), 62.109),
                         new Pose(mirrorX(16.165), 69.129)
                 ))
                 .setLinearHeadingInterpolation(
@@ -312,8 +312,8 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                         mirrorHeading(Math.toRadians(200))
                 )
                 .setTValueConstraint(0.96)
-                .setGlobalDeceleration(0.47)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .setGlobalDeceleration(0.48)
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         // === Path8: mirror of BLUE path8 ===
@@ -322,7 +322,7 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                         new Pose(mirrorX(53.176), 89.335),
                         new Pose(mirrorX(13.000), 62.109),
                         new Pose(mirrorX(9.000), 51.261),
-                        new Pose(mirrorX(7.000), 12.000)
+                        new Pose(mirrorX(7.000), 10.00)
                 ))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0, () -> run(actions.startIntake()))
@@ -335,7 +335,7 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                         new Pose(mirrorX(56.579), 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(0.65)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         // === Path11: mirror of BLUE path11 (intake + latch forced RPM) ===
@@ -346,6 +346,7 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                         new Pose(mirrorX(12.000), 8.000)
                 ))
                 .setTangentHeadingInterpolation()
+                .setGlobalDeceleration(0.48)
                 .addParametricCallback(0, () -> {
                     run(actions.startIntake());
                     force1325Rpm = true;
@@ -369,8 +370,8 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                         new Pose(mirrorX(12.000), 8.000),
                         new Pose(mirrorX(57.000), 13.000)))
                 .setConstantHeadingInterpolation(mirrorHeading(Math.toRadians(180)))
-                .setGlobalDeceleration(0.45)
-                .addParametricCallback(0.95, () -> run(new SequentialAction(
+                .setGlobalDeceleration(0.43)
+                .addParametricCallback(0.9, () -> run(new SequentialAction(
                         new SleepAction(0.001),
                         actions.launch3far()
                 )))
@@ -386,9 +387,13 @@ public class RedConstantTurret extends PathChainAutoOpMode {
                 .build();
 
         // --- Register shooter paths (mirrored) + predicted end poses ---
-        registerShooterPath_Line(path1,
-                mirrorX(56.000), 8.000,
-                mirrorX(56.579), 87.421, true);
+        // Path1 uses LinearHeadingInterpolation -> predict with explicit end heading
+        registerShooterPath_WithEndHeading(
+                path1,
+                mirrorX(56.579), 87.421,
+                mirrorHeading(Math.toRadians(180))   // end heading of path1
+        );
+
 
         registerShooterPath_Line(path3,
                 mirrorX(20.000), 79.000,
@@ -420,33 +425,33 @@ public class RedConstantTurret extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        PathChainTask path1Task = new PathChainTask(path1, 0.7);
+        PathChainTask path1Task = new PathChainTask(path1, 0.8);
         tasks.add(path1Task);
 
         addPath(path2, 0);
 
-        PathChainTask path3Task = new PathChainTask(path3, 0.7);
+        PathChainTask path3Task = new PathChainTask(path3, 0.8);
         tasks.add(path3Task);
 
         addPath(path4, 0);
 
-        PathChainTask path5Task = new PathChainTask(path5, 0.7);
+        PathChainTask path5Task = new PathChainTask(path5, 0.8);
         tasks.add(path5Task);
 
         addPath(path6, 0);
         addPath(path6_5, 0.2);
 
-        PathChainTask path7Task = new PathChainTask(path7, 0.7);
+        PathChainTask path7Task = new PathChainTask(path7, 0.8);
         tasks.add(path7Task);
 
         addPath(path8, 0);
 
-        PathChainTask path9Task = new PathChainTask(path9, 0.7);
+        PathChainTask path9Task = new PathChainTask(path9, 0.8);
         tasks.add(path9Task);
 
         addPath(path11, 0);
 
-        PathChainTask path12Task = new PathChainTask(path12far, 1);
+        PathChainTask path12Task = new PathChainTask(path12far, 0.8);
         tasks.add(path12Task);
 
         addPath(leave, 0);

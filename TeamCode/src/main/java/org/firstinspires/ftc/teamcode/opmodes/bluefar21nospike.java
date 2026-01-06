@@ -52,7 +52,7 @@ public class bluefar21nospike extends PathChainAutoOpMode {
     public static double TURRET_CAL_OFFSET_DEG = -1.5;
 
     // Shooter RPM (kept as your original)
-    private static final double SHOOT_RPM_HOLD = 1325.0;
+    private static final double SHOOT_RPM_HOLD = 1350;
 
     @Override
     public void init() {
@@ -81,7 +81,7 @@ public class bluefar21nospike extends PathChainAutoOpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        hood1.setPosition(0.47);
+        hood1.setPosition(0.45);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
         indexfront.setPosition(RobotActions.INDEX_FRONT_EXTENDED);

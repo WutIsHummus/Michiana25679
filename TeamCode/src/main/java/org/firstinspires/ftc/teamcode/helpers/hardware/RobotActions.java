@@ -269,10 +269,10 @@ public class RobotActions {
     public Action safeindexer() {
         return new InstantAction(() -> {
             if (indexfront != null) {
-                indexfront.setPosition(INDEX_FRONT_EXTENDED);
+                indexfront.setPosition(INDEX_FRONT_RETRACTED);
             }
             if (indexback != null) {
-                indexback.setPosition(INDEX_BACK_RETRACTED);
+                indexback.setPosition(INDEX_BACK_EXTENDED);
             }
         });
     }
@@ -316,9 +316,13 @@ public class RobotActions {
                 launch.half(),
                 new SleepAction(0.1),
                 launch.reset(),
+                new SleepAction(0.2),
+                launch.fire(),
+                new SleepAction(0.2),
+                launch.reset(),
                 new SleepAction(0.1),
                 launch.fire(),
-                new SleepAction(0.1),
+                new SleepAction(0.4),
                 launch.reset(),
                 intakeBack.stop()
                 //intakeFront.stop()
@@ -340,12 +344,15 @@ public class RobotActions {
                 launch.half(),
                 new SleepAction(0.1),
                 launch.reset(),
+                new SleepAction(0.2),
+                launch.half(),
+                new SleepAction(0.2),
+                launch.reset(),
                 new SleepAction(0.1),
                 launch.fire(),
-                new SleepAction(0.1),
+                new SleepAction(0.4),
                 launch.reset(),
                 intakeBack.stop()
-                //intakeFront.stop()
         );
     }
     public Action launch3slow() {
@@ -800,7 +807,7 @@ public class RobotActions {
     public Action holdShooterAtRPMclose(double targetRPM, double holdSeconds) {
         return new SequentialAction(
                 // Set hood down
-                hood.setPosition(HOOD_LONG_RANGE),
+                //hood.setPosition(HOOD_LONG_RANGE),
 
                 // Run PIDF control while holding for specified time
                 new ParallelAction(
