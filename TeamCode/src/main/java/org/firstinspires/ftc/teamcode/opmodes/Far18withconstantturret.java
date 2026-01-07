@@ -16,7 +16,7 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "1 - Hopesandprayers")
+@Autonomous(name = "1 - BlueClose18StartFar")
 public class Far18withconstantturret extends PathChainAutoOpMode {
 
     private Follower follower;
@@ -186,7 +186,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
 
-                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.95, () -> run(actions.launch3preload()))
                 .build();
 
         // PATH 2 (intake)
@@ -206,7 +206,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         // PATH 4 (intake)
@@ -227,7 +227,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
                         new Pose(56.579, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(0.6)
-                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         // PATH 6 (intake)
@@ -235,7 +235,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(56.792, 87.421),
                         new Pose(50, 48),
-                        new Pose(12, 52)))
+                        new Pose(10, 52)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(165))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
@@ -279,12 +279,12 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
         path10 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(56.579, 87.634),
-                        new Pose(70, 11),
+                        new Pose(70, 10),
                         new Pose(11.061, 8.721)
                 ))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> {
-                    afterPath10 = true;              // requested: variable change at callback 0 on 10
+                    afterPath10 = true;
                     run(actions.startIntake());
                 })
                 .build();

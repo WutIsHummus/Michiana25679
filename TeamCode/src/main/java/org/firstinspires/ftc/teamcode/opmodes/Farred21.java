@@ -238,10 +238,10 @@ public class Farred21 extends PathChainAutoOpMode {
                         new Pose(132, 8),
                         new Pose(86.783, 13)))
                 .setConstantHeadingInterpolation(Math.toRadians(0))
-                .setGlobalDeceleration(0.54)
+                .setGlobalDeceleration(0.5)
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
-                        new SleepAction(0.25),
-                        actions.launch3far()
+                        new SleepAction(0.1),
+                        actions.launch3faster()
                 )))
                 .build();
 
@@ -295,22 +295,22 @@ public class Farred21 extends PathChainAutoOpMode {
         addPath(path2, 0.3);
         //addPath(sus, 0);
         //addPath(sus2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0); // final intake move as in your original
     }

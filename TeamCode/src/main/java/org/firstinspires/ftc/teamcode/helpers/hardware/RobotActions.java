@@ -355,6 +355,33 @@ public class RobotActions {
                 intakeBack.stop()
         );
     }
+    public Action launch3preload() {
+        return new SequentialAction(
+                intakeBack.run(),
+                intakeFront.run(),
+                new SleepAction(0.1),
+                launch.half(),
+                new SleepAction(0.1),
+                launch.reset(),
+                new SleepAction(0.2),
+                launch.half(),
+                new SleepAction(0.1),
+                launch.reset(),
+                new SleepAction(0.2),
+                launch.half(),
+                new SleepAction(0.1),
+                launch.reset(),
+                new SleepAction(0.2),
+                launch.half(),
+                new SleepAction(0.2),
+                launch.reset(),
+                new SleepAction(0.1),
+                launch.fire(),
+                new SleepAction(0.4),
+                launch.reset(),
+                intakeBack.stop()
+        );
+    }
     public Action launch3slow() {
         return new SequentialAction(
                 intakeBack.run(),

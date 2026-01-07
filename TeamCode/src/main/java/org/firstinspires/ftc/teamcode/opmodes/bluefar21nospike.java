@@ -28,14 +28,27 @@ public class bluefar21nospike extends PathChainAutoOpMode {
 
     private RobotActions actions;
 
-    private PathChain path1, path2, path3, path4, path5, sus, sus2;
+    private PathChain path1, path2, sus, sus2, path3, path4, path5;
 
     // =========================
-    // Turret + goal constants (BLUE)
+    // Mirror helpers (RED -> BLUE)
     // =========================
+    private static double mx(double x) { return 144.0 - x; }
 
-    // Field target (BLUE) — mirror of RED (128,125) across field width 144 => (16,125)
-    public static double targetX = 16.0;
+    // Heading mirror: blueHeading = PI - redHeading
+    private static double mh(double headingRad) { return normalizeRadians(Math.PI - headingRad); }
+
+    private static double normalizeRadians(double a) {
+        while (a > Math.PI)  a -= 2.0 * Math.PI;
+        while (a < -Math.PI) a += 2.0 * Math.PI;
+        return a;
+    }
+
+    // =========================
+    // Turret + goal constants (BLUE mirrored from your RED)
+    // =========================
+    // RED targetX=132 => BLUE targetX=144-132=12
+    public static double targetX = mx(132.0); // 12.0
     public static double targetY = 125.0;
 
     // Turret servo constants
@@ -48,11 +61,17 @@ public class bluefar21nospike extends PathChainAutoOpMode {
     public static double turretTrimDeg = 0.0;
     public static double TURRET1_BACKLASH_OFFSET = 0.027;
 
-    // Small calibration offset (deg). Keep as your tuned value.
+    // Keep your tuned calibration offset
     public static double TURRET_CAL_OFFSET_DEG = -1.5;
 
-    // Shooter RPM (kept as your original)
-    private static final double SHOOT_RPM_HOLD = 1350;
+    // Shooter RPM (same as your RED opmode)
+    private static final double SHOOT_RPM_HOLD = 1400.0;
+
+    // One-time start boost behavior:
+    // Start at 1700 RPM until measured shooter avg RPM exceeds 1400,
+    // then drop target to 1400 for the rest of the auto.
+    private static final double START_BOOST_RPM = 1700.0;
+    private boolean startBoostDone = false;
 
     @Override
     public void init() {
@@ -81,7 +100,9 @@ public class bluefar21nospike extends PathChainAutoOpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
+        // Hood fixed at 0.45 (same)
         hood1.setPosition(0.45);
+
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
         indexfront.setPosition(RobotActions.INDEX_FRONT_EXTENDED);
@@ -96,7 +117,8 @@ public class bluefar21nospike extends PathChainAutoOpMode {
         );
         run(actions.safeindexer());
 
-        follower.setStartingPose(new Pose(57.430, 8.934, Math.toRadians(180)));
+        // Mirror your RED starting pose (86.570, 8.934, 0) -> BLUE: (57.430, 8.934, 180)
+        follower.setStartingPose(new Pose(mx(86.570), 8.934, mh(Math.toRadians(0))));
 
         buildPathChains();
         buildTaskList();
@@ -106,6 +128,7 @@ public class bluefar21nospike extends PathChainAutoOpMode {
     public void start() {
         super.start();
         pathTimer.resetTimer();
+        startBoostDone = false;
     }
 
     @Override
@@ -113,19 +136,25 @@ public class bluefar21nospike extends PathChainAutoOpMode {
         super.loop();
         follower.update();
 
-        // Turret auto-aim every loop
+        // Turret auto-aim every loop (BLUE-side constraint)
         updateTurretAutoAimBlueSide();
 
-        // Keep shooter spun up
-        run(actions.holdShooterAtRPMclose(SHOOT_RPM_HOLD, 30));
-
-        runTasks();
-
+        // Compute shooter RPM avg for boost gating + telemetry
         double vR   = shootr.getVelocity();
         double vL   = shootl.getVelocity();
         double rpmR = (vR / 28.0) * 60.0;
         double rpmL = (vL / 28.0) * 60.0;
         double avg  = 0.5 * (rpmR + rpmL);
+
+        // One-time boost logic at beginning of auto
+        if (!startBoostDone && avg > SHOOT_RPM_HOLD) {
+            startBoostDone = true;
+        }
+        double targetRpmThisLoop = startBoostDone ? SHOOT_RPM_HOLD : START_BOOST_RPM;
+
+        run(actions.holdShooterAtRPMclose(targetRpmThisLoop, 30));
+
+        runTasks();
 
         telemetry.addData("Task", currentTaskIndex + "/" + tasks.size());
         telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
@@ -133,11 +162,13 @@ public class bluefar21nospike extends PathChainAutoOpMode {
         telemetry.addData("PathBusy", follower.isBusy());
 
         telemetry.addLine("=== SHOOTER ===");
+        telemetry.addData("BoostDone", startBoostDone);
+        telemetry.addData("TargetRPM", "%.0f", targetRpmThisLoop);
         telemetry.addData("RPM R", "%.0f", rpmR);
         telemetry.addData("RPM L", "%.0f", rpmL);
         telemetry.addData("RPM avg", "%.0f", avg);
 
-        telemetry.addLine("=== TURRET AUTO-AIM ===");
+        telemetry.addLine("=== TURRET AUTO-AIM (BLUE) ===");
         Pose pose = follower.getPose();
         telemetry.addData("Pose", "(%.1f, %.1f, %.1f°)",
                 pose.getX(), pose.getY(), Math.toDegrees(pose.getHeading()));
@@ -154,79 +185,91 @@ public class bluefar21nospike extends PathChainAutoOpMode {
     @Override
     protected void buildPathChains() {
 
-        // === Path1: (57.430, 8.934) -> (57.217, 15.315) ===
+        // This is a direct mirror of your RED buildPathChains():
+        // X' = 144 - X; Y unchanged; Heading' = PI - Heading
+
+        // === Path1: (86.570, 8.934) -> (86.783, 15.315), heading 0 ===
+        // BLUE: (57.430, 8.934) -> (57.217, 15.315), heading 180
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(57.430, 8.934),
-                        new Pose(57.217, 15.315)))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                        new Pose(mx(86.570), 8.934),
+                        new Pose(mx(86.783), 15.315)))
+                .setConstantHeadingInterpolation(mh(Math.toRadians(0)))
                 .setGlobalDeceleration(0.5)
                 .build();
 
-        // === Path2: shooter -> stack ===
+        // === Path2: (86.783,15.315)->(104,10)->(124,8), heading 0->0 ===
+        // BLUE: (57.217,15.315)->(40,10)->(20,8), heading 180->180
         path2 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(57.217, 15.315),
-                        new Pose(40, 10),
-                        new Pose(20, 8)))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+                        new Pose(mx(86.783), 15.315),
+                        new Pose(mx(104), 10),
+                        new Pose(mx(124), 8)))
+                .setLinearHeadingInterpolation(mh(Math.toRadians(0)), mh(Math.toRadians(0)))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
+        // sus: (124,8)->(129,9) h 10->350
+        // BLUE: (20,8)->(15,9) h 170->190
         sus = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(20, 8),
-                        new Pose(15, 9)))
-                .setLinearHeadingInterpolation(Math.toRadians(170), Math.toRadians(190))
+                        new Pose(mx(124), 8),
+                        new Pose(mx(129), 9)))
+                .setLinearHeadingInterpolation(mh(Math.toRadians(10)), mh(Math.toRadians(350)))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
+        // sus2: (129,9)->(132,8) h 350->0
+        // BLUE: (15,9)->(12,8) h 190->180
         sus2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(15, 9),
-                        new Pose(12, 8)))
-                .setLinearHeadingInterpolation(Math.toRadians(190), Math.toRadians(180))
+                        new Pose(mx(129), 9),
+                        new Pose(mx(132), 8)))
+                .setLinearHeadingInterpolation(mh(Math.toRadians(350)), mh(Math.toRadians(0)))
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path3: stack -> shooter (shoot callback at 0.9) ===
+        // === Path3: (132,8)->(86.783,13), heading 0, shoot callback ===
+        // BLUE: (12,8)->(57.217,13), heading 180, shoot callback
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(12, 8),
-                        new Pose(57.217, 13)))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
-                .setGlobalDeceleration(0.54)
-                // REPLACED: launch3far -> launch3faster
-                .addParametricCallback(0.95, () -> run(new SequentialAction(new SleepAction(0.4),
-                        actions.launch3far())))
-
+                        new Pose(mx(132), 8),
+                        new Pose(mx(86.783), 13)))
+                .setConstantHeadingInterpolation(mh(Math.toRadians(0)))
+                .setGlobalDeceleration(0.5)
+                .addParametricCallback(0.95, () -> run(new SequentialAction(
+                        new SleepAction(0.1),
+                        actions.launch3faster()
+                )))
                 .build();
 
-        // === Path4: shooter -> stack 2 (curve) ===
+        // === Path4: (86.783,15.315)->(122,35.734), tangent heading, intake ===
+        // BLUE: (57.217,15.315)->(22,35.734)
         path4 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(57.217, 15.315),
-                        new Pose(22, 35.734)
+                        new Pose(mx(86.783), 15.315),
+                        new Pose(mx(122), 35.734)
                 ))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
-        // === Path5: stack 2 -> shooter (line) ===
+        // === Path5: (122,35.734)->(86.783,15.315), heading 0, far shot callback ===
+        // BLUE: (22,35.734)->(57.217,15.315), heading 180, far shot callback
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(22, 35.734),
-                        new Pose(57.217, 15.315)
+                        new Pose(mx(122), 35.734),
+                        new Pose(mx(86.783), 15.315)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(mh(Math.toRadians(0)))
                 .setGlobalDeceleration(0.53)
-                // REPLACED: launch3far -> launch3faster
-                .addParametricCallback(0.95, () -> run(new SequentialAction(new SleepAction(0.4),
-                        actions.launch3far())))
-
+                .addParametricCallback(0.95, () -> run(new SequentialAction(
+                        new SleepAction(0.4),
+                        actions.launch3far()
+                )))
                 .build();
     }
 
@@ -234,12 +277,12 @@ public class bluefar21nospike extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        // === Path1: drive to shooter, WAIT, then LAUNCH (already launch3faster) ===
-        PathChainTask path1Task = new PathChainTask(path1, 3.2)
+        // === Path1: drive to shooter, WAIT, then LAUNCH ===
+        PathChainTask path1Task = new PathChainTask(path1, 2.5)
                 .addWaitAction(
                         0,
                         new SequentialAction(
-                                new SleepAction(1.5),
+                                new SleepAction(1.3),
                                 actions.launch3faster()
                         )
                 )
@@ -247,29 +290,28 @@ public class bluefar21nospike extends PathChainAutoOpMode {
                 .setWaitCondition(() -> true);
         tasks.add(path1Task);
 
-
-        // === Cycles ===
+        // === Cycles (same sequence) ===
         addPath(path2, 0.3);
         //addPath(sus, 0);
         //addPath(sus2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
         addPath(path2, 0);
-        addPath(path3, 1.4);
+        addPath(path3, 1);
 
-        addPath(path2, 0); // final intake move as in your original
+        addPath(path2, 0);
     }
 
     @Override
@@ -300,12 +342,6 @@ public class bluefar21nospike extends PathChainAutoOpMode {
     // =========================
     // Turret calculations (BLUE constraint applied)
     // =========================
-
-    private static double normalizeRadians(double a) {
-        while (a > Math.PI)  a -= 2.0 * Math.PI;
-        while (a < -Math.PI) a += 2.0 * Math.PI;
-        return a;
-    }
 
     /**
      * Returns the turret angle in degrees (robot-relative) with trim + calibration applied.

@@ -9,7 +9,6 @@ import com.pedropathing.geometry.Pose;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -43,20 +42,39 @@ public class CosmobotsBlueTeleop extends OpMode {
     private PIDFController shooterPID;
 
     // =========================
-    // BLUE SIDE FIELD CONSTANTS (MIRRORED)
+    // BLUE MIRROR DEFINITIONS
     // =========================
-    // Mirror across field centerline X' = 144 - X
-    public static double targetX = 144.0 - 128.0; // 16.0
+    // FTC field is 12ft = 144 inches. Mirror across the center vertical line.
+    private static final double FIELD_SIZE_IN = 144.0;
+
+    private static double mirrorX(double xRed) {
+        return FIELD_SIZE_IN - xRed;
+    }
+
+    // Mirror heading across vertical axis: theta' = 180 - theta (degrees)
+    private static double mirrorHeadingDeg(double headingRedDeg) {
+        double mirrored = 180.0 - headingRedDeg;
+        // normalize to [0, 360)
+        mirrored %= 360.0;
+        if (mirrored < 0) mirrored += 360.0;
+        return mirrored;
+    }
+
+    // =========================
+    // BLUE SIDE FIELD CONSTANTS
+    // =========================
+    // Target for turret aim (BLUE: mirrored from RED across X)
+    public static double targetX = mirrorX(128.0);
     public static double targetY = 125.0;
 
-    public static double goalZoneX = 144.0 - 116.0; // 28.0
+    // Goal zone coordinates (BLUE: mirrored from RED across X)
+    public static double goalZoneX = mirrorX(116.0);
     public static double goalZoneY = 116.0;
 
     // Snap-to-pose (manual relocalize) mirrored
-    public static double SNAP_X = 144.0 - 101.3293; // 42.6707
+    public static double SNAP_X = mirrorX(101.3293);
     public static double SNAP_Y = 123.7003;
-    // Mirror heading across field: h' = 180 - h (mod 360)
-    public static double SNAP_HEADING_DEG = (180.0 - 359.0 + 360.0) % 360.0; // 181
+    public static double SNAP_HEADING_DEG = mirrorHeadingDeg(359);
 
     // Low-power shooter mode (Right Trigger)
     public static double LOW_POWER_RPM = 800.0;
@@ -65,7 +83,7 @@ public class CosmobotsBlueTeleop extends OpMode {
     public static double turretTrimDeg = 0.0;
     public static double TRIM_STEP_DEG = 3.0;
 
-    // Turret servo constants (hardware-specific; NOT mirrored)
+    // Turret servo constants (hardware-specific; do NOT mirror)
     public static double turretCenterPosition = 0.51;
     public static double turretLeftPosition = 0.15;
     public static double turretRightPosition = 0.855;
@@ -95,7 +113,7 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     private boolean lastB = false;
 
-    private static final double RPM_SLOPE = 50;
+    private static final double RPM_SLOPE = 65;
     private static final double RPM_INTERCEPT = 810;
 
     public static double FAR_SHOOTING_RPM_MAX = 1350;
@@ -125,15 +143,13 @@ public class CosmobotsBlueTeleop extends OpMode {
     private boolean shootingconstant = true;
     private boolean lastY = false;
 
-    // ===== HOOD RULES (AS REQUESTED) =====
-    // - Normal regression max should be 0.52
-    // - When shooting from far zone ONLY, hood fixed at 0.54
+    // ===== HOOD RULES =====
     public static double HOOD_MIN_POS = 0.45;
-    public static double HOOD_MAX_POS_NORMAL = 0.52; // cap regression to 0.52
-    public static double HOOD_FAR_ZONE_POS = 0.54;    // fixed when far-zone shooting ONLY
+    public static double HOOD_MAX_POS_NORMAL = 0.54;
+    public static double HOOD_FAR_ZONE_POS = 0.45;
 
     public static double HOOD_MIN_DIST_FT = 0;
-    public static double HOOD_MAX_DIST_FT = 8.0;
+    public static double HOOD_MAX_DIST_FT = 6.0;
 
     public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
@@ -356,8 +372,8 @@ public class CosmobotsBlueTeleop extends OpMode {
         double farMaxIn = FAR_ZONE_CENTER_IN + FAR_ZONE_HALF_WINDOW_IN;
         boolean inFarWindow = (distanceToGoalInches >= farMinIn && distanceToGoalInches <= farMaxIn);
 
-        // Far-zone timing scale (DOUBLED)
-        double shootDelayScale = farShootingEnabled ? 2.0 : 1.0;
+        // Far-zone timing scale
+        double shootDelayScale = farShootingEnabled ? 1.01 : 1.0;
 
         // A button auto-shoot (timing scaled when far)
         boolean currentA = gamepad1.a;
@@ -467,10 +483,7 @@ public class CosmobotsBlueTeleop extends OpMode {
 
         boolean shooterOn = shootingconstant || shooting;
 
-        // =========================
         // RPM LIMIT RULE
-        // =========================
-        // Until far shooting is enabled (Dpad Up), cap target RPM to the RPM at 7ft.
         double rpmCapAt7Ft = RPM_SLOPE * 7.0 + RPM_INTERCEPT;
 
         double calculatedTargetRPM;
@@ -515,11 +528,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         double currentKS    = isLongRange ? kSLong : kS;
         double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
 
-        // =========================
         // HOOD RULES
-        // =========================
-        // Far-zone ONLY: far enabled AND inFarWindow => fixed 0.54
-        // Otherwise regression capped at max 0.52
         double currentHoodPos;
         if (farShootingEnabled && inFarWindow) {
             currentHoodPos = HOOD_FAR_ZONE_POS;
@@ -527,14 +536,14 @@ public class CosmobotsBlueTeleop extends OpMode {
             double hoodT = (distanceToGoalFeet - HOOD_MIN_DIST_FT) / (HOOD_MAX_DIST_FT - HOOD_MIN_DIST_FT);
             hoodT = Math.max(0.0, Math.min(1.0, hoodT));
 
-            double hoodMax = HOOD_MAX_POS_NORMAL; // 0.52 max
+            double hoodMax = HOOD_MAX_POS_NORMAL;
             currentHoodPos = hoodMax + hoodT * (HOOD_MIN_POS - hoodMax);
-
             currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
         }
         hood1.setPosition(currentHoodPos);
         hood2.setPosition(currentHoodPos);
 
+        // Shooter PID setup
         shooterPID.setPIDF(currentP, currentI, currentD, currentF);
         shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
 
@@ -567,7 +576,7 @@ public class CosmobotsBlueTeleop extends OpMode {
 
             shooterPower = Math.max(-BRAKE_MAX_POWER, Math.min(1.0, shooterPower));
 
-            // Voltage compensation (same mechanism as your red teleop)
+            // Voltage compensation
             double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
             double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
@@ -580,7 +589,7 @@ public class CosmobotsBlueTeleop extends OpMode {
             shooterPID.reset();
         }
 
-        // LEFT TRIGGER -> transfer (unchanged)
+        // LEFT TRIGGER -> transfer
         boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
         if (currentLeftTrigger && !lastLeftTrigger && !autoTransfer) {
             autoTransfer = true;
@@ -660,9 +669,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         setLedColor(ledColor);
 
         // =========================
-        // CURRENT DRAW (SHOOTER MOTORS)
-        // =========================
-
+        // CURRENT DRAW TELEMETRY
 
         telemetryA.addData("Pose", "x=%.1f y=%.1f h=%.1f", currentX, currentY, Math.toDegrees(currentHeading));
         telemetryA.addData("FarShootingEnabled", farShootingEnabled ? "ON" : "OFF");
@@ -671,7 +678,6 @@ public class CosmobotsBlueTeleop extends OpMode {
         telemetryA.addData("TargetRPM", "%.0f", calculatedTargetRPM);
         telemetryA.addData("ActualRPM", "%.0f", avgVelocityRPM);
         telemetryA.addData("HoodPos", "%.3f", currentHoodPos);
-
 
         telemetryA.update();
     }
