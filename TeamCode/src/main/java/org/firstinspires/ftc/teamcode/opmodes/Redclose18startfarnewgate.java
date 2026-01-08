@@ -110,8 +110,8 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
 
         // Servo init (same as BLUE)
         hood1.setPosition(0.475);
-        turret1.setPosition(0.175);
-        turret2.setPosition(0.175);
+        turret1.setPosition(0.875);
+        turret2.setPosition(0.875);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
 
