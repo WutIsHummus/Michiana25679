@@ -65,7 +65,7 @@ public class blue18startclose extends PathChainAutoOpMode {
     private boolean afterPath10 = false;
 
     // Deceleration (use same for shoot/nonshoot)
-    private static final double GLOBAL_DECEL = 0.52;
+    private static final double GLOBAL_DECEL = 0.47;
 
     // Shoot callback timing
     private static final double SHOOT_CALLBACK_T = 0.95;
@@ -206,7 +206,7 @@ public class blue18startclose extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(55.516, 84.869),
-                        new Pose(17.229, 85.081)
+                        new Pose(15, 85.081)
                 ))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -215,7 +215,7 @@ public class blue18startclose extends PathChainAutoOpMode {
         // PATH 3 (SHOOT) (reversed)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(17.229, 85.081),
+                        new Pose(15, 85.081),
                         new Pose(55.090, 84.869)
                 ))
                 .setTangentHeadingInterpolation()
@@ -230,7 +230,7 @@ public class blue18startclose extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(55.090, 84.869),
                         new Pose(55.516, 35.096),
-                        new Pose(10.210, 35.947)
+                        new Pose(8, 35.947)
                 ))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -239,7 +239,7 @@ public class blue18startclose extends PathChainAutoOpMode {
         // PATH 5 (SHOOT) (reversed)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(10.210, 35.947),
+                        new Pose(8, 35.947),
                         new Pose(55.728, 35.309),
                         new Pose(55.090, 84.443)
                 ))
@@ -265,7 +265,7 @@ public class blue18startclose extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(10.422, 58.706),
                         new Pose(22.334, 62.109),
-                        new Pose(17.016, 68.916)
+                        new Pose(15, 68.916)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(270))
                 .setGlobalDeceleration(GLOBAL_DECEL)
@@ -275,7 +275,7 @@ public class blue18startclose extends PathChainAutoOpMode {
         // PATH 8 (SHOOT)
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(17.016, 68.916),
+                        new Pose(15, 68.916),
                         new Pose(55.516, 84.869)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(230))
@@ -292,7 +292,7 @@ public class blue18startclose extends PathChainAutoOpMode {
                         new Pose(10.848, 11.273)
                 ))
                 .setTangentHeadingInterpolation()
-                .setGlobalDeceleration(GLOBAL_DECEL)
+                .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 

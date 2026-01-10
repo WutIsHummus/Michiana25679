@@ -53,7 +53,7 @@ public class Farred21 extends PathChainAutoOpMode {
     public static double TURRET_CAL_OFFSET_DEG = -1.5;
 
     // Shooter RPM (your new request)
-    private static final double SHOOT_RPM_HOLD = 1400.0;
+    private static final double SHOOT_RPM_HOLD = 1390.0;
 
     // One-time start boost behavior:
     // Start at 1700 RPM until measured shooter avg RPM exceeds 1350,
@@ -235,10 +235,10 @@ public class Farred21 extends PathChainAutoOpMode {
         // RED:  (132,8)->(86.783,13)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(132, 8),
+                        new Pose(124, 8),
                         new Pose(86.783, 13)))
                 .setConstantHeadingInterpolation(Math.toRadians(0))
-                .setGlobalDeceleration(0.5)
+                .setGlobalDeceleration(0.45)
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
                         new SleepAction(0.1),
                         actions.launch3faster()

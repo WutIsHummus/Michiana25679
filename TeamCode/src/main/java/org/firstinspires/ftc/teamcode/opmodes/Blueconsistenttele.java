@@ -18,8 +18,28 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 @Config
-@TeleOp(name = "1 - Cosmobots - Red")
-public class CosmobotsRedTeleop extends OpMode {
+@TeleOp(name = "1 - Blue New")
+public class Blueconsistenttele extends OpMode {
+
+    // ===== Field mirror (Red -> Blue) =====
+    // Assumption: field coordinates are 0..144 inches in both axes.
+    // Alliance swap is implemented as 180° rotation about field center:
+    // (x, y, heading) -> (144-x, 144-y, heading+180)
+    private static final double FIELD_SIZE_IN = 144.0;
+
+    private static double mirrorX(double x) { return FIELD_SIZE_IN - x; }
+    private static double mirrorY(double y) { return FIELD_SIZE_IN - y; }
+
+    private static double wrapDeg(double deg) {
+        deg %= 360.0;
+        if (deg < 0) deg += 360.0;
+        return deg;
+    }
+
+    private static double mirrorHeadingDeg(double headingDeg) {
+        return wrapDeg(headingDeg + 180.0);
+    }
+
     private Follower follower;  // Follower includes Pinpoint localization
     private MultipleTelemetry telemetryA;
 
@@ -42,20 +62,29 @@ public class CosmobotsRedTeleop extends OpMode {
     private PIDFController shooterPID;
 
     // =========================
-    // RED SIDE FIELD CONSTANTS
+    // BLUE SIDE FIELD CONSTANTS
     // =========================
-    // Target for turret aim (RED: original un-mirrored)
-    public static double targetX = 128.0;
-    public static double targetY = 125.0;
+    // Original RED reference points (kept here for clarity)
+    private static final double RED_targetX = 128.0;
+    private static final double RED_targetY = 125.0;
 
-    // Goal zone coordinates (RED: original un-mirrored)
-    public static double goalZoneX = 116.0;
-    public static double goalZoneY = 116.0;
+    private static final double RED_goalZoneX = 116.0;
+    private static final double RED_goalZoneY = 116.0;
 
-    // Snap-to-pose (manual relocalize)
-    public static double SNAP_X = 101.3293;
-    public static double SNAP_Y = 123.7003;
-    public static double SNAP_HEADING_DEG = 359;
+    private static final double RED_SNAP_X = 101.3293;
+    private static final double RED_SNAP_Y = 123.7003;
+    private static final double RED_SNAP_HEADING_DEG = 359.0;
+
+    // Mirrored BLUE points
+    public static double targetX = mirrorX(RED_targetX);
+    public static double targetY = mirrorY(RED_targetY);
+
+    public static double goalZoneX = mirrorX(RED_goalZoneX);
+    public static double goalZoneY = mirrorY(RED_goalZoneY);
+
+    public static double SNAP_X = mirrorX(RED_SNAP_X);
+    public static double SNAP_Y = mirrorY(RED_SNAP_Y);
+    public static double SNAP_HEADING_DEG = mirrorHeadingDeg(RED_SNAP_HEADING_DEG);
 
     // Low-power shooter mode (Right Trigger)
     public static double LOW_POWER_RPM = 800.0;
@@ -64,7 +93,7 @@ public class CosmobotsRedTeleop extends OpMode {
     public static double turretTrimDeg = 0.0;
     public static double TRIM_STEP_DEG = 3.0;
 
-    // Turret servo constants (hardware-specific; NOT mirrored)
+    // Turret servo constants (hardware-specific; DO NOT mirror)
     public static double turretCenterPosition = 0.51;
     public static double turretLeftPosition = 0.15;
     public static double turretRightPosition = 0.855;
@@ -94,7 +123,7 @@ public class CosmobotsRedTeleop extends OpMode {
 
     private boolean lastB = false;
 
-    private static final double RPM_SLOPE = 62;
+    private static final double RPM_SLOPE = 60;
     private static final double RPM_INTERCEPT = 810;
 
     public static double FAR_SHOOTING_RPM_MAX = 1360;
@@ -124,12 +153,10 @@ public class CosmobotsRedTeleop extends OpMode {
     private boolean shootingconstant = true;
     private boolean lastY = false;
 
-    // ===== HOOD RULES (YOUR REQUEST) =====
-    // - Normal regression should be limited to 0.52 (max)
-    // - When shooting from far zone ONLY, hood should be fixed at 0.54
+    // ===== HOOD RULES (base) =====
     public static double HOOD_MIN_POS = 0.46;
-    public static double HOOD_MAX_POS_NORMAL = 0.54; // cap regression to 0.52
-    public static double HOOD_FAR_ZONE_POS = 0.45;    // fixed when far-zone shooting ONLY
+    public static double HOOD_MAX_POS_NORMAL = 0.54;
+    public static double HOOD_FAR_ZONE_POS = 0.45;
 
     public static double HOOD_MIN_DIST_FT = 0;
     public static double HOOD_MAX_DIST_FT = 7.5;
@@ -141,6 +168,31 @@ public class CosmobotsRedTeleop extends OpMode {
     private boolean lastX = false;
     private boolean lastDpadLeft = false;
     private boolean lastDpadRight = false;
+
+    // gamepad2 relocalize edge detection
+    private boolean lastG2Left = false;
+    private boolean lastG2Up = false;
+    private boolean lastG2Down = false;
+
+    // ===== gamepad2 relocalize targets (mirrored from your Red code) =====
+    // Red:  left -> (104, 134, 0)
+    //       up   -> (134.5, 10, 0)
+    //       down -> (10, 10, 0)
+    private static final double RED_G2_LEFT_X = 104.0,  RED_G2_LEFT_Y = 134.0,  RED_G2_LEFT_H = 0.0;
+    private static final double RED_G2_UP_X   = 134.5,  RED_G2_UP_Y   = 10.0,   RED_G2_UP_H   = 0.0;
+    private static final double RED_G2_DOWN_X = 10.0,   RED_G2_DOWN_Y = 10.0,   RED_G2_DOWN_H = 0.0;
+
+    private static final double BLUE_G2_LEFT_X = mirrorX(RED_G2_LEFT_X);
+    private static final double BLUE_G2_LEFT_Y = mirrorY(RED_G2_LEFT_Y);
+    private static final double BLUE_G2_LEFT_H = Math.toRadians(mirrorHeadingDeg(RED_G2_LEFT_H));
+
+    private static final double BLUE_G2_UP_X = mirrorX(RED_G2_UP_X);
+    private static final double BLUE_G2_UP_Y = mirrorY(RED_G2_UP_Y);
+    private static final double BLUE_G2_UP_H = Math.toRadians(mirrorHeadingDeg(RED_G2_UP_H));
+
+    private static final double BLUE_G2_DOWN_X = mirrorX(RED_G2_DOWN_X);
+    private static final double BLUE_G2_DOWN_Y = mirrorY(RED_G2_DOWN_Y);
+    private static final double BLUE_G2_DOWN_H = Math.toRadians(mirrorHeadingDeg(RED_G2_DOWN_H));
 
     // LED strips
     private Servo led1;
@@ -156,7 +208,6 @@ public class CosmobotsRedTeleop extends OpMode {
     public static double LAUNCHGATE_FULL_UP  = 0.88; // full up
     public static double LAUNCHGATE_HALF     = (LAUNCHGATE_DOWN + LAUNCHGATE_FULL_UP) * 0.5; // halfway up
 
-    // 2/5 of the way between DOWN and FULL UP
     public static double LAUNCHGATE_TWO_FIFTHS = 0.5;
 
     // Indexer positions
@@ -207,7 +258,6 @@ public class CosmobotsRedTeleop extends OpMode {
         hood1      = hardwareMap.get(Servo.class, "hood 1");
         hood2      = hardwareMap.get(Servo.class, "hood 2");
 
-        // Indexer servos (rename if your config differs)
         try { indexfront = hardwareMap.get(Servo.class, "indexfront"); } catch (Exception ignored) { indexfront = null; }
         try { indexback  = hardwareMap.get(Servo.class, "indexback");  } catch (Exception ignored) { indexback  = null; }
 
@@ -243,11 +293,10 @@ public class CosmobotsRedTeleop extends OpMode {
             limelight = null;
         }
 
-        // safeindexer behavior on init
         if (indexfront != null) indexfront.setPosition(INDEX_FRONT_RETRACTED);
         if (indexback  != null) indexback.setPosition(INDEX_BACK_EXTENDED);
 
-        telemetryA.addLine("Cosmobots Red TeleOp - Localization + Shooter");
+        telemetryA.addLine("Cosmobots Blue TeleOp - Localization + Shooter");
         telemetryA.update();
     }
 
@@ -272,6 +321,19 @@ public class CosmobotsRedTeleop extends OpMode {
         lastDpadUp = dpadUp;
 
         follower.update();
+
+        // gamepad2 relocalize (edge-triggered) - mirrored targets
+        boolean g2Left = gamepad2.dpad_left;
+        boolean g2Up   = gamepad2.dpad_up;
+        boolean g2Down = gamepad2.dpad_down;
+
+        if (g2Left && !lastG2Left) follower.setPose(new Pose(BLUE_G2_LEFT_X, BLUE_G2_LEFT_Y, BLUE_G2_LEFT_H));
+        if (g2Up   && !lastG2Up)   follower.setPose(new Pose(BLUE_G2_UP_X,   BLUE_G2_UP_Y,   BLUE_G2_UP_H));
+        if (g2Down && !lastG2Down) follower.setPose(new Pose(BLUE_G2_DOWN_X, BLUE_G2_DOWN_Y, BLUE_G2_DOWN_H));
+
+        lastG2Left = g2Left;
+        lastG2Up   = g2Up;
+        lastG2Down = g2Down;
 
         boolean xPressed = gamepad1.x;
         if (xPressed && !lastX) {
@@ -329,7 +391,7 @@ public class CosmobotsRedTeleop extends OpMode {
         turret1.setPosition(turret1Pos - 0.01);
         turret2.setPosition(servoPosition - 0.01);
 
-        // Intake manual controls (bumpers)
+        // Intake manual controls (bumpers) - only when not autoTransfer
         if (!autoTransfer) {
             if (gamepad1.left_bumper) intakeback.setPower(1.0);
             else intakeback.setPower(0);
@@ -338,9 +400,17 @@ public class CosmobotsRedTeleop extends OpMode {
             else intakefront.setPower(0);
         }
 
-        // Launchgate idle rule
+        // gamepad1 dpad_down override (only when not shooting/transfer)
+        boolean g1Down = gamepad1.dpad_down;
+        if (g1Down && !shooting && !autoTransfer) {
+            launchgate.setPosition(LAUNCHGATE_FULL_UP);
+            intakefront.setPower(-1.0);
+            intakeback.setPower(-1.0);
+        }
+
+        // Launchgate idle rule (only if not overridden by g1Down)
         boolean intakeCommanded = gamepad1.left_bumper || gamepad1.right_bumper;
-        if (!shooting && !autoTransfer) {
+        if (!shooting && !autoTransfer && !g1Down) {
             launchgate.setPosition(intakeCommanded ? LAUNCHGATE_DOWN : LAUNCHGATE_TWO_FIFTHS);
         }
 
@@ -350,15 +420,15 @@ public class CosmobotsRedTeleop extends OpMode {
         double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
         double distanceToGoalFeet = distanceToGoalInches / 12.0;
 
-        // Far window detection (same window you already use)
+        // Far window detection
         double farMinIn = FAR_ZONE_CENTER_IN - FAR_ZONE_HALF_WINDOW_IN;
         double farMaxIn = FAR_ZONE_CENTER_IN + FAR_ZONE_HALF_WINDOW_IN;
         boolean inFarWindow = (distanceToGoalInches >= farMinIn && distanceToGoalInches <= farMaxIn);
 
-        // Far-zone timing scale (DOUBLED)
+        // Far-zone timing scale
         double shootDelayScale = farShootingEnabled ? 1.01 : 1.0;
 
-        // A button auto-shoot (timing scaled when far)
+        // A button auto-shoot
         boolean currentA = gamepad1.a;
         if (currentA && !lastA && !shooting) {
             shooting = true;
@@ -370,91 +440,59 @@ public class CosmobotsRedTeleop extends OpMode {
         if (shooting) {
             switch (shootState) {
                 case 0:
-                    if (shootTimer.seconds() > 0.005 * shootDelayScale) {
-                        shootState = 1;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.005 * shootDelayScale) { shootState = 1; shootTimer.reset(); }
                     break;
 
                 case 1:
                     intakefront.setPower(-1.0);
                     intakeback.setPower(-1.0);
-                    if (shootTimer.seconds() > 0.1 * shootDelayScale) {
-                        shootState = 2;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.1 * shootDelayScale) { shootState = 2; shootTimer.reset(); }
                     break;
 
                 case 2:
                     launchgate.setPosition(LAUNCHGATE_HALF);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 3;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 3; shootTimer.reset(); }
                     break;
 
                 case 3:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-                    if (shootTimer.seconds() > 0.3 * shootDelayScale) {
-                        shootState = 4;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.3 * shootDelayScale) { shootState = 4; shootTimer.reset(); }
                     break;
 
                 case 4:
                     launchgate.setPosition(LAUNCHGATE_HALF);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 5;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 5; shootTimer.reset(); }
                     break;
 
                 case 5:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-                    if (shootTimer.seconds() > 0.3 * shootDelayScale) {
-                        shootState = 6;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.3 * shootDelayScale) { shootState = 6; shootTimer.reset(); }
                     break;
 
                 case 6:
                     launchgate.setPosition(LAUNCHGATE_HALF);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 7;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 7; shootTimer.reset(); }
                     break;
 
                 case 7:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-
-                    if (shootTimer.seconds() > 0.3 * shootDelayScale) {
-                        shooting = false;
-                        shootState = 8;
-                    }
+                    if (shootTimer.seconds() > 0.3 * shootDelayScale) { shooting = false; shootState = 8; }
                     break;
+
                 case 8:
                     launchgate.setPosition(LAUNCHGATE_FULL_UP);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 9;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 9; shootTimer.reset(); }
                     break;
 
                 case 9:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shooting = false;
-                        shootState = 10;
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shooting = false; shootState = 10; }
                     break;
+
                 case 10:
                     intakefront.setPower(0);
                     intakeback.setPower(0);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shooting = false;
-                        shootState = 0;
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shooting = false; shootState = 0; }
                     break;
             }
         }
@@ -465,25 +503,16 @@ public class CosmobotsRedTeleop extends OpMode {
 
         boolean shooterOn = shootingconstant || shooting;
 
-        // =========================
-        // RPM LIMIT RULE (YOUR REQUEST)
-        // =========================
-        // Until far shooting is enabled (Dpad Up), cap target RPM to the RPM at 7ft.
-        // (Low-power mode still overrides everything.)
+        // RPM LIMIT RULE
         double rpmCapAt7Ft = RPM_SLOPE * 7.0 + RPM_INTERCEPT;
 
-        // Target RPM calculation
         double calculatedTargetRPM;
         if (lowPowerMode) {
             calculatedTargetRPM = LOW_POWER_RPM;
         } else {
-            double clampMax;
-            if (!farShootingEnabled) {
-                // Hard cap to the RPM at 7ft until far shooting is enabled
-                clampMax = Math.min(NORMAL_SHOOTING_RPM_MAX, rpmCapAt7Ft);
-            } else {
-                clampMax = FAR_SHOOTING_RPM_MAX;
-            }
+            double clampMax = (!farShootingEnabled)
+                    ? Math.min(NORMAL_SHOOTING_RPM_MAX, rpmCapAt7Ft)
+                    : FAR_SHOOTING_RPM_MAX;
 
             if (farShootingEnabled && inFarWindow) {
                 double baseRpmAtCenter = FAR_SHOOTING_RPM_MAX;
@@ -492,16 +521,13 @@ public class CosmobotsRedTeleop extends OpMode {
 
                 double farWindowMax = FAR_SHOOTING_RPM_MAX + FAR_ZONE_RPM_HEADROOM;
                 calculatedTargetRPM = Math.max(600, Math.min(farWindowMax, calculatedTargetRPM));
-
             } else if (farShootingEnabled && distanceToGoalFeet >= 9.0) {
                 calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;
-
             } else {
                 calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
                 calculatedTargetRPM = Math.max(600, Math.min(clampMax, calculatedTargetRPM));
             }
 
-            // Extra safety: if far not enabled, never exceed rpmCapAt7Ft
             if (!farShootingEnabled) {
                 calculatedTargetRPM = Math.min(calculatedTargetRPM, rpmCapAt7Ft);
             }
@@ -517,29 +543,18 @@ public class CosmobotsRedTeleop extends OpMode {
         double currentKS    = isLongRange ? kSLong : kS;
         double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
 
-        // =========================
-        // HOOD RULES (YOUR REQUEST)
-        // =========================
-        // - Normal regression should be limited to 0.52 (max)
-        // - When shooting from far zone ONLY (far enabled AND in far window), set hood=0.54 fixed
-        double currentHoodPos;
+        double baseHoodPos;
         if (farShootingEnabled && inFarWindow) {
-            currentHoodPos = HOOD_FAR_ZONE_POS; // fixed in far zone only
+            baseHoodPos = HOOD_FAR_ZONE_POS;
         } else {
             double hoodT = (distanceToGoalFeet - HOOD_MIN_DIST_FT) / (HOOD_MAX_DIST_FT - HOOD_MIN_DIST_FT);
             hoodT = Math.max(0.0, Math.min(1.0, hoodT));
 
-            // regression with capped max of 0.52
             double hoodMax = HOOD_MAX_POS_NORMAL;
-            currentHoodPos = hoodMax + hoodT * (HOOD_MIN_POS - hoodMax);
-
-            // clamp
-            currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
+            baseHoodPos = hoodMax + hoodT * (HOOD_MIN_POS - hoodMax);
+            baseHoodPos = Math.max(0.0, Math.min(1.0, baseHoodPos));
         }
-        hood1.setPosition(currentHoodPos);
-        hood2.setPosition(currentHoodPos);
 
-        // Shooter PID setup
         shooterPID.setPIDF(currentP, currentI, currentD, currentF);
         shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
 
@@ -550,6 +565,22 @@ public class CosmobotsRedTeleop extends OpMode {
         double vAvg = 0.5 * (vR + vL);
 
         double avgVelocityRPM = ticksPerSecToRPM(vAvg);
+
+        double rpmError = avgVelocityRPM - calculatedTargetRPM;
+        double hoodBoost = 0.0;
+        boolean fixedFarHoodMode = (farShootingEnabled && inFarWindow);
+
+        // NOTE: This matches the exact logic you pasted (even though the math looks inverted).
+        // If you want it corrected to "increase hood by +0.05 per +50 RPM overspeed", tell me and I will fix it.
+        if (!fixedFarHoodMode && Math.abs(rpmError) <= RPM_TOLERANCE && rpmError > 0.0) {
+            hoodBoost = (rpmError / 50.0) * 0.015;
+        }
+
+        double currentHoodPos = baseHoodPos - hoodBoost;
+        currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
+
+        hood1.setPosition(currentHoodPos);
+        hood2.setPosition(currentHoodPos);
 
         if (shooterOn) {
             double pidfOutput = shooterPID.calculate(vAvg, targetTPS);
@@ -572,7 +603,6 @@ public class CosmobotsRedTeleop extends OpMode {
 
             shooterPower = Math.max(-BRAKE_MAX_POWER, Math.min(1.0, shooterPower));
 
-            // Voltage compensation (as in your code)
             double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
             double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
@@ -585,7 +615,6 @@ public class CosmobotsRedTeleop extends OpMode {
             shooterPID.reset();
         }
 
-        // LEFT TRIGGER -> transfer (unchanged)
         boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
         if (currentLeftTrigger && !lastLeftTrigger && !autoTransfer) {
             autoTransfer = true;
@@ -658,25 +687,26 @@ public class CosmobotsRedTeleop extends OpMode {
         boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
         boolean intakeActive  = (!autoTransfer) && (gamepad1.left_bumper || gamepad1.right_bumper);
 
-        double ledColor = LED_GREEN;
-        if (shooterOn && !atTargetSpeed) ledColor = LED_RED;
-        else if (shooting || autoTransfer) ledColor = LED_BLUE;
-        else if (intakeActive) ledColor = LED_YELLOW;
-        setLedColor(ledColor);
+        boolean inFarDistance = inFarWindow || (distanceToGoalFeet >= 9.0);
 
-        // =========================
-        // CURRENT DRAW TELEMETRY (YOUR REQUEST)
-        // =========================
+        double ledColor = LED_GREEN;
+        if (inFarDistance && !farShootingEnabled) {
+            ledColor = LED_RED;
+        } else {
+            if (shooterOn && !atTargetSpeed) ledColor = LED_RED;
+            else if (shooting || autoTransfer) ledColor = LED_BLUE;
+            else if (intakeActive) ledColor = LED_YELLOW;
+        }
+        setLedColor(ledColor);
 
         telemetryA.addData("Pose", "x=%.1f y=%.1f h=%.1f", currentX, currentY, Math.toDegrees(currentHeading));
         telemetryA.addData("FarShootingEnabled", farShootingEnabled ? "ON" : "OFF");
         telemetryA.addData("InFarWindow", inFarWindow);
-        telemetryA.addData("RPM cap @7ft", "%.0f", rpmCapAt7Ft);
+        telemetryA.addData("InFarDistance", inFarDistance);
         telemetryA.addData("TargetRPM", "%.0f", calculatedTargetRPM);
         telemetryA.addData("ActualRPM", "%.0f", avgVelocityRPM);
+        telemetryA.addData("RPM Error", "%.0f", rpmError);
         telemetryA.addData("HoodPos", "%.3f", currentHoodPos);
-
-
         telemetryA.update();
     }
 

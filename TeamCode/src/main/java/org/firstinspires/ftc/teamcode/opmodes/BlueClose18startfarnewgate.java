@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.acmerobotics.roadrunner.SequentialAction;
+import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
@@ -13,8 +15,6 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
-
-import javax.microedition.khronos.opengles.GL;
 
 @Autonomous(name = "1 - BlueClose18startfarnewgate")
 public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
@@ -35,7 +35,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
     // =========================
     // Turret target (BLUE)
     // =========================
-    public static double targetX = 144.0 - 125; // 19.0 (note: comment said 16.0, but expression is 19.0)
+    public static double targetX = 144.0 - 122; // 19.0 (note: comment said 16.0, but expression is 19.0)
     public static double targetY = 125.0;
 
     // Turret servo constants
@@ -53,7 +53,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
 
     // Shooter setpoints
     private static final double BASE_TARGET_RPM   = 1090;
-    private static final double LATE_TARGET_RPM   = 1320.0;
+    private static final double LATE_TARGET_RPM   = 1390;
 
     // Boost logic
     private static final double SHOOT_RPM_BOOST = 1700.0;
@@ -64,8 +64,8 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
     private boolean afterPath10 = false; // becomes true via callback at start of path10
 
     // Deceleration settings
-    private static final double GLOBAL_DECEL = 0.52;
-    private static final double PATH12FAR_DECEL = 0.45;
+    private static final double GLOBAL_DECEL = 0.57;
+    private static final double PATH12FAR_DECEL = 0.46;
 
     // =========================
     // New Path 6.5 (from your screenshot)
@@ -197,14 +197,16 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .setVelocityConstraint(20) // requested: limit velocity on path 1 to 20
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
-                .build();
+                .addParametricCallback(0.95, () -> run(new SequentialAction(
+                        new SleepAction(0.1),
+                        actions.launch3faster()
+                )))                .build();
 
         // PATH 2 (intake)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(56.579, 87.421),
-                        new Pose(16, 80)))
+                        new Pose(20, 80)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
@@ -238,7 +240,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
                         new Pose(56.579, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(0.6)
-                .setGlobalDeceleration(GLOBAL_DECEL)
+                .setGlobalDeceleration(0.55)
                 .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
@@ -251,7 +253,6 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
                         new Pose(14, 52)))
                 .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
                 .setTValueConstraint(0.9)
-
                 .setNoDeceleration()// end heading matches Path6.5 start
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
@@ -260,8 +261,8 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         // Start pose = end of Path6: (12, 52), heading starts at 180 and ends at 270
         path6_5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(12, 52),
-                        new Pose(P65_C1_X, P65_C1_Y),
+                        new Pose(14, 52),
+                        new Pose(22, 62),
                         new Pose(17, 66)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(270))
@@ -275,7 +276,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(17, 66),
-                        new Pose(56.792, 87.634)))
+                        new Pose(53.176, 89.335)))
                 //.setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(230))
                 .setTangentHeadingInterpolation()
                 .setReversed()
@@ -289,8 +290,8 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(53.176, 89.335),
                         new Pose(13, 62.109),
-                        new Pose(9, 51.261),
-                        new Pose(9, 10)
+                        //new Pose(9, 51.261),
+                        new Pose(9, 20)
                 ))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
@@ -300,10 +301,10 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         // PATH 9 (shoot path)
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(11.486, 11.273),
+                        new Pose(9, 20),
                         new Pose(56.579, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
-                .setGlobalDeceleration(0.5)
+                .setGlobalDeceleration(0.55)
                 .addParametricCallback(0.95, () -> run(actions.launch3faster()))
                 .build();
 
@@ -312,11 +313,14 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(56.579, 87.634),
                         new Pose(70, 10),
-                        new Pose(11.061, 8.721)
+                        new Pose(15, 8.721)
                 ))
                 .setTangentHeadingInterpolation()
+                .setNoDeceleration()
                 .addParametricCallback(0.0, () -> {
                     afterPath10 = true;
+                    targetX = 144.0 - 125;
+                    hood1.setPosition(0.45);
                     run(actions.startIntake());
                 })
                 .build();
@@ -324,19 +328,19 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         // REPLACE path12 with: path12far + leave
         path12far = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(11.061, 8.721),
+                        new Pose(15, 8.721),
                         new Pose(57, 13)))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .setGlobalDeceleration(PATH12FAR_DECEL)
-                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.9, () -> run(actions.launch3faster()))
                 .build();
 
         leave = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(57, 13),
-                        new Pose(12, 8)))
+                        new Pose(50, 18)))
                 .setTangentHeadingInterpolation()
-                .setNoDeceleration()
+                .setGlobalDeceleration(0.5)
                 .build();
     }
 
@@ -346,7 +350,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
 
         final double WAIT_AFTER_SHOOT = 0.8;
 
-        tasks.add(new PathChainTask(path1, WAIT_AFTER_SHOOT));
+        tasks.add(new PathChainTask(path1, 1));
         addPath(path2, 0.0);
 
         tasks.add(new PathChainTask(path3, WAIT_AFTER_SHOOT));
@@ -364,7 +368,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         tasks.add(new PathChainTask(path9, WAIT_AFTER_SHOOT));
         addPath(path10, 0.0);
 
-        tasks.add(new PathChainTask(path12far, WAIT_AFTER_SHOOT));
+        tasks.add(new PathChainTask(path12far, 1));
         addPath(leave, 0.0);
     }
 

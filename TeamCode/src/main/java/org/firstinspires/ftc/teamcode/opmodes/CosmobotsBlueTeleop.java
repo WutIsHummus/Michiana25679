@@ -113,10 +113,10 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     private boolean lastB = false;
 
-    private static final double RPM_SLOPE = 65;
+    private static final double RPM_SLOPE = 62;
     private static final double RPM_INTERCEPT = 810;
 
-    public static double FAR_SHOOTING_RPM_MAX = 1350;
+    public static double FAR_SHOOTING_RPM_MAX = 1365;
     public static double NORMAL_SHOOTING_RPM_MAX = 1110;
 
     public static double FAR_ZONE_CENTER_IN = 117.0;
@@ -144,12 +144,12 @@ public class CosmobotsBlueTeleop extends OpMode {
     private boolean lastY = false;
 
     // ===== HOOD RULES =====
-    public static double HOOD_MIN_POS = 0.45;
+    public static double HOOD_MIN_POS = 0.46;
     public static double HOOD_MAX_POS_NORMAL = 0.54;
     public static double HOOD_FAR_ZONE_POS = 0.45;
 
     public static double HOOD_MIN_DIST_FT = 0;
-    public static double HOOD_MAX_DIST_FT = 6.0;
+    public static double HOOD_MAX_DIST_FT = 7.5;
 
     public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
@@ -373,7 +373,7 @@ public class CosmobotsBlueTeleop extends OpMode {
         boolean inFarWindow = (distanceToGoalInches >= farMinIn && distanceToGoalInches <= farMaxIn);
 
         // Far-zone timing scale
-        double shootDelayScale = farShootingEnabled ? 1.01 : 1.0;
+        double shootDelayScale = farShootingEnabled ? 1.0 : 1.0;
 
         // A button auto-shoot (timing scaled when far)
         boolean currentA = gamepad1.a;

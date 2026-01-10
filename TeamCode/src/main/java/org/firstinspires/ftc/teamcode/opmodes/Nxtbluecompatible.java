@@ -61,7 +61,7 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
     private boolean shooterBoostActive = true;
 
     // Requested params
-    private static final double SHOOT_CALLBACK_T = 0.95;
+    private static final double SHOOT_CALLBACK_T = 0.9;
     private static final double SHOOT_PATH_DECEL = 0.5;
     private static final double NONSHOOT_DECEL   = 0.5;
     private static final double SHOOT_END_WAIT_S = 1.0;
@@ -144,8 +144,6 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // Turret aiming
         updateTurretFromPose();
         hood1.setPosition(0.475);
-        turret1.setPosition(0.175);
-        turret2.setPosition(0.175);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
 

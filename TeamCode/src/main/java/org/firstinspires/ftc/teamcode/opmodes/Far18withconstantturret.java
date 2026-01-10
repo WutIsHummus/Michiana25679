@@ -49,7 +49,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
     public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     // Live tracking after this
-    private static final double TURRET_LIVE_T = 0.98;
+    private static final double TURRET_LIVE_T = 0.95;
 
     // Shooter setpoints
     private static final double BASE_TARGET_RPM   = 1100;
@@ -258,7 +258,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
                         new Pose(53.176, 89.335),
                         new Pose(13, 62.109),
                         new Pose(9, 51.261),
-                        new Pose(9, 8)
+                        new Pose(9, 14)
                 ))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
@@ -268,7 +268,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
         // PATH 9 (shoot path)
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(11.486, 11.273),
+                        new Pose(11.486, 14),
                         new Pose(56.579, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(GLOBAL_DECEL)
@@ -302,7 +302,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
         leave = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(57, 13),
-                        new Pose(12, 8)))
+                        new Pose(57, 35)))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
                 .build();
@@ -333,7 +333,7 @@ public class Far18withconstantturret extends PathChainAutoOpMode {
 
         //addPath(path11, 0.0);
 
-        tasks.add(new PathChainTask(path12far, WAIT_AFTER_SHOOT));
+        tasks.add(new PathChainTask(path12far, 0.95));
         addPath(leave, 0.0);
     }
 

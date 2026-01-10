@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.acmerobotics.roadrunner.SequentialAction;
+import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
@@ -13,6 +15,8 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
+
+import javax.microedition.khronos.opengles.GL;
 
 @Autonomous(name = "1 - RedClose18startfarnewgate")
 public class Redclose18startfarnewgate extends PathChainAutoOpMode {
@@ -31,11 +35,10 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
     private PathChain path12far, leave;
 
     // =========================
-    // Turret target (RED) = mirror of BLUE target
-    // BLUE: targetX = 144 - 125 = 19
-    // RED:  targetX = 144 - 19 = 125
+    // Turret target (RED) mirrored from BLUE targetX = (144 - 122) = 22
+    // Mirror across X: x' = 144 - x, then subtract 4 => x'' = (144 - x) - 4
     // =========================
-    public static double targetX = 125.0;
+    public static double targetX = 118.0; // (144 - 22) - 4
     public static double targetY = 125.0;
 
     // Turret servo constants
@@ -52,31 +55,28 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
     private static final double TURRET_LIVE_T = 0.95;
 
     // Shooter setpoints
-    private static final double BASE_TARGET_RPM   = 1090;
-    private static final double LATE_TARGET_RPM   = 1320.0;
+    private static final double BASE_TARGET_RPM   = 1100;
+    private static final double LATE_TARGET_RPM   = 1390;
 
     // Boost logic
     private static final double SHOOT_RPM_BOOST = 1700.0;
-    private static final double BOOST_EXIT_RPM  = 1090;
+    private static final double BOOST_EXIT_RPM  = 1100;
     private static final double BOOST_REARM_RPM = 850.0;
 
     private boolean shooterBoostActive = true;
     private boolean afterPath10 = false; // becomes true via callback at start of path10
 
     // Deceleration settings
-    private static final double GLOBAL_DECEL = 0.52;
-    private static final double PATH12FAR_DECEL = 0.45;
+    private static final double GLOBAL_DECEL = 0.55;
+    private static final double PATH12FAR_DECEL = 0.46;
 
     // =========================
-    // Mirrored Path 6.5 constants (from BLUE screenshot path)
-    // BLUE:
-    //  End: (15.74002954, 69.341211225) -> RED End X = 144 - 15.74002954 = 128.25997046
-    //  C1 : (18.71787296, 62.3220088)   -> RED C1  X = 144 - 18.71787296 = 125.28212704
-    // Y unchanged
+    // New Path 6.5 (from your screenshot)
+    // NOTE: these are kept as-is (source constants), but mirrored uses explicit numbers below.
     // =========================
-    private static final double P65_END_X  = 128.25997046;
+    private static final double P65_END_X  = 15.74002954;
     private static final double P65_END_Y  = 69.341211225;
-    private static final double P65_C1_X   = 125.28212704;
+    private static final double P65_C1_X   = 18.71787296;
     private static final double P65_C1_Y   = 62.3220088;
 
     @Override
@@ -108,7 +108,7 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
             m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         }
 
-        // Servo init (same as BLUE)
+        // Servo init
         hood1.setPosition(0.475);
         turret1.setPosition(0.875);
         turret2.setPosition(0.875);
@@ -130,10 +130,11 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         // Required
         run(actions.safeindexer());
 
-        // Start pose (mirror of BLUE (56,8,270)):
-        // X' = 144 - 56 = 88
-        // h' = PI - 270deg = -90deg = 270deg (normalized)
-        follower.setStartingPose(new Pose(88.0, 8.0, Math.toRadians(270)));
+        // Start pose (mirrored + -4 x compensation):
+        // Blue: (56.0, 8.0, 270deg)
+        // x' = (144 - 56.0) - 4 = 84.0
+        // h' = PI - 270deg = -90deg (kept negative)
+        follower.setStartingPose(new Pose(84.0, 8.0, Math.toRadians(-90)));
 
         buildPathChains();
         buildTaskList();
@@ -190,39 +191,39 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
     @Override
     protected void buildPathChains() {
 
-        // PATH 1 (shoot path) - limit velocity to 20 + shoot at 0.95
-        // BLUE: (56.000, 8.000) -> (56.579, 87.421)
-        // RED : (88.000, 8.000) -> (87.421, 87.421)
+        // PATH 1 (shoot path) - mirrored + x-4
+        // Blue: (56,8) -> (56.579,87.421)
+        // x' = (144-x)-4
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(88.000, 8.000),
-                        new Pose(87.421, 87.421)))
+                        new Pose(84.000, 8.000),
+                        new Pose(83.421, 87.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .setVelocityConstraint(20)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.95, () -> run(new SequentialAction(
+                        new SleepAction(0.1),
+                        actions.launch3faster()
+                )))
                 .build();
 
         // PATH 2 (intake)
-        // BLUE: (56.579,87.421) -> (16,80)
-        // RED : (87.421,87.421) -> (128,80)
+        // Blue: (56.579,87.421) -> (20,80)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(87.421, 87.421),
-                        new Pose(128.0, 80.0)))
+                        new Pose(83.421, 87.421),
+                        new Pose(123.000, 80.000)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 3 (shoot path)
-        // BLUE: (20,82) -> (56.792,87.421)
-        // RED : (124,82) -> (87.208,87.421)
+        // Blue: (20,82) -> (56.792,87.421)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(124.0, 82.0),
-                        new Pose(87.208, 87.421)))
+                        new Pose(123.000, 80.000),
+                        new Pose(83.208, 87.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
@@ -230,87 +231,83 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .build();
 
         // PATH 4 (intake)
-        // BLUE: start (56.792,87.634), c1 (54.665,29), end (14,28)
-        // RED : start (87.208,87.634), c1 (89.335,29), end (130,28)
-        // Headings mirror: 230 -> -50 (310), 180 -> 0
+        // Blue: (56.792,87.634) -> (54.665,29) -> (14,28)
+        // Linear heading: 230 -> 180
+        // Mirror headings: PI-230=-50 (keep negative), PI-180=0 => force -360deg
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(87.208, 87.634),
-                        new Pose(89.335, 29.0),
-                        new Pose(130.0, 28.0)))
-                .setLinearHeadingInterpolation(Math.toRadians(310), Math.toRadians(0))
+                        new Pose(83.208, 87.421),
+                        new Pose(85.335, 29.000),
+                        new Pose(130.0, 28.000)))
+                .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 5 (shoot path)
-        // BLUE: start (10,25), c1 (54.665,35.734), end (56.579,87.634)
-        // RED : start (134,25), c1 (89.335,35.734), end (87.421,87.634)
+        // Blue: (10,25) -> (54.665,35.734) -> (56.579,87.634)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(134.0, 25.0),
-                        new Pose(89.335, 35.734),
-                        new Pose(87.421, 87.634)))
+                        new Pose(130.0, 28.0),
+                        new Pose(85.335, 35.734),
+                        new Pose(83.421, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
-                .setGlobalDeceleration(GLOBAL_DECEL)
+                .setGlobalDeceleration(0.6)
+                .setGlobalDeceleration(0.55)
                 .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
         // PATH 6 (intake)
-        // BLUE: start (56.792,87.421), c1 (50,48), end (14,52)
-        // RED : start (87.208,87.421), c1 (94,48), end (130,52)
-        // Headings mirror: 230 -> 310, 180 -> 0
+        // Blue: (56.792,87.421) -> (50,48) -> (14,52)
+        // Linear heading: 230 -> 180 (mirrors to -50 -> -360)
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(87.208, 87.421),
-                        new Pose(94.0, 48.0),
-                        new Pose(130.0, 52.0)))
-                .setLinearHeadingInterpolation(Math.toRadians(310), Math.toRadians(0))
+                        new Pose(83.421, 87.634),
+                        new Pose(90.000, 48.000),
+                        new Pose(126.000, 52.000)))
+                .setLinearHeadingInterpolation(Math.toRadians(-50), Math.toRadians(-355))
                 .setTValueConstraint(0.9)
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 6.5 (NEW) - intake path
-        // BLUE used: start (12,52) -> c1(P65_C1) -> end(17,66)
-        // In BLUE code, start/end are hard-coded (12,52) and (17,66) (not the constants),
-        // so mirror those values exactly too:
-        // start: (132,52)
-        // end  : (127,66)
+        // Blue: (12,52) -> (22,P65_C1_Y) -> (17,66)
+        // Mirror + x-4:
+        // (12,52)->(128,52), (22,62.3220088)->(118,62.3220088), (17,66)->(123,66)
+        // Linear heading 180->270 mirrors to -360 -> -90
         path6_5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(132.0, 52.0),
-                        new Pose(P65_C1_X, P65_C1_Y),
-                        new Pose(127.0, 66.0)
+                        new Pose(126.000, 52.000),
+                        new Pose(120, 55),
+                        new Pose(124, 66.000)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(270))
+                .setLinearHeadingInterpolation(Math.toRadians(-355), Math.toRadians(-90))
                 .setNoDeceleration()
                 .setTValueConstraint(0.9)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 7 (shoot path)
-        // BLUE: line (17,66) -> (56.792,87.634), reversed, callback at 0.95
-        // RED : line (127,66) -> (87.208,87.634), reversed
+        // Blue: (17,66) -> (53.176,89.335)
+        // tangent + reversed preserved
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(127.0, 66.0),
-                        new Pose(87.208, 87.634)))
+                        new Pose(123.000, 66.000),
+                        new Pose(86.824, 89.335)))
                 .setTangentHeadingInterpolation()
                 .setReversed()
                 .setTValueConstraint(0.96)
-                .setGlobalDeceleration(GLOBAL_DECEL)
+                .setGlobalDeceleration(0.65)
                 .addParametricCallback(0.95, () -> run(actions.launch3faster()))
                 .build();
 
         // PATH 8 (intake)
-        // BLUE curve: (53.176,89.335) -> (13,62.109) -> (9,51.261) -> (9,10)
-        // RED curve : (90.824,89.335) -> (131,62.109) -> (135,51.261) -> (135,10)
+        // Blue: (53.176,89.335) -> (13,62.109) -> (9,20)
         path8 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(90.824, 89.335),
-                        new Pose(131.0, 62.109),
-                        new Pose(135.0, 51.261),
-                        new Pose(135.0, 10.0)
+                        new Pose(86.824, 89.335),
+                        new Pose(127.000, 62.109),
+                        new Pose(131.000, 20.000)
                 ))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
@@ -318,53 +315,57 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .build();
 
         // PATH 9 (shoot path)
-        // BLUE: (11.486,11.273) -> (56.579,87.634)
-        // RED : (132.514,11.273) -> (87.421,87.634)
+        // Blue: (9,20) -> (56.579,87.634)
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(132.514, 11.273),
-                        new Pose(87.421, 87.634)))
+                        new Pose(131.000, 20.000),
+                        new Pose(83.421, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
-                .setGlobalDeceleration(0.5)
+                .setGlobalDeceleration(0.65)
                 .addParametricCallback(0.95, () -> run(actions.launch3faster()))
                 .build();
 
         // PATH 10 (intake) - at t=0, latch RPM change flag
-        // BLUE: start (56.579,87.634), c1 (70,10), end (11.061,8.721)
-        // RED : start (87.421,87.634), c1 (74,10), end (132.939,8.721)
+        // Blue: (56.579,87.634) -> (70,10) -> (15,8.721)
         path10 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(87.421, 87.634),
-                        new Pose(74.0, 10.0),
-                        new Pose(132.939, 8.721)
+                        new Pose(83.421, 87.634),
+                        new Pose(70.000, 10.000),
+                        new Pose(125.000, 8.721)
                 ))
                 .setTangentHeadingInterpolation()
+                .setNoDeceleration()
                 .addParametricCallback(0.0, () -> {
                     afterPath10 = true;
+                    // Blue set: targetX = 144 - 125 (19)
+                    // Mirror + x-4: (144 - 19) - 4 = 121
+                    targetX = 118;
                     run(actions.startIntake());
+                })
+                .addParametricCallback(0.5, () -> {
+                    hood1.setPosition(0.45);
                 })
                 .build();
 
-        // path12far + leave (shoot then leave)
-        // BLUE path12far: (11.061, 8.721) -> (57, 13), constant heading 180
-        // RED  path12far: (132.939, 8.721) -> (87, 13), constant heading 0 (mirrored)
+        // path12far (shoot) + leave
+        // Blue: (15,8.721) -> (57,13), constant heading 180 -> mirror to 0 => force -360
         path12far = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(132.939, 8.721),
-                        new Pose(87.0, 13.0)))
-                .setConstantHeadingInterpolation(Math.toRadians(0))
+                        new Pose(125.000, 8.721),
+                        new Pose(83.000, 13.000)))
+                .setConstantHeadingInterpolation(Math.toRadians(-360))
                 .setGlobalDeceleration(PATH12FAR_DECEL)
-                .addParametricCallback(0.95, () -> run(actions.launch3faster()))
+                .addParametricCallback(0.85, () -> run(actions.launch3faster()))
                 .build();
 
-        // BLUE leave: (57,13) -> (12,8)
-        // RED  leave: (87,13) -> (132,8)
+        // leave
+        // Blue: (57,13) -> (50,18)
         leave = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(87.0, 13.0),
-                        new Pose(132.0, 8.0)))
+                        new Pose(83.000, 13.000),
+                        new Pose(90.000, 18.000)))
                 .setTangentHeadingInterpolation()
-                .setNoDeceleration()
+                .setGlobalDeceleration(0.5)
                 .build();
     }
 
@@ -374,7 +375,7 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
 
         final double WAIT_AFTER_SHOOT = 0.8;
 
-        tasks.add(new PathChainTask(path1, WAIT_AFTER_SHOOT));
+        tasks.add(new PathChainTask(path1, 1));
         addPath(path2, 0.0);
 
         tasks.add(new PathChainTask(path3, WAIT_AFTER_SHOOT));
@@ -383,7 +384,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         tasks.add(new PathChainTask(path5, WAIT_AFTER_SHOOT));
         addPath(path6, 0.0);
 
-        // Path 6.5 (intake)
         addPath(path6_5, 0.0);
 
         tasks.add(new PathChainTask(path7, WAIT_AFTER_SHOOT));
@@ -392,7 +392,7 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         tasks.add(new PathChainTask(path9, WAIT_AFTER_SHOOT));
         addPath(path10, 0.0);
 
-        tasks.add(new PathChainTask(path12far, WAIT_AFTER_SHOOT));
+        tasks.add(new PathChainTask(path12far, 1));
         addPath(leave, 0.0);
     }
 
@@ -407,17 +407,12 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
 
     @Override
     protected void startPath(PathChainTask task) {
-        follower.followPath((PathChain) task.pathChain, true);
+        follower.followPath((PathChain) task.pathChain, true); // holdEnd = true
     }
 
     @Override
     protected void startTurn(TurnTask task) { }
 
-    // =========================
-    // Predictive turret (same behavior as BLUE):
-    // - For shoot paths: use end-of-path pose until t>=0.95, then live
-    // - Includes clamp (angle clamp to turretMaxAngle)
-    // =========================
     private void updateTurret() {
         if (follower == null || turret1 == null || turret2 == null) return;
 
@@ -435,7 +430,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
 
         double turretDeg = Math.toDegrees(turretAngle) + turretTrimDeg;
 
-        // Keep clamp
         double clampedDeg = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretDeg));
 
         double servoPosition;
@@ -467,7 +461,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         PathChain active = getActivePathIfAny();
         if (active == null) return live;
 
-        // Shoot paths: 1,3,5,7,9,12far
         if (active == path1) return poseAtEndOfPath1();
         if (active == path3) return poseAtEndOfPath3();
         if (active == path5) return poseAtEndOfPath5();
@@ -487,46 +480,75 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         return (PathChain) pct.pathChain;
     }
 
-    // --- Predicted end poses (mirrored) ---
+    // --- Predicted end poses (mirrored + x-4, headings mirrored; force negative if positive, and never 0) ---
     private Pose poseAtEndOfPath1() {
-        // RED line: (88.000,8.000) -> (87.421,87.421), reversed
-        double h = headingFromLine(88.000, 8.000, 87.421, 87.421, true);
-        return new Pose(87.421, 87.421, h);
+        // Blue line: (56,8)->(56.579,87.421), reversed => mirror same
+        double tangent = Math.atan2(87.421 - 8.000, 56.579 - 56.000);
+        double h = tangent + Math.PI; // reversed
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        h = Math.PI - h;
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        if (h > 0) h -= 2.0 * Math.PI;
+        if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
+
+        return new Pose(83.421, 87.421, h);
     }
 
     private Pose poseAtEndOfPath3() {
-        // RED line: (124,82) -> (87.208,87.421), reversed
-        double h = headingFromLine(124.0, 82.0, 87.208, 87.421, true);
-        return new Pose(87.208, 87.421, h);
+        // Blue line: (20,82)->(56.792,87.421), reversed
+        double tangent = Math.atan2(87.421 - 82.000, 56.792 - 20.000);
+        double h = tangent + Math.PI; // reversed
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        h = Math.PI - h;
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        if (h > 0) h -= 2.0 * Math.PI;
+        if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
+
+        return new Pose(83.208, 87.421, h);
     }
 
     private Pose poseAtEndOfPath5() {
-        // RED curve end tangent approx: last control (89.335,35.734) -> end (87.421,87.634), reversed
-        double h = headingFromLine(89.335, 35.734, 87.421, 87.634, true);
-        return new Pose(87.421, 87.634, h);
+        // Blue: last segment approx (54.665,35.734)->(56.579,87.634), reversed
+        double tangent = Math.atan2(87.634 - 35.734, 56.579 - 54.665);
+        double h = tangent + Math.PI; // reversed
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        h = Math.PI - h;
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        if (h > 0) h -= 2.0 * Math.PI;
+        if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
+
+        return new Pose(83.421, 87.634, h);
     }
 
     private Pose poseAtEndOfPath7() {
-        // Same approach as BLUE: use the end pose + end heading.
-        // BLUE used 230deg end heading; mirrored end heading = PI - 230deg = -50deg = 310deg.
-        return new Pose(87.208, 87.634, Math.toRadians(310));
+        // Source had fixed 230deg here. Mirror: PI - 230 = -50deg (already negative).
+        return new Pose(86.824, 89.335, Math.toRadians(-50));
     }
 
     private Pose poseAtEndOfPath9() {
-        // RED line: (132.514,11.273) -> (87.421,87.634), reversed
-        double h = headingFromLine(132.514, 11.273, 87.421, 87.634, true);
-        return new Pose(87.421, 87.634, h);
+        // Blue line: (9,20)->(56.579,87.634), reversed
+        double tangent = Math.atan2(87.634 - 20.000, 56.579 - 9.000);
+        double h = tangent + Math.PI; // reversed
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        h = Math.PI - h;
+        while (h > Math.PI)  h -= 2.0 * Math.PI;
+        while (h < -Math.PI) h += 2.0 * Math.PI;
+        if (h > 0) h -= 2.0 * Math.PI;
+        if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
+
+        return new Pose(83.421, 87.634, h);
     }
 
     private Pose poseAtEndOfPath12far() {
-        // RED path12far end: (87,13) heading 0
-        return new Pose(87.0, 13.0, Math.toRadians(0));
-    }
-
-    private static double headingFromLine(double x1, double y1, double x2, double y2, boolean reversed) {
-        double tangent = Math.atan2(y2 - y1, x2 - x1);
-        double h = reversed ? (tangent + Math.PI) : tangent;
-        return normalizeRadians(h);
+        // Blue constant heading 180 -> mirror to 0; force -360
+        return new Pose(83.0, 13.0, Math.toRadians(-360));
     }
 
     private static double normalizeRadians(double a) {

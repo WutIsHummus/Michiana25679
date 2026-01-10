@@ -94,11 +94,11 @@ public class RobotActions {
     public static double hood1Position = 0.54;
 
     // Long range PIDF (>= 6 feet)
-    public static double pLong = 0.0018;
+    public static double pLong = 0.0016;
     public static double iLong = 0.0;
     public static double dLong = 0;
     public static double fLong = 0.0008;
-    public static double kVLong = 0.0008;
+    public static double kVLong = 0.0007;
     public static double kSLong = 0.0;
     public static double I_ZONE_LONG = 250.0;
 
@@ -854,7 +854,6 @@ public class RobotActions {
 
         return new SequentialAction(
                 // Keep hood consistent with PID choice
-                hood.setPosition(isLongRange ? HOOD_LONG_RANGE : HOOD_SHORT_RANGE),
 
                 new ParallelAction(
                         shooter.spinToRPMWithRange(targetRPM, true, isLongRange),
