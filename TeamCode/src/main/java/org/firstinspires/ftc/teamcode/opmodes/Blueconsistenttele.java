@@ -188,11 +188,11 @@ public class Blueconsistenttele extends OpMode {
 
     private static final double BLUE_G2_UP_X = mirrorX(RED_G2_UP_X);
     private static final double BLUE_G2_UP_Y = mirrorY(RED_G2_UP_Y);
-    private static final double BLUE_G2_UP_H = Math.toRadians(mirrorHeadingDeg(RED_G2_UP_H));
+    private static final double BLUE_G2_UP_H = Math.toRadians(RED_G2_UP_H);
 
     private static final double BLUE_G2_DOWN_X = mirrorX(RED_G2_DOWN_X);
     private static final double BLUE_G2_DOWN_Y = mirrorY(RED_G2_DOWN_Y);
-    private static final double BLUE_G2_DOWN_H = Math.toRadians(mirrorHeadingDeg(RED_G2_DOWN_H));
+    private static final double BLUE_G2_DOWN_H = Math.toRadians(RED_G2_DOWN_H);
 
     // LED strips
     private Servo led1;
