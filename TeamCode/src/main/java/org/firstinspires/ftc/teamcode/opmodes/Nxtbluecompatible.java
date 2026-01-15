@@ -51,18 +51,18 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
     public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
     // Lead-aim switch: hold end-of-path angle until 0.85, then live tracking
-    private static final double TURRET_LEAD_SWITCH_T = 0.85;
+    private static final double TURRET_LEAD_SWITCH_T = 0.8;
 
     // Shooter boost logic (same as your standard)
     private static final double SHOOT_RPM_BOOST = 1700.0;
-    private static final double SHOOT_RPM_HOLD  = 1080.0;
-    private static final double BOOST_EXIT_RPM  = 1070.0;
+    private static final double SHOOT_RPM_HOLD  = 1050.0;
+    private static final double BOOST_EXIT_RPM  = 1050.0;
     private static final double BOOST_REARM_RPM = 850.0;
     private boolean shooterBoostActive = true;
 
     // Requested params
-    private static final double SHOOT_CALLBACK_T = 0.9;
-    private static final double SHOOT_PATH_DECEL = 0.5;
+    private static final double SHOOT_CALLBACK_T = 0.98;
+    private static final double SHOOT_PATH_DECEL = 0.47;
     private static final double NONSHOOT_DECEL   = 0.5;
     private static final double SHOOT_END_WAIT_S = 1.0;
 
@@ -200,32 +200,34 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(52.538, 84.869),
-                        new Pose(16.804, 84.656)
+                        new Pose(22.0, 84.656)
                 ))
                 .setTangentHeadingInterpolation()
-                .setGlobalDeceleration(NONSHOOT_DECEL)
+                .setBrakingStrength(1)
+                .setTValueConstraint(0.95)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 3 (GATE => INTAKE ONLY)
         path3 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(16.804, 84.656),
+                        new Pose(22.0, 84.656),
                         new Pose(24.886, 78.275),
-                        new Pose(17.654, 74.021)
+                        new Pose(21.0, 74.021)
                 ))
                 .setLinearHeadingInterpolation(
                         Math.toRadians(180),
                         Math.toRadians(90)
                 )
-                .setGlobalDeceleration(NONSHOOT_DECEL)
+                .setTValueConstraint(0.95)
+                .setBrakingStrength(1)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 4 (SHOOT)
         path4 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(17.654, 74.021),
+                        new Pose(21.0, 74.021),
                         new Pose(52.538, 85.081)
                 ))
                 .setLinearHeadingInterpolation(
@@ -241,32 +243,35 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(52.538, 85.081),
                         new Pose(46.369, 57.855),
-                        new Pose(10.210, 58.706)
+                        new Pose(14.0, 58.706)
                 ))
-                .setTangentHeadingInterpolation()
-                .setGlobalDeceleration(NONSHOOT_DECEL)
+                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                .setBrakingStrength(1)
+                .setTValueConstraint(0.95)
+
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 6 (GATE => INTAKE ONLY)
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(10.210, 58.706),
+                        new Pose(14.0, 58.706),
                         new Pose(19.569, 62.535),
-                        new Pose(16.591, 66.789)
+                        new Pose(17.0, 66.789)
                 ))
                 .setLinearHeadingInterpolation(
                         Math.toRadians(180),
                         Math.toRadians(270)
                 )
-                .setGlobalDeceleration(NONSHOOT_DECEL)
+                .setTValueConstraint(0.95)
+                .setBrakingStrength(1)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 7 (SHOOT)
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(16.591, 66.789),
+                        new Pose(17.0, 66.789),
                         new Pose(52.538, 84.656)
                 ))
                 .setLinearHeadingInterpolation(
@@ -282,32 +287,35 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(52.538, 84.656),
                         new Pose(51.900, 32.544),
-                        new Pose(10.422, 33.394)
+                        new Pose(14.0, 33.394)
                 ))
-                .setTangentHeadingInterpolation()
-                .setGlobalDeceleration(NONSHOOT_DECEL)
+                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                .setBrakingStrength(1)
+                .setTValueConstraint(0.95)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 9 (GATE => INTAKE ONLY)
         path9 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(10.422, 33.394),
+                        new Pose(14.0, 33.394),
                         new Pose(30.629, 59.557),
-                        new Pose(16.591, 69.554)
+                        new Pose(17.0, 69.554)
                 ))
                 .setLinearHeadingInterpolation(
                         Math.toRadians(180),
                         Math.toRadians(270)
                 )
-                .setGlobalDeceleration(NONSHOOT_DECEL)
+                .setBrakingStrength(1)
+                .setTValueConstraint(0.95)
+
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 10 (SHOOT)
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(16.591, 69.554),
+                        new Pose(17.0, 69.554),
                         new Pose(52.538, 84.869)
                 ))
                 .setLinearHeadingInterpolation(
@@ -322,22 +330,24 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         path11 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(52.538, 84.869),
-                        new Pose(16.804, 53.176),
-                        new Pose(14.251, 31.480)
+                        new Pose(52.538, 30.00),
+                        new Pose(10.00, 30.00)
                 ))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
+                .setTValueConstraint(0.95)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 12 (SHOOT) (reversed(true) per your source note)
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(14.251, 31.480),
+                        new Pose(10.00, 30.00),
                         new Pose(52.325, 84.656)
                 ))
                 .setTangentHeadingInterpolation()
                 .setReversed()
+                .setTValueConstraint(0.95)
                 .setGlobalDeceleration(SHOOT_PATH_DECEL)
                 .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
                 .build();
@@ -349,7 +359,7 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
                         new Pose(44.668, 75.722)
                 ))
                 .setTangentHeadingInterpolation()
-                .setGlobalDeceleration(NONSHOOT_DECEL)
+                .setNoDeceleration()
                 .build();
 
         // -------------------------

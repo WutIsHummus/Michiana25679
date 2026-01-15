@@ -84,21 +84,21 @@ public class RobotActions {
     public final Turret turret;
 
     // PID Constants - Short Range (< 6 feet) - EXACT COPY from FullTesting
-    public static double p = 0.0016;
+    public static double p = 0.0012;
     public static double i = 0.0;
     public static double d = 0.0000;
-    public static double f = 0.0005;
-    public static double kV = 0.0005;
+    public static double f = 0.00065;
+    public static double kV = 0.0006;
     public static double kS = 0.0;
     public static double I_ZONE = 250.0;
     public static double hood1Position = 0.54;
 
     // Long range PIDF (>= 6 feet)
-    public static double pLong = 0.0016;
+    public static double pLong = 0.0012;
     public static double iLong = 0.0;
     public static double dLong = 0;
-    public static double fLong = 0.0008;
-    public static double kVLong = 0.0007;
+    public static double fLong = 0.0009;
+    public static double kVLong = 0.0008;
     public static double kSLong = 0.0;
     public static double I_ZONE_LONG = 250.0;
 
@@ -1156,7 +1156,7 @@ public class RobotActions {
 
     public class LaunchGate {
         public Action fire() {
-            return new InstantAction(() -> launchgate.setPosition(0.8));
+            return new InstantAction(() -> launchgate.setPosition(0.75 ));
         }
 
         public Action reset() {

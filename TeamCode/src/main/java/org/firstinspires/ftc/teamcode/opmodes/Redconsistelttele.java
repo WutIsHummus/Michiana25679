@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
@@ -44,27 +45,23 @@ public class Redconsistelttele extends OpMode {
     // =========================
     // RED SIDE FIELD CONSTANTS
     // =========================
-    // Target for turret aim (RED: original un-mirrored)
     public static double targetX = 128.0;
     public static double targetY = 125.0;
 
-    // Goal zone coordinates (RED: original un-mirrored)
     public static double goalZoneX = 116.0;
     public static double goalZoneY = 116.0;
 
-    // Snap-to-pose (manual relocalize)
     public static double SNAP_X = 101.3293;
     public static double SNAP_Y = 123.7003;
     public static double SNAP_HEADING_DEG = 359;
 
-    // Low-power shooter mode (Right Trigger)
+    // Low-power shooter mode (MOVED to gamepad2.right_trigger to avoid conflict with far toggle)
     public static double LOW_POWER_RPM = 800.0;
     public static double LOW_POWER_TRIGGER_THRESHOLD = 0.1;
 
     public static double turretTrimDeg = 0.0;
     public static double TRIM_STEP_DEG = 3.0;
 
-    // Turret servo constants (hardware-specific; NOT mirrored)
     public static double turretCenterPosition = 0.51;
     public static double turretLeftPosition = 0.15;
     public static double turretRightPosition = 0.855;
@@ -74,39 +71,42 @@ public class Redconsistelttele extends OpMode {
     public static double TICKS_PER_REV = 28.0;
     public static double GEAR_RATIO = 1.0;
 
-    // Short range PIDF (< 6 feet)
-    public static double p = 0.0015;
+    public static double p = 0.0012;
     public static double i = 0.0;
     public static double d = 0.0000;
-    public static double f = 0.0005;
-    public static double kV = 0.0005;
+    public static double f = 0.0007;
+    public static double kV = 0.0006;
     public static double kS = 0.0;
     public static double I_ZONE = 250.0;
 
-    // Long range PIDF (>= 6 feet)
-    public static double pLong = 0.0015;
+    public static double pLong = 0.0012;
     public static double iLong = 0.0;
     public static double dLong = 0;
     public static double fLong = 0.0008;
-    public static double kVLong = 0.0008;
+    public static double kVLong = 0.0006;
     public static double kSLong = 0.0;
     public static double I_ZONE_LONG = 250.0;
 
     private boolean lastB = false;
 
-    private static final double RPM_SLOPE = 62;
-    private static final double RPM_INTERCEPT = 810;
+    private static final double RPM_SLOPE = 55.0;
+    private static final double RPM_INTERCEPT = 790;
 
-    public static double FAR_SHOOTING_RPM_MAX = 1360;
+    // IMPORTANT: treat this as your "minimum far RPM" baseline (requested behavior)
+    public static double FAR_SHOOTING_RPM_MIN = 1360;   // renamed meaning
     public static double NORMAL_SHOOTING_RPM_MAX = 1150;
 
     public static double FAR_ZONE_CENTER_IN = 117.0;
     public static double FAR_ZONE_HALF_WINDOW_IN = 15.0; // +/- 15 inches
     public static double FAR_ZONE_RPM_HEADROOM = 100.0;
 
-    // Far-shooting toggle state (D-pad UP)
+    // In far zone, RPM increases faster only for distances BEYOND center:
+    // slope 80 RPM/ft -> 80/12 RPM per inch
+    public static double FAR_ZONE_SLOPE_RPM_PER_FT = 80.0;
+
+    // Far-shooting toggle state (MOVED to right trigger - edge triggered)
     private boolean farShootingEnabled = false;
-    private boolean lastDpadUp = false;
+    private boolean lastFarToggleTrigger = false;
 
     // Auto-shoot state machine
     private boolean lastA = false;
@@ -124,13 +124,12 @@ public class Redconsistelttele extends OpMode {
     private boolean shootingconstant = true;
     private boolean lastY = false;
 
-    // ===== HOOD RULES (base) =====
-    public static double HOOD_MIN_POS = 0.46;
+    public static double HOOD_MIN_POS = 0.47;
     public static double HOOD_MAX_POS_NORMAL = 0.54;
     public static double HOOD_FAR_ZONE_POS = 0.45;
 
     public static double HOOD_MIN_DIST_FT = 0;
-    public static double HOOD_MAX_DIST_FT = 7.5;
+    public static double HOOD_MAX_DIST_FT = 7.0;
 
     public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
@@ -140,7 +139,6 @@ public class Redconsistelttele extends OpMode {
     private boolean lastDpadLeft = false;
     private boolean lastDpadRight = false;
 
-    // NEW: gamepad2 relocalize edge detection
     private boolean lastG2Left = false;
     private boolean lastG2Up = false;
     private boolean lastG2Down = false;
@@ -158,30 +156,26 @@ public class Redconsistelttele extends OpMode {
     public static double LAUNCHGATE_DOWN     = 0.50; // full down
     public static double LAUNCHGATE_FULL_UP  = 0.88; // full up
     public static double LAUNCHGATE_HALF     = (LAUNCHGATE_DOWN + LAUNCHGATE_FULL_UP) * 0.5; // halfway up
-
-    // 2/5 of the way between DOWN and FULL UP
     public static double LAUNCHGATE_TWO_FIFTHS = 0.5;
 
-    // Indexer positions
     public static final double INDEX_FRONT_RETRACTED = 0.38;
     public static final double INDEX_FRONT_EXTENDED  = 0.65;
     public static final double INDEX_BACK_RETRACTED  = 0.38;
     public static final double INDEX_BACK_EXTENDED   = 0.82;
 
-    // Active deceleration (overspeed braking)
     public static double BRAKE_RPM_THRESHOLD = 40.0;
     public static double BRAKE_MAX_POWER     = 0.25;
     public static double BRAKE_KP            = 0.0010;
+
+    // Cached voltage sensor (optimization)
+    private VoltageSensor voltageSensor;
 
     @Override
     public void init() {
         follower = Constants.createFollower(hardwareMap);
         try {
-            if (PoseStore.hasSaved()) {
-                follower.setStartingPose(PoseStore.lastPose);
-            } else {
-                follower.setStartingPose(new Pose(0, 0, 0));
-            }
+            if (PoseStore.hasSaved()) follower.setStartingPose(PoseStore.lastPose);
+            else follower.setStartingPose(new Pose(0, 0, 0));
         } catch (Exception ignored) {
             follower.setStartingPose(new Pose(0, 0, 0));
         }
@@ -210,7 +204,6 @@ public class Redconsistelttele extends OpMode {
         hood1      = hardwareMap.get(Servo.class, "hood 1");
         hood2      = hardwareMap.get(Servo.class, "hood 2");
 
-        // Indexer servos (rename if your config differs)
         try { indexfront = hardwareMap.get(Servo.class, "indexfront"); } catch (Exception ignored) { indexfront = null; }
         try { indexback  = hardwareMap.get(Servo.class, "indexback");  } catch (Exception ignored) { indexback  = null; }
 
@@ -246,9 +239,12 @@ public class Redconsistelttele extends OpMode {
             limelight = null;
         }
 
-        // safeindexer behavior on init
         if (indexfront != null) indexfront.setPosition(INDEX_FRONT_RETRACTED);
         if (indexback  != null) indexback.setPosition(INDEX_BACK_EXTENDED);
+
+        // Cache voltage sensor (optimization)
+        try { voltageSensor = hardwareMap.voltageSensor.iterator().next(); }
+        catch (Exception ignored) { voltageSensor = null; }
 
         telemetryA.addLine("Cosmobots Red TeleOp - Localization + Shooter");
         telemetryA.update();
@@ -256,30 +252,33 @@ public class Redconsistelttele extends OpMode {
 
     @Override
     public void loop() {
-        boolean dpadLeft  = gamepad1.dpad_left;
-        boolean dpadRight = gamepad1.dpad_right;
+        // Cache gamepad states (minor but clean)
+        final boolean dpadLeft  = gamepad1.dpad_left;
+        final boolean dpadRight = gamepad1.dpad_right;
 
-        boolean bPressed = gamepad1.b;
+        final boolean bPressed = gamepad1.b;
         if (bPressed && !lastB) turretTrimDeg = 0.0;
         lastB = bPressed;
 
-        boolean lowPowerMode = gamepad1.right_trigger > LOW_POWER_TRIGGER_THRESHOLD;
-
+        // Trim
         if (dpadRight && !lastDpadRight) turretTrimDeg += TRIM_STEP_DEG;
         if (dpadLeft  && !lastDpadLeft)  turretTrimDeg -= TRIM_STEP_DEG;
         lastDpadLeft  = dpadLeft;
         lastDpadRight = dpadRight;
 
-        boolean dpadUp = gamepad1.dpad_up;
-        if (dpadUp && !lastDpadUp) farShootingEnabled = !farShootingEnabled;
-        lastDpadUp = dpadUp;
+        // =========================
+        // Far toggle moved to RIGHT TRIGGER (gamepad1) edge-trigger
+        // =========================
+        final boolean farToggleTrigger = gamepad1.right_trigger > 0.6;
+        if (farToggleTrigger && !lastFarToggleTrigger) farShootingEnabled = !farShootingEnabled;
+        lastFarToggleTrigger = farToggleTrigger;
 
         follower.update();
 
-        // NEW: gamepad2 relocalize (edge-triggered)
-        boolean g2Left = gamepad2.dpad_left;
-        boolean g2Up   = gamepad2.dpad_up;
-        boolean g2Down = gamepad2.dpad_down;
+        // gamepad2 relocalize (edge-triggered)
+        final boolean g2Left = gamepad2.dpad_left;
+        final boolean g2Up   = gamepad2.dpad_up;
+        final boolean g2Down = gamepad2.dpad_down;
 
         if (g2Left && !lastG2Left) follower.setPose(new Pose(104.0, 134.0, 0.0));
         if (g2Up   && !lastG2Up)   follower.setPose(new Pose(134.5, 10.0, 0.0));
@@ -289,53 +288,56 @@ public class Redconsistelttele extends OpMode {
         lastG2Up   = g2Up;
         lastG2Down = g2Down;
 
-        boolean xPressed = gamepad1.x;
+        // Snap
+        final boolean xPressed = gamepad1.x;
         if (xPressed && !lastX) {
             double snapHeadingRad = Math.toRadians(SNAP_HEADING_DEG);
             follower.setPose(new Pose(SNAP_X, SNAP_Y, snapHeadingRad));
         }
         lastX = xPressed;
 
-        double y  = -gamepad1.right_stick_y;
-        double x  =  gamepad1.right_stick_x * 1.1;
-        double rx =  gamepad1.left_stick_x;
+        // Drive
+        final double y  = -gamepad1.right_stick_y;
+        final double x  =  gamepad1.right_stick_x * 1.1;
+        final double rx =  gamepad1.left_stick_x;
 
-        double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1.0);
+        final double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1.0);
 
-        double flPower = (y + x + rx) / denominator;
-        double blPower = (y - x + rx) / denominator;
-        double frPower = (y - x - rx) / denominator;
-        double brPower = (y + x - rx) / denominator;
+        final double flPower = (y + x + rx) / denominator;
+        final double blPower = (y - x + rx) / denominator;
+        final double frPower = (y - x - rx) / denominator;
+        final double brPower = (y + x - rx) / denominator;
 
         fl.setPower(flPower);
         fr.setPower(frPower);
         bl.setPower(blPower);
         br.setPower(brPower);
 
+        // Pose
         Pose currentPose = follower.getPose();
-        double currentX  = currentPose.getX();
-        double currentY  = currentPose.getY();
-        double currentHeading = currentPose.getHeading();
+        final double currentX  = currentPose.getX();
+        final double currentY  = currentPose.getY();
+        final double currentHeading = currentPose.getHeading();
 
         // Turret aim
-        double deltaX = targetX - currentX;
-        double deltaY = targetY - currentY;
+        final double deltaX = targetX - currentX;
+        final double deltaY = targetY - currentY;
 
-        double angleToTargetField = Math.atan2(deltaY, deltaX);
+        final double angleToTargetField = Math.atan2(deltaY, deltaX);
         double turretAngle = angleToTargetField - currentHeading;
 
         while (turretAngle > Math.PI)  turretAngle -= 2 * Math.PI;
         while (turretAngle < -Math.PI) turretAngle += 2 * Math.PI;
 
-        double turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
-        double clampedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
+        final double turretAngleDegrees = Math.toDegrees(turretAngle) + turretTrimDeg;
+        final double clampedAngle = Math.max(-turretMaxAngle, Math.min(turretMaxAngle, turretAngleDegrees));
 
-        double servoPosition;
+        final double servoPosition;
         if (clampedAngle >= 0) {
-            double servoRange = turretRightPosition - turretCenterPosition;
+            final double servoRange = turretRightPosition - turretCenterPosition;
             servoPosition = turretCenterPosition + (clampedAngle / turretMaxAngle) * servoRange;
         } else {
-            double servoRange = turretCenterPosition - turretLeftPosition;
+            final double servoRange = turretCenterPosition - turretLeftPosition;
             servoPosition = turretCenterPosition - (Math.abs(clampedAngle) / turretMaxAngle) * servoRange;
         }
 
@@ -347,43 +349,43 @@ public class Redconsistelttele extends OpMode {
 
         // Intake manual controls (bumpers) - only when not autoTransfer
         if (!autoTransfer) {
-            if (gamepad1.left_bumper) intakeback.setPower(1.0);
-            else intakeback.setPower(0);
-
-            if (gamepad1.right_bumper) intakefront.setPower(1.0);
-            else intakefront.setPower(0);
+            intakeback.setPower(gamepad1.left_bumper ? 1.0 : 0.0);
+            intakefront.setPower(gamepad1.right_bumper ? 1.0 : 0.0);
         }
 
-        // NEW: gamepad1 dpad_down override (only when not shooting/transfer to avoid fighting state machines)
-        boolean g1Down = gamepad1.dpad_down;
+        // dpad_down override (only when not shooting/transfer)
+        final boolean g1Down = gamepad1.dpad_down;
         if (g1Down && !shooting && !autoTransfer) {
             launchgate.setPosition(LAUNCHGATE_FULL_UP);
             intakefront.setPower(-1.0);
             intakeback.setPower(-1.0);
         }
 
-        // Launchgate idle rule (only if not overridden by g1Down)
-        boolean intakeCommanded = gamepad1.left_bumper || gamepad1.right_bumper;
+        // Launchgate idle rule
+        final boolean intakeCommanded = gamepad1.left_bumper || gamepad1.right_bumper;
         if (!shooting && !autoTransfer && !g1Down) {
             launchgate.setPosition(intakeCommanded ? LAUNCHGATE_DOWN : LAUNCHGATE_TWO_FIFTHS);
         }
 
-        // Distance to goal for RPM / hood
-        double deltaGoalX = goalZoneX - currentX;
-        double deltaGoalY = goalZoneY - currentY;
-        double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
-        double distanceToGoalFeet = distanceToGoalInches / 12.0;
+        // Distance to goal
+        final double deltaGoalX = goalZoneX - currentX;
+        final double deltaGoalY = goalZoneY - currentY;
+        final double distanceToGoalInches = Math.sqrt(deltaGoalX * deltaGoalX + deltaGoalY * deltaGoalY);
+        final double distanceToGoalFeet = distanceToGoalInches / 12.0;
 
         // Far window detection
-        double farMinIn = FAR_ZONE_CENTER_IN - FAR_ZONE_HALF_WINDOW_IN;
-        double farMaxIn = FAR_ZONE_CENTER_IN + FAR_ZONE_HALF_WINDOW_IN;
-        boolean inFarWindow = (distanceToGoalInches >= farMinIn && distanceToGoalInches <= farMaxIn);
+        final double farMinIn = FAR_ZONE_CENTER_IN - FAR_ZONE_HALF_WINDOW_IN;
+        final double farMaxIn = FAR_ZONE_CENTER_IN + FAR_ZONE_HALF_WINDOW_IN;
+        final boolean inFarWindow = (distanceToGoalInches >= farMinIn && distanceToGoalInches <= farMaxIn);
 
-        // Far-zone timing scale
-        double shootDelayScale = farShootingEnabled ? 1.01 : 1.0;
+        // Far distance detection
+        final boolean inFarDistance = inFarWindow || (distanceToGoalFeet >= 9.0);
 
-        // A button auto-shoot (timing scaled when far)
-        boolean currentA = gamepad1.a;
+        // Timing scale
+        final double shootDelayScale = farShootingEnabled ? 1.0 : 1.0;
+
+        // A button auto-shoot
+        final boolean currentA = gamepad1.a;
         if (currentA && !lastA && !shooting) {
             shooting = true;
             shootState = 0;
@@ -394,126 +396,91 @@ public class Redconsistelttele extends OpMode {
         if (shooting) {
             switch (shootState) {
                 case 0:
-                    if (shootTimer.seconds() > 0.005 * shootDelayScale) {
-                        shootState = 1;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.005 * shootDelayScale) { shootState = 1; shootTimer.reset(); }
                     break;
-
                 case 1:
                     intakefront.setPower(-1.0);
                     intakeback.setPower(-1.0);
-                    if (shootTimer.seconds() > 0.1 * shootDelayScale) {
-                        shootState = 2;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.1 * shootDelayScale) { shootState = 2; shootTimer.reset(); }
                     break;
-
                 case 2:
                     launchgate.setPosition(LAUNCHGATE_HALF);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 3;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 3; shootTimer.reset(); }
                     break;
-
                 case 3:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-                    if (shootTimer.seconds() > 0.3 * shootDelayScale) {
-                        shootState = 4;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.3 * shootDelayScale) { shootState = 4; shootTimer.reset(); }
                     break;
-
                 case 4:
                     launchgate.setPosition(LAUNCHGATE_HALF);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 5;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 5; shootTimer.reset(); }
                     break;
-
                 case 5:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-                    if (shootTimer.seconds() > 0.3 * shootDelayScale) {
-                        shootState = 6;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.3 * shootDelayScale) { shootState = 6; shootTimer.reset(); }
                     break;
-
                 case 6:
                     launchgate.setPosition(LAUNCHGATE_HALF);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 7;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 7; shootTimer.reset(); }
                     break;
-
                 case 7:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-                    if (shootTimer.seconds() > 0.3 * shootDelayScale) {
-                        shooting = false;
-                        shootState = 8;
-                    }
+                    if (shootTimer.seconds() > 0.3 * shootDelayScale) { shooting = false; shootState = 8; }
                     break;
-
                 case 8:
                     launchgate.setPosition(LAUNCHGATE_FULL_UP);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shootState = 9;
-                        shootTimer.reset();
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 9; shootTimer.reset(); }
                     break;
-
                 case 9:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shooting = false;
-                        shootState = 10;
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shooting = false; shootState = 10; }
                     break;
-
                 case 10:
                     intakefront.setPower(0);
                     intakeback.setPower(0);
-                    if (shootTimer.seconds() > 0.2 * shootDelayScale) {
-                        shooting = false;
-                        shootState = 0;
-                    }
+                    if (shootTimer.seconds() > 0.2 * shootDelayScale) { shooting = false; shootState = 0; }
                     break;
             }
         }
 
-        boolean yPressed = gamepad1.y;
+        // Toggle constant shooter
+        final boolean yPressed = gamepad1.y;
         if (yPressed && !lastY) shootingconstant = !shootingconstant;
         lastY = yPressed;
 
-        boolean shooterOn = shootingconstant || shooting;
+        final boolean shooterOn = shootingconstant || shooting;
 
-        // RPM LIMIT RULE
-        double rpmCapAt7Ft = RPM_SLOPE * 7.0 + RPM_INTERCEPT;
+        // Low power moved to gamepad2.right_trigger (to avoid conflict with far toggle)
+        final boolean lowPowerMode = gamepad2.right_trigger > LOW_POWER_TRIGGER_THRESHOLD;
+
+        // RPM limit rule
+        final double rpmCapAt7Ft = RPM_SLOPE * 7.0 + RPM_INTERCEPT;
 
         // Target RPM calculation
         double calculatedTargetRPM;
         if (lowPowerMode) {
             calculatedTargetRPM = LOW_POWER_RPM;
         } else {
-            double clampMax;
-            if (!farShootingEnabled) {
-                clampMax = Math.min(NORMAL_SHOOTING_RPM_MAX, rpmCapAt7Ft);
-            } else {
-                clampMax = FAR_SHOOTING_RPM_MAX;
-            }
+            final double clampMax = farShootingEnabled
+                    ? FAR_SHOOTING_RPM_MIN + FAR_ZONE_RPM_HEADROOM
+                    : Math.min(NORMAL_SHOOTING_RPM_MAX, rpmCapAt7Ft);
 
             if (farShootingEnabled && inFarWindow) {
-                double baseRpmAtCenter = FAR_SHOOTING_RPM_MAX;
-                double rpmPerInch = RPM_SLOPE / 12.0;
-                calculatedTargetRPM = baseRpmAtCenter + rpmPerInch * (distanceToGoalInches - FAR_ZONE_CENTER_IN);
+                // Requested: minimum far RPM at center and for distances closer than center.
+                final double baseRpmAtCenter = FAR_SHOOTING_RPM_MIN;
 
-                double farWindowMax = FAR_SHOOTING_RPM_MAX + FAR_ZONE_RPM_HEADROOM;
+                if (distanceToGoalInches <= FAR_ZONE_CENTER_IN) {
+                    calculatedTargetRPM = baseRpmAtCenter;  // stays the same when closer than center
+                } else {
+                    final double rpmPerInch = (FAR_ZONE_SLOPE_RPM_PER_FT / 12.0);
+                    calculatedTargetRPM = baseRpmAtCenter + rpmPerInch * (distanceToGoalInches - FAR_ZONE_CENTER_IN);
+                }
+
+                final double farWindowMax = FAR_SHOOTING_RPM_MIN + FAR_ZONE_RPM_HEADROOM;
                 calculatedTargetRPM = Math.max(600, Math.min(farWindowMax, calculatedTargetRPM));
             } else if (farShootingEnabled && distanceToGoalFeet >= 9.0) {
-                calculatedTargetRPM = FAR_SHOOTING_RPM_MAX;
+                // Requested: far mode holds minimum far RPM
+                calculatedTargetRPM = FAR_SHOOTING_RPM_MIN;
             } else {
                 calculatedTargetRPM = RPM_SLOPE * distanceToGoalFeet + RPM_INTERCEPT;
                 calculatedTargetRPM = Math.max(600, Math.min(clampMax, calculatedTargetRPM));
@@ -524,61 +491,76 @@ public class Redconsistelttele extends OpMode {
             }
         }
 
-        boolean isLongRange = distanceToGoalFeet >= 6.0;
+        final boolean isLongRange = distanceToGoalFeet >= 6.0;
 
-        double currentP     = isLongRange ? pLong : p;
-        double currentI     = isLongRange ? iLong : i;
-        double currentD     = isLongRange ? dLong : d;
-        double currentF     = isLongRange ? fLong : f;
-        double currentKV    = isLongRange ? kVLong : kV;
-        double currentKS    = isLongRange ? kSLong : kS;
-        double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
+        final double currentP     = isLongRange ? pLong : p;
+        final double currentI     = isLongRange ? iLong : i;
+        final double currentD     = isLongRange ? dLong : d;
+        final double currentF     = isLongRange ? fLong : f;
+        final double currentKV    = isLongRange ? kVLong : kV;
+        final double currentKS    = isLongRange ? kSLong : kS;
+        final double currentIZone = isLongRange ? I_ZONE_LONG : I_ZONE;
 
-        // Base hood compute (fixed in far window if enabled)
-        double baseHoodPos;
-        if (farShootingEnabled && inFarWindow) {
+        // Hood compute
+        final boolean fixedFarHoodMode = (farShootingEnabled && inFarWindow);
+
+        final double baseHoodPos;
+        if (fixedFarHoodMode) {
             baseHoodPos = HOOD_FAR_ZONE_POS; // fixed in far zone only
         } else {
             double hoodT = (distanceToGoalFeet - HOOD_MIN_DIST_FT) / (HOOD_MAX_DIST_FT - HOOD_MIN_DIST_FT);
             hoodT = Math.max(0.0, Math.min(1.0, hoodT));
-
-            double hoodMax = HOOD_MAX_POS_NORMAL;
-            baseHoodPos = hoodMax + hoodT * (HOOD_MIN_POS - hoodMax);
-            baseHoodPos = Math.max(0.0, Math.min(1.0, baseHoodPos));
+            final double hoodMax = HOOD_MAX_POS_NORMAL;
+            double tmp = hoodMax + hoodT * (HOOD_MIN_POS - hoodMax);
+            baseHoodPos = Math.max(0.0, Math.min(1.0, tmp));
         }
 
-        // Shooter PID setup
-        shooterPID.setPIDF(currentP, currentI, currentD, currentF);
-        shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
-
-        double targetTPS = rpmToTicksPerSec(calculatedTargetRPM);
-
-        double vR = shootr.getVelocity();
-        double vL = shootl.getVelocity();
-        double vAvg = 0.5 * (vR + vL);
-
-        double avgVelocityRPM = ticksPerSecToRPM(vAvg);
-
         // =========================
-        // NEW: Hood overspeed compensation (only if within 100 RPM window)
-        // For every +50 RPM overspeed, add +0.05 to hood (linear).
-        // Not applied in fixed far-window hood mode.
+        // RPM-based hood adjustment
+        // Removed in FAR ZONE (fixedFarHoodMode). Kept for non-far zone only.
         // =========================
-        double rpmError = avgVelocityRPM - calculatedTargetRPM;
+        double avgVelocityRPM = 0.0;
+        double rpmError = 0.0;
         double hoodBoost = 0.0;
-        boolean fixedFarHoodMode = (farShootingEnabled && inFarWindow);
 
-        if (!fixedFarHoodMode && Math.abs(rpmError) <= RPM_TOLERANCE && rpmError > 0.0) {
-            hoodBoost = (rpmError / 50.0) * 0.015; // linear regression rule
+        final double currentHoodPos;
+        if (!fixedFarHoodMode && shooterOn) {
+            // Only read velocity when shooter is ON (optimization)
+            final double vR = shootr.getVelocity();
+            final double vL = shootl.getVelocity();
+            final double vAvg = 0.5 * (vR + vL);
+
+            avgVelocityRPM = ticksPerSecToRPM(vAvg);
+            rpmError = avgVelocityRPM - calculatedTargetRPM;
+
+            if (Math.abs(rpmError) <= RPM_TOLERANCE && rpmError > 0.0) {
+                hoodBoost = (rpmError / 50.0) * 0.015;
+            }
+
+            double tmp = baseHoodPos - hoodBoost;
+            currentHoodPos = Math.max(0.0, Math.min(1.0, tmp));
+        } else {
+            // If shooter is OFF, or far hood fixed: skip velocity read (optimization)
+            currentHoodPos = Math.max(0.0, Math.min(1.0, baseHoodPos));
         }
-
-        double currentHoodPos = baseHoodPos - hoodBoost;
-        currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
 
         hood1.setPosition(currentHoodPos);
         hood2.setPosition(currentHoodPos);
 
+        // Shooter control (only compute PID/FF when shooterOn)
         if (shooterOn) {
+            shooterPID.setPIDF(currentP, currentI, currentD, currentF);
+            shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
+
+            final double targetTPS = rpmToTicksPerSec(calculatedTargetRPM);
+
+            final double vR = shootr.getVelocity();
+            final double vL = shootl.getVelocity();
+            final double vAvg = 0.5 * (vR + vL);
+
+            avgVelocityRPM = ticksPerSecToRPM(vAvg);
+            rpmError = avgVelocityRPM - calculatedTargetRPM;
+
             double pidfOutput = shooterPID.calculate(vAvg, targetTPS);
 
             double sgn = Math.signum(targetTPS);
@@ -586,10 +568,10 @@ public class Redconsistelttele extends OpMode {
 
             double shooterPower = pidfOutput + additionalFF;
 
-            double overspeedRPM = avgVelocityRPM - calculatedTargetRPM;
+            // Overspeed brake
             double brakePower = 0.0;
-            if (overspeedRPM > BRAKE_RPM_THRESHOLD) {
-                brakePower = -Math.min(BRAKE_MAX_POWER, BRAKE_KP * overspeedRPM);
+            if (rpmError > BRAKE_RPM_THRESHOLD) {
+                brakePower = -Math.min(BRAKE_MAX_POWER, BRAKE_KP * rpmError);
             }
             shooterPower += brakePower;
 
@@ -599,9 +581,9 @@ public class Redconsistelttele extends OpMode {
 
             shooterPower = Math.max(-BRAKE_MAX_POWER, Math.min(1.0, shooterPower));
 
-            // Voltage compensation
-            double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
-            double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
+            // Voltage compensation using cached sensor
+            double voltage = (voltageSensor != null) ? voltageSensor.getVoltage() : NOMINAL_VOLTAGE;
+            double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / Math.max(1.0, voltage));
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
 
             shootr.setPower(compensatedPower);
@@ -612,8 +594,8 @@ public class Redconsistelttele extends OpMode {
             shooterPID.reset();
         }
 
-        // LEFT TRIGGER -> transfer (unchanged)
-        boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
+        // LEFT TRIGGER -> transfer
+        final boolean currentLeftTrigger = gamepad1.left_trigger > 0.1;
         if (currentLeftTrigger && !lastLeftTrigger && !autoTransfer) {
             autoTransfer = true;
             transferState = 0;
@@ -629,49 +611,42 @@ public class Redconsistelttele extends OpMode {
                     launchgate.setPosition(LAUNCHGATE_HALF);
                     if (transferTimer.seconds() > 0.1) { transferState = 1; transferTimer.reset(); }
                     break;
-
                 case 1:
                     intakeback.setPower(1.0);
                     intakefront.setPower(1.0);
                     launchgate.setPosition(LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.1) { transferState = 2; transferTimer.reset(); }
                     break;
-
                 case 2:
                     intakeback.setPower(1.0);
                     intakefront.setPower(1.0);
                     launchgate.setPosition(LAUNCHGATE_HALF);
                     if (transferTimer.seconds() > 0.1) { transferState = 3; transferTimer.reset(); }
                     break;
-
                 case 3:
                     intakeback.setPower(1.0);
                     intakefront.setPower(1.0);
                     launchgate.setPosition(LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.15) { transferState = 4; transferTimer.reset(); }
                     break;
-
                 case 4:
                     intakeback.setPower(1.0);
                     intakefront.setPower(1.0);
                     launchgate.setPosition(LAUNCHGATE_FULL_UP);
                     if (transferTimer.seconds() > 0.1) { transferState = 5; transferTimer.reset(); }
                     break;
-
                 case 5:
                     intakeback.setPower(1.0);
                     intakefront.setPower(1.0);
                     launchgate.setPosition(LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.1) { transferState = 6; transferTimer.reset(); }
                     break;
-
                 case 6:
                     intakeback.setPower(1.0);
                     intakefront.setPower(1.0);
                     launchgate.setPosition(LAUNCHGATE_FULL_UP);
                     if (transferTimer.seconds() > 0.1) { transferState = 7; transferTimer.reset(); }
                     break;
-
                 case 7:
                     launchgate.setPosition(LAUNCHGATE_DOWN);
                     intakeback.setPower(0.0);
@@ -682,18 +657,19 @@ public class Redconsistelttele extends OpMode {
             }
         }
 
-        boolean atTargetSpeed = Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE;
-        boolean intakeActive  = (!autoTransfer) && (gamepad1.left_bumper || gamepad1.right_bumper);
+        final boolean atTargetSpeed = shooterOn && (Math.abs(avgVelocityRPM - calculatedTargetRPM) < RPM_TOLERANCE);
+        final boolean intakeActive  = (!autoTransfer) && (gamepad1.left_bumper || gamepad1.right_bumper);
 
         // =========================
-        // NEW: LED rule for far distance when far-zone disabled
+        // LED rules (updated)
+        // 1) If far distance but far disabled -> RED (existing)
+        // 2) If far enabled but close zone -> RED (requested)
         // =========================
-        boolean inFarDistance = inFarWindow || (distanceToGoalFeet >= 9.0);
-
         double ledColor = LED_GREEN;
 
-        // Force RED if far distance but far-zone not enabled
         if (inFarDistance && !farShootingEnabled) {
+            ledColor = LED_RED;
+        } else if (farShootingEnabled && !inFarDistance) {
             ledColor = LED_RED;
         } else {
             if (shooterOn && !atTargetSpeed) ledColor = LED_RED;
@@ -707,14 +683,12 @@ public class Redconsistelttele extends OpMode {
         telemetryA.addData("FarShootingEnabled", farShootingEnabled ? "ON" : "OFF");
         telemetryA.addData("InFarWindow", inFarWindow);
         telemetryA.addData("InFarDistance", inFarDistance);
-        telemetryA.addData("RPM cap @7ft", "%.0f", rpmCapAt7Ft);
         telemetryA.addData("TargetRPM", "%.0f", calculatedTargetRPM);
         telemetryA.addData("ActualRPM", "%.0f", avgVelocityRPM);
         telemetryA.addData("RPM Error", "%.0f", rpmError);
         telemetryA.addData("HoodBase", "%.3f", baseHoodPos);
         telemetryA.addData("HoodBoost", "%.3f", hoodBoost);
         telemetryA.addData("HoodPos", "%.3f", currentHoodPos);
-
         telemetryA.update();
     }
 

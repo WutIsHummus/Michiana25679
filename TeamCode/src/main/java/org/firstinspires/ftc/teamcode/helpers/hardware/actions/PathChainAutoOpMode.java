@@ -25,6 +25,12 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
     // NEW: To track actions run during the current task's wait phase
     private List<Action> currentTaskWaitPhaseActions = new ArrayList<>();
 
+    // =========================================================
+    // NEW: Background (persistent) actions that run every cycle
+    // =========================================================
+    protected final List<Action> backgroundActions = new ArrayList<>();
+    private boolean backgroundActionsStarted = false;
+
     // Abstract methods to be implemented by subclasses
     protected abstract void buildPathChains(); // Likely for older structure, might be replaced by buildTaskList
 
@@ -42,6 +48,13 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
 
     public void setHeadingTolerance(double tolerance) {
         HEADING_TOLERANCE = tolerance;
+    }
+
+    // =========================================================
+    // NEW: Register background actions (call from OpMode init)
+    // =========================================================
+    protected void addBackgroundAction(Action action) {
+        if (action != null) backgroundActions.add(action);
     }
 
     @Override
@@ -67,6 +80,9 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
         taskPhase = 0;
         isActivelyTurningInternalFlag = false; // Reset any state flags
 
+        // NEW: background action start gating
+        backgroundActionsStarted = false;
+
         for (BaseTask task : tasks) {
             // Reset initiation/completion flags for each task type
             if (task instanceof TurnTask) {
@@ -82,20 +98,20 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
 
     @Override
     public void loop() {
-        super.loop(); // Call to ActionOpMode's loop, which likely handles runningActions
+        super.loop(); // Call to ActionOpMode's loop, which handles runningActions
+
+        // =========================================================
+        // NEW: Start background actions ONCE; ActionOpMode ticks them
+        // =========================================================
+        if (!backgroundActionsStarted) {
+            for (Action a : backgroundActions) {
+                run(a);
+            }
+            backgroundActionsStarted = true;
+        }
+
         runTasks();
         // Add telemetry updates here if needed
-        // telemetry.addData("Current Task Index", currentTaskIndex);
-        // telemetry.addData("Task Phase", taskPhase == 0 ? "ACTION" : "WAITING");
-        // if (currentTaskIndex < tasks.size()) {
-        //     telemetry.addData("Task Type", tasks.get(currentTaskIndex).getClass().getSimpleName());
-        //     telemetry.addData("Task WaitTime", tasks.get(currentTaskIndex).waitTime);
-        //     telemetry.addData("Task MaxWaitTime", tasks.get(currentTaskIndex).maxWaitTime);
-        //     telemetry.addData("Task TimedOut", tasks.get(currentTaskIndex).timedOut);
-        //     telemetry.addData("WaitTimer (Overall)", waitTimer.getElapsedTimeSeconds());
-        //     telemetry.addData("ActionTimer (For Triggers)", actionTimer.getElapsedTimeSeconds());
-        // }
-        // telemetry.update();
     }
 
     protected void runTasks() {
@@ -121,8 +137,6 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
         }
     }
 
-
-
     private boolean canSkipWaitingPhase(BaseTask task) {
         // A task can skip its waiting phase if it has no explicit waitTime,
         // no WaitActions to perform, and no WaitCondition to meet.
@@ -143,20 +157,16 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
             nextTask.resetWaitActions(); // MODIFIED: Ensure the new task's state (including timedOut flag) is fresh
         } else {
             // All tasks completed
-            // Consider adding a log or telemetry message
         }
     }
 
     private void transitionToWaitPhaseOrAdvance(BaseTask currentTask) {
         if (canSkipWaitingPhase(currentTask)) {
-            advanceToNextTask(); // This will call cleanupCurrentTaskWaitActions
+            advanceToNextTask();
         } else {
             taskPhase = 1; // Move to WAITING phase
-            waitTimer.resetTimer();  // Timer for overall wait duration (waitTime, maxWaitTime)
-            actionTimer.resetTimer(); // Timer for triggering WaitActions based on their triggerTime
-            // currentTask.resetWaitActions() is NOT called here; its state persists for its own waiting phase.
-            // cleanupCurrentTaskWaitActions() is also not called here, as we are *entering* the wait phase.
-            // It's called when the task *starts* (via resetTimersAndActionsForTask) or *ends* (via advanceToNextTask).
+            waitTimer.resetTimer();   // Timer for overall wait duration
+            actionTimer.resetTimer(); // Timer for triggering WaitActions
         }
     }
 
@@ -169,15 +179,13 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
     private void handlePathTask(PathChainTask pathTask) {
         if (!pathTask.initiated) {
             if (isPathActive()) return; // Wait for previous path/turn to complete if any confusion
-            startPath(pathTask); // Implemented by subclass, starts the Roadrunner trajectory
+            startPath(pathTask); // Implemented by subclass
             pathTask.initiated = true;
-            resetTimersAndActionsForTask(pathTask); // Resets timers and prepares for this task's own wait phase
+            resetTimersAndActionsForTask(pathTask);
         } else {
-            // Path has been initiated, check if it's still active
             if (!isPathActive()) { // Path completed
-                transitionToWaitPhaseOrAdvance(pathTask); // Move to waiting phase or next task
+                transitionToWaitPhaseOrAdvance(pathTask);
             }
-            // If path is still active, do nothing, let it run.
         }
     }
 
@@ -187,97 +195,73 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
             startTurn(turnTask);
             turnTask.initiated = true;
             resetTimersAndActionsForTask(turnTask);
-
             actionTimer.resetTimer();
         } else {
-            // Turn has been initiated, check if it's still active
-
             if (actionTimer.getElapsedTimeSeconds() > turnTask.turnTimeout) {
-                // mark this task as timed out so transition logic can clean up waitActions
                 turnTask.timedOut = true;
                 advanceToNextTask();
                 return;
             }
-
             if (!isTurning()) { // Turn completed
-                transitionToWaitPhaseOrAdvance(turnTask); // Move to waiting phase or next task
+                transitionToWaitPhaseOrAdvance(turnTask);
             }
-
-
-            // If turn is still active, do nothing, let it run.
         }
     }
 
     private void handleActionOnlyTask(ActionOnlyTask actionTask) {
         if (!actionTask.actionHasRun) {
-            // Assuming ActionOnlyTask's primary action is relatively quick
-            // or is managed by ActionOpMode's main action loop if it's a Roadrunner Action
             if (actionTask.actionToRun != null) {
-                run(actionTask.actionToRun); // run() is from ActionOpMode, adds to its internal list
+                run(actionTask.actionToRun);
             }
-            actionTask.actionHasRun = true; // Mark primary action as dispatched/run
-            resetTimersAndActionsForTask(actionTask); // Resets timers and prepares for this task's own wait phase
-            transitionToWaitPhaseOrAdvance(actionTask); // Immediately move to its waiting phase or next task
+            actionTask.actionHasRun = true;
+            resetTimersAndActionsForTask(actionTask);
+            transitionToWaitPhaseOrAdvance(actionTask);
         }
-        // If actionHasRun is true, it means we are either in its waiting phase (if any)
-        // or it has already advanced. The taskPhase will be 1 if it entered a waiting phase.
     }
 
     private void handleWaitingPhase(BaseTask currentTask) {
-        double overallWaitElapsed = waitTimer.getElapsedTimeSeconds(); // Time since waiting phase started
-        double actionElapsed = actionTimer.getElapsedTimeSeconds();   // Time for WaitAction triggers
+        double overallWaitElapsed = waitTimer.getElapsedTimeSeconds();
+        double actionElapsed = actionTimer.getElapsedTimeSeconds();
 
-        // MODIFIED: Centralized timeout and advancement logic
-
-        // 1. Check if task already marked as timedOut (e.g. from a previous cycle hitting maxWaitTime)
         if (currentTask.timedOut) {
-            advanceToNextTask(); // This will call cleanupCurrentTaskWaitActions
+            advanceToNextTask();
             return;
         }
 
-        // 2. Check for maxWaitTime timeout for the current task's waiting phase
         if (overallWaitElapsed >= currentTask.maxWaitTime) {
-            currentTask.timedOut = true; // Mark the task as timed out
-            advanceToNextTask(); // This will call cleanupCurrentTaskWaitActions
-            return; // Exit immediately
+            currentTask.timedOut = true;
+            advanceToNextTask();
+            return;
         }
 
-        // 3. Process WaitActions if not timed out
-        // These actions are run in parallel with the main wait timer (overallWaitElapsed)
         for (WaitAction wa : currentTask.waitActions) {
             if (!wa.triggered && wa.shouldTrigger(actionElapsed)) {
-                // Task is not timed out at this point in the current cycle, safe to start action
-                currentTaskWaitPhaseActions.add(wa.action); // Track this action
-                run(wa.action); // Run it using ActionOpMode's run method
+                currentTaskWaitPhaseActions.add(wa.action);
+                run(wa.action);
                 wa.triggered = true;
             }
         }
 
-        // 4. Check for normal advancement conditions (waitTime or waitCondition met)
         boolean readyToAdvance = false;
-        if (currentTask.waitCondition != null) { // Task has a specific condition to meet
-            if (currentTask.conditionMetTime == null) { // Condition not yet met
+        if (currentTask.waitCondition != null) {
+            if (currentTask.conditionMetTime == null) {
                 if (currentTask.waitCondition.isMet()) {
-                    currentTask.conditionMetTime = overallWaitElapsed; // Record time condition was met
+                    currentTask.conditionMetTime = overallWaitElapsed;
                 }
-                // If condition not met, and not timed out by maxWaitTime, we just continue waiting.
             }
-            // If condition was met, check if we've waited the post-condition 'waitTime'
             if (currentTask.conditionMetTime != null &&
                     (overallWaitElapsed - currentTask.conditionMetTime >= currentTask.waitTime)) {
                 readyToAdvance = true;
             }
-        } else { // No specific wait condition, just a simple timed wait for this phase
+        } else {
             if (overallWaitElapsed >= currentTask.waitTime) {
                 readyToAdvance = true;
             }
         }
 
         if (readyToAdvance) {
-            advanceToNextTask(); // This will call cleanupCurrentTaskWaitActions, interrupting ongoing WaitActions
+            advanceToNextTask();
         }
-        // If not readyToAdvance and not timedOut, we simply continue in the waiting phase.
-        // OpMode loop will call this method again.
     }
 
     // --- Task Creation Helper Methods ---
@@ -288,31 +272,31 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
     }
 
     public TurnTask addTurnTo(double targetAngleRadians, double waitTimeAfterTurn) {
-        TurnTask task = new TurnTask(targetAngleRadians, false, waitTimeAfterTurn); // false for radians
+        TurnTask task = new TurnTask(targetAngleRadians, false, waitTimeAfterTurn);
         tasks.add(task);
         return task;
     }
 
     public TurnTask addTurnToDegrees(double targetAngleDegrees, double waitTimeAfterTurn, double initialAngleDegrees) {
-        TurnTask task = new TurnTask(targetAngleDegrees, true, waitTimeAfterTurn,initialAngleDegrees); // true for degrees
+        TurnTask task = new TurnTask(targetAngleDegrees, true, waitTimeAfterTurn, initialAngleDegrees);
         tasks.add(task);
         return task;
     }
 
     public TurnTask addTurnToDegrees(double targetAngleDegrees, double waitTimeAfterTurn) {
-        TurnTask task = new TurnTask(targetAngleDegrees, true, waitTimeAfterTurn); // true for degrees
+        TurnTask task = new TurnTask(targetAngleDegrees, true, waitTimeAfterTurn);
         tasks.add(task);
         return task;
     }
 
     public TurnTask addRelativeTurn(double angleRadians, boolean isLeft, double waitTimeAfterTurn) {
-        TurnTask task = new TurnTask(angleRadians, false, isLeft, waitTimeAfterTurn); // false for radians
+        TurnTask task = new TurnTask(angleRadians, false, isLeft, waitTimeAfterTurn);
         tasks.add(task);
         return task;
     }
 
     public TurnTask addRelativeTurnDegrees(double angleDegrees, boolean isLeft, double waitTimeAfterTurn) {
-        TurnTask task = new TurnTask(angleDegrees, true, isLeft, waitTimeAfterTurn); // true for degrees
+        TurnTask task = new TurnTask(angleDegrees, true, isLeft, waitTimeAfterTurn);
         tasks.add(task);
         return task;
     }
@@ -323,22 +307,20 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
         return task;
     }
 
-
     // --- Inner Classes for Task Definitions ---
 
     public abstract static class BaseTask {
-        public double waitTime; // Time to wait in the WAITING phase, or after a condition is met
-        public double maxWaitTime = 10.0; // Absolute max time for the WAITING phase (default 10s)
-        public List<WaitAction> waitActions = new ArrayList<>(); // Actions to run during WAITING phase
-        public WaitCondition waitCondition; // Optional condition to be met during WAITING phase
-        public Double conditionMetTime = null; // Timestamp when waitCondition was met
-        public boolean timedOut = false; // NEW FIELD: True if this task's wait phase hit maxWaitTime
+        public double waitTime;
+        public double maxWaitTime = 10.0;
+        public List<WaitAction> waitActions = new ArrayList<>();
+        public WaitCondition waitCondition;
+        public Double conditionMetTime = null;
+        public boolean timedOut = false;
 
         public BaseTask(double waitTime) {
             this.waitTime = waitTime;
         }
 
-        // Fluent interface for adding WaitActions and conditions
         @SuppressWarnings("unchecked")
         public <T extends BaseTask> T addWaitAction(double triggerTimeSeconds, Action action) {
             waitActions.add(new WaitAction(triggerTimeSeconds, action));
@@ -371,16 +353,16 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
 
         public void resetWaitActions() {
             for (WaitAction wa : waitActions) {
-                wa.triggered = false; // Reset triggered status for all wait actions
+                wa.triggered = false;
             }
-            conditionMetTime = null; // Reset condition met time
-            timedOut = false; // MODIFIED: Reset the timedOut flag
+            conditionMetTime = null;
+            timedOut = false;
         }
     }
 
     public static class PathChainTask extends BaseTask {
-        public Object pathChain; // Could be a Roadrunner Trajectory, TrajectorySequence, or custom path object
-        public boolean initiated = false; // True once startPath() has been called for this task
+        public Object pathChain;
+        public boolean initiated = false;
 
         public PathChainTask(Object pathChain, double waitTime) {
             super(waitTime);
@@ -391,19 +373,18 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
     public static class TurnTask extends BaseTask {
         public double angle;
         public boolean useDegrees;
-        public boolean isRelative; // Is the turn relative to current heading or absolute field heading?
-        public boolean isLeft;     // If relative, specifies direction (meaningful for some turn implementations)
-        public boolean initiated = false; // True once startTurn() has been called
+        public boolean isRelative;
+        public boolean isLeft;
+        public boolean initiated = false;
         public double initialAngleDegrees;
         public double turnTimeout = 1.0;
 
-        // Constructor for absolute turns
         public TurnTask(double angle, boolean useDegrees, double waitTime) {
             super(waitTime);
             this.angle = angle;
             this.useDegrees = useDegrees;
             this.isRelative = false;
-            this.isLeft = false; // Not applicable for absolute turns typically
+            this.isLeft = false;
         }
 
         public TurnTask(double angle, boolean useDegrees, double waitTime, double initialAngleDegrees) {
@@ -411,11 +392,10 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
             this.angle = angle;
             this.useDegrees = useDegrees;
             this.isRelative = false;
-            this.isLeft = false; // Not applicable for absolute turns typically
+            this.isLeft = false;
             this.initialAngleDegrees = initialAngleDegrees;
         }
 
-        // Constructor for relative turns
         public TurnTask(double angle, boolean useDegrees, boolean isLeft, double waitTime) {
             super(waitTime);
             this.angle = angle;
@@ -426,20 +406,20 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
     }
 
     public static class ActionOnlyTask extends BaseTask {
-        public Action actionToRun; // The primary Roadrunner Action for this task
-        public boolean actionHasRun = false; // True once actionToRun has been dispatched
+        public Action actionToRun;
+        public boolean actionHasRun = false;
 
         public ActionOnlyTask(Action action, double waitTimeAfterAction) {
-            super(waitTimeAfterAction); // waitTime here is for the phase *after* actionToRun is dispatched
+            super(waitTimeAfterAction);
             this.actionToRun = action;
         }
     }
 
     public static class WaitAction {
-        Double triggerTime;      // Time in seconds (on actionTimer) to trigger this action
-        WaitCondition condition; // Optional condition to trigger this action
-        public Action action;    // The Roadrunner Action to execute
-        public boolean triggered; // True once this WaitAction has been triggered
+        Double triggerTime;
+        WaitCondition condition;
+        public Action action;
+        public boolean triggered;
 
         public WaitAction(double triggerTime, Action action) {
             this(triggerTime, null, action);
@@ -456,19 +436,18 @@ public abstract class PathChainAutoOpMode extends ActionOpMode { // Make sure Ac
             this.triggered = false;
         }
 
-        // Determines if this WaitAction should be triggered based on elapsed time or condition
         public boolean shouldTrigger(double elapsedActionTimerSeconds) {
             boolean timeCriteriaMet = (triggerTime != null && elapsedActionTimerSeconds >= triggerTime);
             boolean conditionCriteriaMet = (condition != null && condition.isMet());
 
-            if (triggerTime != null && condition != null) { // Both time and condition specified
-                return timeCriteriaMet || conditionCriteriaMet; // Trigger if EITHER is met
-            } else if (triggerTime != null) { // Only time specified
+            if (triggerTime != null && condition != null) {
+                return timeCriteriaMet || conditionCriteriaMet;
+            } else if (triggerTime != null) {
                 return timeCriteriaMet;
-            } else if (condition != null) { // Only condition specified
+            } else if (condition != null) {
                 return conditionCriteriaMet;
             }
-            return false; // No trigger criteria defined (should not happen with current constructors)
+            return false;
         }
     }
 

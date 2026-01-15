@@ -28,14 +28,14 @@ public class Redfar18consistent extends PathChainAutoOpMode {
 
     private RobotActions actions;
 
-    private PathChain path1, path2, path3, path4, path5;
+    private PathChain path1, path2, path3, path4, path5, grab3wide, leave;
 
     // =========================
     // Goal + turret constants (RED) = mirrored from BLUE
     // BLUE targetX = 144 - 130 = 14
     // RED  targetX = 144 - 14  = 130
     // =========================
-    public static double targetX = 129;
+    public static double targetX = 130.0;
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;   // 0 deg
@@ -47,10 +47,18 @@ public class Redfar18consistent extends PathChainAutoOpMode {
     public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     // Keep identical behavior to your BLUE code (as requested: mirror everything)
-    private static final double TURRET_LIVE_T = 0.5;
+    private static final double TURRET_LIVE_T = 0.8;
 
     private static final double TARGET_RPM = 1380;
     private static final double HOOD_POS   = 0.44;
+    // =========================
+// RPM Boost logic
+// =========================
+    private static final double SHOOT_RPM_BOOST = 9000.0;   // boost rpm
+    private static final double BOOST_EXIT_RPM  = TARGET_RPM; // exit boost when avg rpm >= this
+    private static final double BOOST_REARM_RPM = 850.0;      // re-arm boost when avg rpm <= this
+    private boolean shooterBoostActive = true;
+
 
     @Override
     public void init() {
@@ -127,7 +135,20 @@ public class Redfar18consistent extends PathChainAutoOpMode {
 
         updateTurretAim();
 
-        run(actions.holdShooterAtRPMfar(TARGET_RPM, 30));
+        double vR   = shootr.getVelocity();
+        double vL   = shootl.getVelocity();
+        double rpmR = (vR / 28.0) * 60.0;
+        double rpmL = (vL / 28.0) * 60.0;
+        double avgRpm = 0.5 * (rpmR + rpmL);
+
+        if (shooterBoostActive) {
+            if (avgRpm >= BOOST_EXIT_RPM) shooterBoostActive = false;
+        } else {
+            if (avgRpm <= BOOST_REARM_RPM) shooterBoostActive = true;
+        }
+
+        double requestedRpm = shooterBoostActive ? SHOOT_RPM_BOOST : TARGET_RPM;
+        run(actions.holdShooterAtRPMfar(requestedRpm, 30));
 
         runTasks();
 
@@ -156,7 +177,7 @@ public class Redfar18consistent extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
                 .setGlobalDeceleration(0.5)
                 .addParametricCallback(0.9, () -> run(new SequentialAction(
-                        new SleepAction(2.2),
+                        new SleepAction(1.8),
                         actions.launch3faster()
                 )))
                 .build();
@@ -166,10 +187,28 @@ public class Redfar18consistent extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(98.907, 11.911),
-                        new Pose(126.0, 10.422)
+                        new Pose(126.00, 9.00)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(1.5)
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .build();
+        grab3wide = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(98.907, 11.911),
+                        new Pose(128.00, 9.00)
+                ))
+                .setTangentHeadingInterpolation()
+                .setBrakingStrength(2)
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .build();
+        leave = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(98.907, 11.911),
+                        new Pose(115.00, 12.00)
+                ))
+                .setTangentHeadingInterpolation()
+                .setBrakingStrength(2)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
@@ -177,7 +216,7 @@ public class Redfar18consistent extends PathChainAutoOpMode {
         // RED  Path3: (130, 10.422) -> (128.898, 10.422), reversed
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(130.0, 10.422),
+                        new Pose(130.0, 9.00),
                         new Pose(128.898, 10.422)
                 ))
                 .setTangentHeadingInterpolation()
@@ -191,14 +230,14 @@ public class Redfar18consistent extends PathChainAutoOpMode {
         // RED  Path5: (126, 10.422) -> (99.120, 11.699), reversed
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(126.0, 10.422),
+                        new Pose(126.0, 9.00),
                         new Pose(99.120, 11.699)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(2.5)
                 .setReversed()
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
-                        new SleepAction(0.18),
+                        new SleepAction(0.1),
                         actions.launch3faster()
                 )))
                 .build();
@@ -208,8 +247,8 @@ public class Redfar18consistent extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        tasks.add(new PathChainTask(path1, 3.2));
-        addPath(path2, 0.4);
+        tasks.add(new PathChainTask(path1, 2.8));
+        addPath(grab3wide, 0.4);
         tasks.add(new PathChainTask(path5, 1.0));
 
         addCycle2to5();
@@ -218,7 +257,7 @@ public class Redfar18consistent extends PathChainAutoOpMode {
         addCycle2to5();
         addCycle2to5();
 
-        tasks.add(new PathChainTask(path2, 0));
+        tasks.add(new PathChainTask(leave, 0));
     }
 
     private void addCycle2to5() {

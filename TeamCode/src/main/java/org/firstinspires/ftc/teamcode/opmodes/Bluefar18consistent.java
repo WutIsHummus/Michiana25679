@@ -28,28 +28,49 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
 
     private RobotActions actions;
 
-    private PathChain path1, path2, path3, path4, path5;
+    private PathChain path1, path2, path3, path4, path5, grab3wide, leave;
+
+    // =========================
+    // MIRROR HELPERS (RED -> BLUE)
+    // Mirror across the FIELD CENTERLINE in X:
+    // (x, y, heading) -> (144 - x, y, PI - heading)
+    // =========================
+    public static double FIELD_SIZE_X_IN = 144.0;
+
+    private static double mirrorX(double x) { return FIELD_SIZE_X_IN - x; }
+
+    private static double mirrorHeadingRad(double h) {
+        return normalizeRadians(Math.PI - h);
+    }
 
     // =========================
     // Goal + turret constants (BLUE)
+    // RED targetX = 130  => BLUE targetX = 144 - 130 = 14
     // =========================
-    public static double targetX = 144.0 - 130.0; // 19
+    public static double targetX = mirrorX(128);
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;   // 0 deg
     public static double turretLeftPosition   = 0.15;   // max left
     public static double turretRightPosition  = 0.85;   // max right
-    public static double turretMaxAngle       = 137;  // deg
+    public static double turretMaxAngle       = 137;    // deg
 
     public static double turretTrimDeg = 0.0;
     public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
-    // Requirement: predictive aim until t >= 0.95, then active tracking
-    private static final double TURRET_LIVE_T = 0.5;
+    // Keep identical behavior to your RED code (as requested: mirror everything)
+    private static final double TURRET_LIVE_T = 0.95;
 
-    // Shooter + hood requirement
-    private static final double TARGET_RPM = 1380;
+    private static final double TARGET_RPM = 1370;
     private static final double HOOD_POS   = 0.44;
+
+    // =========================
+    // RPM Boost logic
+    // =========================
+    private static final double SHOOT_RPM_BOOST = 9000.0;     // boost rpm
+    private static final double BOOST_EXIT_RPM  = TARGET_RPM; // exit boost when avg rpm >= this
+    private static final double BOOST_REARM_RPM = 850.0;      // re-arm boost when avg rpm <= this
+    private boolean shooterBoostActive = true;
 
     @Override
     public void init() {
@@ -85,7 +106,7 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
 
-        // Indexer baseline (consistent with your other autos)
+        // Indexer baseline
         indexfront.setPosition(RobotActions.INDEX_FRONT_RETRACTED);
         indexback.setPosition(RobotActions.INDEX_BACK_EXTENDED);
 
@@ -100,8 +121,10 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
         // Required
         run(actions.safeindexer());
 
-        // Starting pose = first pose of Path1
-        Pose startPose = new Pose(57.217, 8.934, Math.toRadians(180));
+        // Starting pose mirrored from your RED:
+        // RED  start: (86.783, 8.934, 0)
+        // BLUE start: (144 - 86.783 = 57.217, 8.934, PI - 0 = PI)
+        Pose startPose = new Pose(mirrorX(86.783), 8.934, mirrorHeadingRad(Math.toRadians(0)));
         follower.setStartingPose(startPose);
 
         // Init should aim at the goal as well (hardset once here)
@@ -122,11 +145,22 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
         super.loop();
         follower.update();
 
-        // Turret aim: predictive until t>=0.95, then live tracking
         updateTurretAim();
 
-        // Hold shooter RPM
-        run(actions.holdShooterAtRPMfar(TARGET_RPM, 30));
+        double vR   = shootr.getVelocity();
+        double vL   = shootl.getVelocity();
+        double rpmR = (vR / 28.0) * 60.0;
+        double rpmL = (vL / 28.0) * 60.0;
+        double avgRpm = 0.5 * (rpmR + rpmL);
+
+        if (shooterBoostActive) {
+            if (avgRpm >= BOOST_EXIT_RPM) shooterBoostActive = false;
+        } else {
+            if (avgRpm <= BOOST_REARM_RPM) shooterBoostActive = true;
+        }
+
+        double requestedRpm = shooterBoostActive ? SHOOT_RPM_BOOST : TARGET_RPM;
+        run(actions.holdShooterAtRPMfar(requestedRpm, 30));
 
         runTasks();
 
@@ -140,56 +174,86 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
     @Override
     protected void buildPathChains() {
 
-        // Path1
+        // This is the BLUE mirror of your RED paths.
+        // Mirror rule applied to every pose: x -> 144 - x, heading -> PI - heading.
+
+        // RED Path1: (86.783, 8.934) -> (98.907, 11.911), heading 0 -> 0
+        // BLUE Path1: (57.217, 8.934) -> (45.093, 11.911), heading PI -> PI
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(57.217, 8.934),
-                        new Pose(55, 11.911)
+                        new Pose(mirrorX(86.783), 8.934),
+                        new Pose(mirrorX(93.500), 11.911)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .setGlobalDeceleration(0.5)
                 .addParametricCallback(0.9, () -> run(new SequentialAction(
-                        new SleepAction(2.2),
+                        new SleepAction(1.9),
                         actions.launch3faster()
                 )))
                 .build();
 
-        // Path2
+        // RED Path2: (98.907, 11.911) -> (126.00, 9.00)
+        // BLUE Path2: (45.093, 11.911) -> (18.00, 9.00)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(45.093, 11.911),
-                        new Pose(18, 10.422)
+                        new Pose(mirrorX(98.907), 11.911),
+                        new Pose(mirrorX(128.00), 9.00)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(1.5)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
-        // Path3
-        path3 = follower.pathBuilder()
+        // RED grab3wide: (98.907, 11.911) -> (128.00, 9.00)
+        // BLUE grab3wide: (45.093, 11.911) -> (16.00, 9.00)
+        grab3wide = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(14, 10.422),
-                        new Pose(15.102, 10.422)
+                        new Pose(mirrorX(98.907), 11.911),
+                        new Pose(mirrorX(126.00), 9.00)
+                ))
+                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(200))
+                .setBrakingStrength(2)
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .build();
+
+        // RED leave: (98.907, 11.911) -> (115.00, 12.00)
+        // BLUE leave: (45.093, 11.911) -> (29.00, 12.00)
+        leave = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(mirrorX(98.907), 11.911),
+                        new Pose(mirrorX(115.00), 12.00)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(2)
-                .setReversed()
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
+        // RED Path3: (130.0, 9.00) -> (128.898, 10.422), reversed
+        // BLUE Path3: (14.0, 9.00) -> (15.102, 10.422), reversed
+        path3 = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(mirrorX(126.00), 9.00),
+                        new Pose(mirrorX(128.898), 8.00)
+                ))
+                .setLinearHeadingInterpolation(Math.toRadians(200), Math.toRadians(170))
+                .setBrakingStrength(2)
+                .build();
 
+        // Path4 declared but unused in your RED snippet; leaving as-is (null)
 
-        // Path5 (shoot at t=0.95)
+        // RED Path5: (126.0, 9.00) -> (99.120, 11.699), reversed, shoot at t=0.95
+        // BLUE Path5: (18.0, 9.00) -> (44.880, 11.699), reversed
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(18, 10.422),
-                        new Pose(44.880, 11.699)
+                        new Pose(mirrorX(126.0), 9.00),
+                        new Pose(mirrorX(99.120), 11.699)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(2.5)
                 .setReversed()
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
-                new SleepAction(0.18),
-                actions.launch3faster()
+                        new SleepAction(0.05),
+                        actions.launch3faster()
                 )))
                 .build();
     }
@@ -198,28 +262,23 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        // Run path1, then wait 3 seconds
-        tasks.add(new PathChainTask(path1, 3.2));
-        addPath(path2, 0.2);
-        //addPath(path3, 0.0);
+        tasks.add(new PathChainTask(path1, 2.9));
+        addPath(grab3wide, 0.3);
+        addPath(path3,0);
         tasks.add(new PathChainTask(path5, 1.0));
 
-        // Repeat paths 2-5 four times, no loops
-        // Requirement: after end of path5 wait 1s
         addCycle2to5();
         addCycle2to5();
         addCycle2to5();
         addCycle2to5();
         addCycle2to5();
-        tasks.add(new PathChainTask(path2,0));
 
+        tasks.add(new PathChainTask(leave, 0));
     }
 
     private void addCycle2to5() {
         addPath(path2, 0.1);
-        //addPath(path3, 0.0);
-        //addPath(path4, 0.0);
-        tasks.add(new PathChainTask(path5, 1.6));
+        tasks.add(new PathChainTask(path5, 1.5));
     }
 
     @Override
@@ -240,7 +299,8 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
     protected void startTurn(TurnTask task) { }
 
     // =========================
-    // Turret aiming (predictive -> live at t>=0.95)
+    // Turret aiming (predictive -> live at t>=TURRET_LIVE_T)
+    // (This logic does not change; mirroring is done by targetX/targetY and mirrored poses.)
     // =========================
 
     private void updateTurretAim() {
@@ -250,16 +310,9 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
         setTurretToAimAtPose(aimPose);
     }
 
-    /**
-     * Predictive only for the “shooting relevant” paths in this auto:
-     * - Path1: you shoot near the end (t=0.9 + delayed sequence)
-     * - Path5: you shoot at t=0.95
-     * Otherwise, just aim live.
-     */
     private Pose getAimPoseForTurret() {
         Pose live = follower.getPose();
 
-        // only while driving
         if (taskPhase != 0) return live;
 
         double t = follower.getCurrentTValue();
@@ -284,19 +337,19 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
     }
 
     private Pose poseAtEndOfPath1() {
-        // End pose is known (linear heading 180)
-        return new Pose(45.093, 11.911, Math.toRadians(180));
+        // BLUE end pose of mirrored Path1: (45.093, 11.911), heading 180
+        return new Pose(mirrorX(98.907), 11.911, Math.toRadians(180));
     }
 
     private Pose poseAtEndOfPath5() {
-        // Line from (10.210,10.422) -> (44.880,11.699), reversed => heading = tangent + pi
-        double h = headingFromLine(10.210, 10.422, 44.880, 11.699, true);
-        return new Pose(44.880, 11.699, h);
+        // Mirror RED poseAtEndOfPath5:
+        // RED end: (99.120, 11.699), heading from line (126,10.422)->(99.120,11.699), reversed
+        // BLUE end: (44.880, 11.699), heading mirrored as PI - heading
+        double redH = headingFromLine(126.0, 10.422, 99.120, 11.699, true);
+        double blueH = mirrorHeadingRad(redH);
+        return new Pose(mirrorX(99.120), 11.699, blueH);
     }
 
-    /**
-     * Compute turret angle from a pose to the goal, clamp, map to servo, apply backlash on turret1.
-     */
     private void setTurretToAimAtPose(Pose pose) {
         double dx = targetX - pose.getX();
         double dy = targetY - pose.getY();
