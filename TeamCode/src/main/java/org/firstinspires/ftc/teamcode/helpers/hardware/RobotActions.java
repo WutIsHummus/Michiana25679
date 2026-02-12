@@ -19,6 +19,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.HardwareWriteCache;
+
 /**
  * RobotActions - Reusable shooting and intake actions for FTC
  *
@@ -269,10 +271,10 @@ public class RobotActions {
     public Action safeindexer() {
         return new InstantAction(() -> {
             if (indexfront != null) {
-                indexfront.setPosition(INDEX_FRONT_RETRACTED);
+                HardwareWriteCache.setServoPosition(indexfront, INDEX_FRONT_RETRACTED);
             }
             if (indexback != null) {
-                indexback.setPosition(INDEX_BACK_EXTENDED);
+                HardwareWriteCache.setServoPosition(indexback, INDEX_BACK_EXTENDED);
             }
         });
     }
@@ -798,37 +800,37 @@ public class RobotActions {
 
     public class IntakeFront {
         public Action run() {
-            return new InstantAction(() -> intakefront.setPower(-1.0));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakefront, -1.0));
         }
 
         public Action runSlow() {
-            return new InstantAction(() -> intakefront.setPower(-0.5));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakefront, -0.5));
         }
 
         public Action reverse() {
-            return new InstantAction(() -> intakefront.setPower(1.0));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakefront, 1.0));
         }
 
         public Action stop() {
-            return new InstantAction(() -> intakefront.setPower(0.0));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakefront, 0.0));
         }
     }
 
     public class IntakeBack {
         public Action run() {
-            return new InstantAction(() -> intakeback.setPower(-1.0));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakeback, -1.0));
         }
 
         public Action runSlow() {
-            return new InstantAction(() -> intakeback.setPower(-0.5));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakeback, -0.5));
         }
 
         public Action reverse() {
-            return new InstantAction(() -> intakeback.setPower(1.0));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakeback, 1.0));
         }
 
         public Action stop() {
-            return new InstantAction(() -> intakeback.setPower(0.0));
+            return new InstantAction(() -> HardwareWriteCache.setMotorPower(intakeback, 0.0));
         }
     }
     public Action holdShooterAtRPMclose(double targetRPM, double holdSeconds) {
@@ -838,7 +840,7 @@ public class RobotActions {
 
                 // Run PIDF control while holding for specified time
                 new ParallelAction(
-                        shooter.spinToRPMWithRange(targetRPM, true, false),
+                        shooter.spinToRPMWithRange(targetRPM, true, false, false, Shooter.HOLD_PID_INTERVAL_NS),
                         new SequentialAction(
                                 shooter.waitForSpeed(targetRPM),
                                 new SleepAction(holdSeconds)
@@ -856,7 +858,7 @@ public class RobotActions {
                 // Keep hood consistent with PID choice
 
                 new ParallelAction(
-                        shooter.spinToRPMWithRange(targetRPM, true, isLongRange),
+                        shooter.spinToRPMWithRange(targetRPM, true, isLongRange, false, Shooter.HOLD_PID_INTERVAL_NS),
                         new SequentialAction(
                                 shooter.waitForSpeed(targetRPM),
                                 new SleepAction(holdSeconds)
@@ -868,6 +870,8 @@ public class RobotActions {
     }
 
     public class Shooter {
+        private static final long DEFAULT_PID_INTERVAL_NS = 5_000_000L; // 5ms
+        static final long HOLD_PID_INTERVAL_NS = 12_000_000L; // 12ms, lower priority for background holds
         private PIDFController pidfController = null;
         private double currentTargetRPM = 0;
         private volatile boolean pidActive = false;  // Use volatile for thread-safety
@@ -883,8 +887,8 @@ public class RobotActions {
 
         public Action spinUp() {
             return new InstantAction(() -> {
-                shootr.setPower(1.0);
-                shootl.setPower(-1.0);
+                HardwareWriteCache.setMotorPower(shootr, 1.0);
+                HardwareWriteCache.setMotorPower(shootl, -1.0);
                 pidActive = false;
             });
         }
@@ -908,16 +912,16 @@ public class RobotActions {
 
         public Action spinUpSlow() {
             return new InstantAction(() -> {
-                shootr.setPower(0.7);
-                shootl.setPower(-0.7);
+                HardwareWriteCache.setMotorPower(shootr, 0.7);
+                HardwareWriteCache.setMotorPower(shootl, -0.7);
                 pidActive = false;
             });
         }
 
         public Action stop() {
             return new InstantAction(() -> {
-                shootr.setPower(0.0);
-                shootl.setPower(0.0);
+                HardwareWriteCache.setMotorPower(shootr, 0.0);
+                HardwareWriteCache.setMotorPower(shootl, 0.0);
                 pidActive = false;
                 if (pidfController != null) {
                     pidfController.reset();
@@ -952,6 +956,14 @@ public class RobotActions {
          * @param isLongRange True for long range (>=6ft), false for short range (<6ft)
          */
         public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange) {
+            return spinToRPMWithRange(targetRPM, useVoltageCompensation, isLongRange, true);
+        }
+
+        public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange, boolean telemetryEnabled) {
+            return spinToRPMWithRange(targetRPM, useVoltageCompensation, isLongRange, telemetryEnabled, DEFAULT_PID_INTERVAL_NS);
+        }
+
+        public Action spinToRPMWithRange(double targetRPM, boolean useVoltageCompensation, boolean isLongRange, boolean telemetryEnabled, long minIntervalNs) {
             // If there's already a PID action running, stop it first
             if (pidActive && currentPIDAction != null) {
                 pidActive = false;
@@ -968,8 +980,8 @@ public class RobotActions {
                 public boolean run(@NonNull TelemetryPacket packet) {
                     // Prevent multiple simultaneous PID calls
                     long currentTime = System.nanoTime();
-                    if (initialized && (currentTime - lastPIDCallTime) < 5_000_000) {  // 5ms minimum interval
-                        return false;  // Skip this call, too soon
+                    if (initialized && (currentTime - lastPIDCallTime) < minIntervalNs) {
+                        return true;  // Skip this call, too soon
                     }
                     lastPIDCallTime = currentTime;
 
@@ -1003,7 +1015,7 @@ public class RobotActions {
                     }
 
                     if (!pidActive) {
-                        return true; // Done
+                        return false; // Done
                     }
 
                     // Convert target RPM to ticks per second
@@ -1045,11 +1057,11 @@ public class RobotActions {
                         double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
                         compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
 
-                        shootr.setPower(compensatedPower);
-                        shootl.setPower(compensatedPower);
+                        HardwareWriteCache.setMotorPower(shootr, compensatedPower);
+                        HardwareWriteCache.setMotorPower(shootl, compensatedPower);
                     } else {
-                        shootr.setPower(shooterPower);
-                        shootl.setPower(shooterPower);
+                        HardwareWriteCache.setMotorPower(shootr, shooterPower);
+                        HardwareWriteCache.setMotorPower(shootl, shooterPower);
                     }
 
                     // Record values for monitoring (for telemetry access)
@@ -1060,15 +1072,17 @@ public class RobotActions {
                     lastAdditionalFF = additionalFF;
 
                     // Add telemetry
-                    packet.put("Target RPM", currentTargetRPM);
-                    packet.put("Current RPM", avgVelocityRPM);
-                    packet.put("PIDF Output", pidfOutput);
-                    packet.put("Additional FF", additionalFF);
-                    packet.put("Total Power", shooterPower);
-                    packet.put("PID Range", isLongRange ? "LONG" : "SHORT");
-                    packet.put("At Speed", Math.abs(avgVelocityRPM - currentTargetRPM) < RPM_TOLERANCE);
+                    if (telemetryEnabled) {
+                        packet.put("Target RPM", currentTargetRPM);
+                        packet.put("Current RPM", avgVelocityRPM);
+                        packet.put("PIDF Output", pidfOutput);
+                        packet.put("Additional FF", additionalFF);
+                        packet.put("Total Power", shooterPower);
+                        packet.put("PID Range", isLongRange ? "LONG" : "SHORT");
+                        packet.put("At Speed", Math.abs(avgVelocityRPM - currentTargetRPM) < RPM_TOLERANCE);
+                    }
 
-                    return false; // Keep running (never completes on its own)
+                    return true; // Keep running (never completes on its own)
                 }
             };
 
@@ -1088,10 +1102,6 @@ public class RobotActions {
 
                     boolean atSpeed = Math.abs(avgVelocityRPM - targetRPM) < RPM_TOLERANCE;
 
-                    packet.put("Waiting for Speed", !atSpeed);
-                    packet.put("Current RPM", avgVelocityRPM);
-                    packet.put("Target RPM", targetRPM);
-
                     return atSpeed; // Done when at speed
                 }
             };
@@ -1101,19 +1111,19 @@ public class RobotActions {
     public class Hood {
         public Action setPosition(double position) {
             return new InstantAction(() -> {
-                if (hood1 != null) hood1.setPosition(position);
+                if (hood1 != null) HardwareWriteCache.setServoPosition(hood1, position);
             });
         }
 
         public Action shortRange() {
             return new InstantAction(() -> {
-                if (hood1 != null) hood1.setPosition(0.54);
+                if (hood1 != null) HardwareWriteCache.setServoPosition(hood1, 0.54);
             });
         }
 
         public Action longRange() {
             return new InstantAction(() -> {
-                if (hood1 != null) hood1.setPosition(0.45);
+                if (hood1 != null) HardwareWriteCache.setServoPosition(hood1, 0.45);
             });
         }
     }
@@ -1139,16 +1149,16 @@ public class RobotActions {
                         (turretCenterPosition - turretLeftPosition);
                 }
 
-                turret1.setPosition(servoPosition);
-                turret2.setPosition(servoPosition);
+                HardwareWriteCache.setServoPosition(turret1, servoPosition);
+                HardwareWriteCache.setServoPosition(turret2, servoPosition);
             });
         }
 
         public Action center() {
             return new InstantAction(() -> {
                 if (turret1 != null && turret2 != null) {
-                    turret1.setPosition(turretCenterPosition);
-                    turret2.setPosition(turretCenterPosition);
+                    HardwareWriteCache.setServoPosition(turret1, turretCenterPosition);
+                    HardwareWriteCache.setServoPosition(turret2, turretCenterPosition);
                 }
             });
         }
@@ -1156,36 +1166,36 @@ public class RobotActions {
 
     public class LaunchGate {
         public Action fire() {
-            return new InstantAction(() -> launchgate.setPosition(0.75 ));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(launchgate, 0.75));
         }
 
         public Action reset() {
-            return new InstantAction(() -> launchgate.setPosition(0.5));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(launchgate, 0.5));
         }
         public Action half() {
-            return new InstantAction(() -> launchgate.setPosition(0.65));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(launchgate, 0.65));
         }
 
         public Action open() {
-            return new InstantAction(() -> launchgate.setPosition(1.0));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(launchgate, 1.0));
         }
 
         public Action close() {
-            return new InstantAction(() -> launchgate.setPosition(0.0));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(launchgate, 0.0));
         }
     }
 
     public class RearGate {
         public Action open() {
-            return new InstantAction(() -> reargate.setPosition(1.0));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(reargate, 1.0));
         }
 
         public Action close() {
-            return new InstantAction(() -> reargate.setPosition(0.0));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(reargate, 0.0));
         }
 
         public Action middle() {
-            return new InstantAction(() -> reargate.setPosition(0.5));
+            return new InstantAction(() -> HardwareWriteCache.setServoPosition(reargate, 0.5));
         }
     }
 }

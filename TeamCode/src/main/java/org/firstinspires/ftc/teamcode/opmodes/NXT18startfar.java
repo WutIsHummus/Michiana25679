@@ -16,8 +16,8 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "1 - BlueClose18startfarnewgate")
-public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
+@Autonomous(name = "1 - NXT18startfarblue")
+public class NXT18startfar extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -66,7 +66,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
     private static final double TURRET_LIVE_T = 0.95;
 
     // Shooter setpoints
-    private static final double BASE_TARGET_RPM   = 1100;
+    private static final double BASE_TARGET_RPM   = 1080;
     private static final double LATE_TARGET_RPM   = 1390;
 
     private boolean afterPath10 = false; // becomes true via callback at start of path10
@@ -208,11 +208,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
                         poseX(83.421, 87.421),
                         poseX(118.0, 80.000)))
                 .setTangentHeadingInterpolation()
-                .addParametricCallback(0.0, () -> {
-                    desiredHoldRpm = BASE_TARGET_RPM - 20.0;
-                    updateShooterHold(desiredHoldRpm);
-                    run(actions.startIntake());
-                })
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // PATH 3 (shoot path)

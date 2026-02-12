@@ -21,8 +21,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-@Autonomous(name = "1 - NXTredcompatible")
-public class Nxtredcompatible extends PathChainAutoOpMode {
+@Autonomous(name = "1 - NEWredcompatible")
+public class newredcompatible extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -207,12 +207,11 @@ public class Nxtredcompatible extends PathChainAutoOpMode {
 
         // PATH 2 (INTAKE)
         path2 = follower.pathBuilder()
-                .addPath(new BezierCurve(
+                .addPath(new BezierLine(
                         new Pose(mx(52.538), 84.869),
-                        new Pose(mx(30.0), 82.0),
-                        new Pose(mx(22.0), 80.0)
+                        new Pose(mx(22.0), 84.656)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(0))
+                .setTangentHeadingInterpolation()
                 .setBrakingStrength(1)
                 .setTValueConstraint(0.95)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -222,12 +221,12 @@ public class Nxtredcompatible extends PathChainAutoOpMode {
         path3 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(mx(22.0), 84.656),
-                        new Pose(mx(40.0), 78.275),
+                        new Pose(mx(48), 78.275),
                         new Pose(mx(21.0), 80.0)
                 ))
                 //.setLinearHeadingInterpolation(mh(Math.toRadians(180)), mh(Math.toRadians(90)))
                 .setConstantHeadingInterpolation(0)
-                .setTValueConstraint(0.95)
+                //.setTValueConstraint(0.95)
                 .setBrakingStrength(1)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
@@ -376,16 +375,16 @@ public class Nxtredcompatible extends PathChainAutoOpMode {
         tasks.add(new PathChainTask(path1, SHOOT_END_WAIT_S));
 
         // 2 INTAKE
-        addPath(path2, 0.3);
+        addPath(path2, 0.0);
 
         // 3 GATE (intake-only)
-        //addPath(path3, 0.0);
+        addPath(path3, 0.0);
 
         // 4 SHOOT (wait 1.0)
         tasks.add(new PathChainTask(path4, SHOOT_END_WAIT_S));
 
         // 5 INTAKE
-        addPath(path5, 0.0);
+        addPath(path5, 0.5);
 
         // 6 GATE
         addPath(path6, 0.0);
@@ -394,7 +393,7 @@ public class Nxtredcompatible extends PathChainAutoOpMode {
         tasks.add(new PathChainTask(path7, SHOOT_END_WAIT_S));
 
         // 8 INTAKE
-        addPath(path8, 0.0);
+        addPath(path8, 0.5);
 
         // 9 GATE
         addPath(path9, 0.0);

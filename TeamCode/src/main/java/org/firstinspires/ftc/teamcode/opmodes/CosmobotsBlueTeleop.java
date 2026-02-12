@@ -13,6 +13,10 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
+import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.BulkCacheManager;
+import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.HardwareWriteCache;
+import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.TelemetryThrottler;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
@@ -22,6 +26,10 @@ import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 public class CosmobotsBlueTeleop extends OpMode {
     private Follower follower;  // Follower includes Pinpoint localization
     private MultipleTelemetry telemetryA;
+    private PIDFController shooterPID;
+    private VoltageSensor voltageSensor;
+    private BulkCacheManager bulkCache;
+    private TelemetryThrottler telemetryThrottler;
 
     private DcMotorEx fl, fr, bl, br;
 
@@ -39,7 +47,6 @@ public class CosmobotsBlueTeleop extends OpMode {
     private Servo indexfront;
     private Servo indexback;
 
-    private PIDFController shooterPID;
 
     // =========================
     // BLUE MIRROR DEFINITIONS
@@ -189,6 +196,9 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     @Override
     public void init() {
+        HardwareWriteCache.clear(); // Reset cached writes on init
+        bulkCache = new BulkCacheManager(hardwareMap);
+        telemetryThrottler = new TelemetryThrottler(8.0); // ~8 Hz telemetry
         follower = Constants.createFollower(hardwareMap);
         try {
             if (PoseStore.hasSaved()) {
@@ -248,7 +258,8 @@ public class CosmobotsBlueTeleop extends OpMode {
         transferTimer = new ElapsedTime();
 
         telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
-        telemetryA.setMsTransmissionInterval(11);
+        
+        try { voltageSensor = hardwareMap.voltageSensor.iterator().next(); } catch (Exception ignored) { voltageSensor = null; }
 
         try {
             limelight = hardwareMap.get(Limelight3A.class, "limelight");
@@ -261,8 +272,8 @@ public class CosmobotsBlueTeleop extends OpMode {
         }
 
         // safeindexer behavior on init
-        if (indexfront != null) indexfront.setPosition(INDEX_FRONT_RETRACTED);
-        if (indexback  != null) indexback.setPosition(INDEX_BACK_EXTENDED);
+        if (indexfront != null) HardwareWriteCache.setServoPosition(indexfront, INDEX_FRONT_RETRACTED);
+        if (indexback  != null) HardwareWriteCache.setServoPosition(indexback, INDEX_BACK_EXTENDED);
 
         telemetryA.addLine("Cosmobots Blue TeleOp - Localization + Shooter");
         telemetryA.update();
@@ -270,6 +281,10 @@ public class CosmobotsBlueTeleop extends OpMode {
 
     @Override
     public void loop() {
+        if (bulkCache != null) {
+            bulkCache.clear(); // Manual bulk cache clear once per loop
+        }
+        follower.update(); // Update Pinpoint localization each loop
         boolean dpadLeft  = gamepad1.dpad_left;
         boolean dpadRight = gamepad1.dpad_right;
 
@@ -288,7 +303,8 @@ public class CosmobotsBlueTeleop extends OpMode {
         if (dpadUp && !lastDpadUp) farShootingEnabled = !farShootingEnabled;
         lastDpadUp = dpadUp;
 
-        follower.update();
+        
+        double currentVoltage = (voltageSensor != null) ? voltageSensor.getVoltage() : NOMINAL_VOLTAGE;
 
         boolean xPressed = gamepad1.x;
         if (xPressed && !lastX) {
@@ -318,7 +334,8 @@ public class CosmobotsBlueTeleop extends OpMode {
         double currentY  = currentPose.getY();
         double currentHeading = currentPose.getHeading();
 
-        // Turret aim
+        /*
+        // Turret aim (disabled)
         double deltaX = targetX - currentX;
         double deltaY = targetY - currentY;
 
@@ -343,22 +360,23 @@ public class CosmobotsBlueTeleop extends OpMode {
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
 
-        turret1.setPosition(turret1Pos - 0.01);
-        turret2.setPosition(servoPosition - 0.01);
+        HardwareWriteCache.setServoPosition(turret1, turret1Pos - 0.01);
+        HardwareWriteCache.setServoPosition(turret2, servoPosition - 0.01);
+        */
 
         // Intake manual controls (bumpers)
         if (!autoTransfer) {
-            if (gamepad1.left_bumper) intakeback.setPower(1.0);
-            else intakeback.setPower(0);
+            if (gamepad1.left_bumper) HardwareWriteCache.setMotorPower(intakeback, 1.0);
+            else HardwareWriteCache.setMotorPower(intakeback, 0);
 
-            if (gamepad1.right_bumper) intakefront.setPower(1.0);
-            else intakefront.setPower(0);
+            if (gamepad1.right_bumper) HardwareWriteCache.setMotorPower(intakefront, 1.0);
+            else HardwareWriteCache.setMotorPower(intakefront, 0);
         }
 
         // Launchgate idle rule
         boolean intakeCommanded = gamepad1.left_bumper || gamepad1.right_bumper;
         if (!shooting && !autoTransfer) {
-            launchgate.setPosition(intakeCommanded ? LAUNCHGATE_DOWN : LAUNCHGATE_TWO_FIFTHS);
+            HardwareWriteCache.setServoPosition(launchgate, intakeCommanded ? LAUNCHGATE_DOWN : LAUNCHGATE_TWO_FIFTHS);
         }
 
         // Distance to goal for RPM / hood
@@ -394,8 +412,8 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 1:
-                    intakefront.setPower(-1.0);
-                    intakeback.setPower(-1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, -1.0);
+                    HardwareWriteCache.setMotorPower(intakeback, -1.0);
                     if (shootTimer.seconds() > 0.1 * shootDelayScale) {
                         shootState = 2;
                         shootTimer.reset();
@@ -403,7 +421,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 2:
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) {
                         shootState = 3;
                         shootTimer.reset();
@@ -411,7 +429,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 3:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.3 * shootDelayScale) {
                         shootState = 4;
                         shootTimer.reset();
@@ -419,7 +437,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 4:
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) {
                         shootState = 5;
                         shootTimer.reset();
@@ -427,7 +445,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 5:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.3 * shootDelayScale) {
                         shootState = 6;
                         shootTimer.reset();
@@ -435,7 +453,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 6:
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) {
                         shootState = 7;
                         shootTimer.reset();
@@ -443,7 +461,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 7:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.3 * shootDelayScale) {
                         shooting = false;
                         shootState = 8;
@@ -451,7 +469,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 8:
-                    launchgate.setPosition(LAUNCHGATE_FULL_UP);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_FULL_UP);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) {
                         shootState = 9;
                         shootTimer.reset();
@@ -459,7 +477,7 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 9:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) {
                         shooting = false;
                         shootState = 10;
@@ -467,8 +485,8 @@ public class CosmobotsBlueTeleop extends OpMode {
                     break;
 
                 case 10:
-                    intakefront.setPower(0);
-                    intakeback.setPower(0);
+                    HardwareWriteCache.setMotorPower(intakefront, 0);
+                    HardwareWriteCache.setMotorPower(intakeback, 0);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) {
                         shooting = false;
                         shootState = 0;
@@ -540,8 +558,8 @@ public class CosmobotsBlueTeleop extends OpMode {
             currentHoodPos = hoodMax + hoodT * (HOOD_MIN_POS - hoodMax);
             currentHoodPos = Math.max(0.0, Math.min(1.0, currentHoodPos));
         }
-        hood1.setPosition(currentHoodPos);
-        hood2.setPosition(currentHoodPos);
+        HardwareWriteCache.setServoPosition(hood1, currentHoodPos);
+        HardwareWriteCache.setServoPosition(hood2, currentHoodPos);
 
         // Shooter PID setup
         shooterPID.setPIDF(currentP, currentI, currentD, currentF);
@@ -577,15 +595,15 @@ public class CosmobotsBlueTeleop extends OpMode {
             shooterPower = Math.max(-BRAKE_MAX_POWER, Math.min(1.0, shooterPower));
 
             // Voltage compensation
-            double voltage = hardwareMap.voltageSensor.iterator().next().getVoltage();
+            double voltage = currentVoltage;
             double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / voltage);
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
 
-            shootr.setPower(compensatedPower);
-            shootl.setPower(compensatedPower);
+            HardwareWriteCache.setMotorPower(shootr, compensatedPower);
+            HardwareWriteCache.setMotorPower(shootl, compensatedPower);
         } else {
-            shootr.setPower(0);
-            shootl.setPower(0);
+            HardwareWriteCache.setMotorPower(shootr, 0);
+            HardwareWriteCache.setMotorPower(shootl, 0);
             shooterPID.reset();
         }
 
@@ -601,58 +619,58 @@ public class CosmobotsBlueTeleop extends OpMode {
         if (autoTransfer) {
             switch (transferState) {
                 case 0:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (transferTimer.seconds() > 0.1) { transferState = 1; transferTimer.reset(); }
                     break;
 
                 case 1:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.1) { transferState = 2; transferTimer.reset(); }
                     break;
 
                 case 2:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (transferTimer.seconds() > 0.1) { transferState = 3; transferTimer.reset(); }
                     break;
 
                 case 3:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.15) { transferState = 4; transferTimer.reset(); }
                     break;
 
                 case 4:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_FULL_UP);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_FULL_UP);
                     if (transferTimer.seconds() > 0.1) { transferState = 5; transferTimer.reset(); }
                     break;
 
                 case 5:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.1) { transferState = 6; transferTimer.reset(); }
                     break;
 
                 case 6:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_FULL_UP);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_FULL_UP);
                     if (transferTimer.seconds() > 0.1) { transferState = 7; transferTimer.reset(); }
                     break;
 
                 case 7:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
-                    intakeback.setPower(0.0);
-                    intakefront.setPower(0.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 0.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 0.0);
                     autoTransfer = false;
                     transferState = 0;
                     break;
@@ -671,15 +689,16 @@ public class CosmobotsBlueTeleop extends OpMode {
         // =========================
         // CURRENT DRAW TELEMETRY
 
-        telemetryA.addData("Pose", "x=%.1f y=%.1f h=%.1f", currentX, currentY, Math.toDegrees(currentHeading));
-        telemetryA.addData("FarShootingEnabled", farShootingEnabled ? "ON" : "OFF");
-        telemetryA.addData("InFarWindow", inFarWindow);
-        telemetryA.addData("RPM cap @7ft", "%.0f", rpmCapAt7Ft);
-        telemetryA.addData("TargetRPM", "%.0f", calculatedTargetRPM);
-        telemetryA.addData("ActualRPM", "%.0f", avgVelocityRPM);
-        telemetryA.addData("HoodPos", "%.3f", currentHoodPos);
-
-        telemetryA.update();
+        if (telemetryThrottler == null || telemetryThrottler.shouldUpdate()) {
+            telemetryA.addData("Pose", "x=%.1f y=%.1f h=%.1f", currentX, currentY, Math.toDegrees(currentHeading));
+            telemetryA.addData("FarShootingEnabled", farShootingEnabled ? "ON" : "OFF");
+            telemetryA.addData("InFarWindow", inFarWindow);
+            telemetryA.addData("RPM cap @7ft", "%.0f", rpmCapAt7Ft);
+            telemetryA.addData("TargetRPM", "%.0f", calculatedTargetRPM);
+            telemetryA.addData("ActualRPM", "%.0f", avgVelocityRPM);
+            telemetryA.addData("HoodPos", "%.3f", currentHoodPos);
+            telemetryA.update();
+        }
     }
 
     private static double rpmToTicksPerSec(double rpm) {
@@ -693,19 +712,25 @@ public class CosmobotsBlueTeleop extends OpMode {
     }
 
     private void setLedColor(double position) {
-        if (led1 != null) led1.setPosition(position);
-        if (led2 != null) led2.setPosition(position);
+        if (led1 != null) HardwareWriteCache.setServoPosition(led1, position);
+        if (led2 != null) HardwareWriteCache.setServoPosition(led2, position);
     }
 
     @Override
     public void stop() {
-        shootr.setPower(0);
-        shootl.setPower(0);
-        intakefront.setPower(0);
-        intakeback.setPower(0);
+        HardwareWriteCache.setMotorPower(shootr, 0);
+        HardwareWriteCache.setMotorPower(shootl, 0);
+        HardwareWriteCache.setMotorPower(intakefront, 0);
+        HardwareWriteCache.setMotorPower(intakeback, 0);
         fl.setPower(0);
         fr.setPower(0);
         bl.setPower(0);
         br.setPower(0);
     }
 }
+
+
+
+
+
+

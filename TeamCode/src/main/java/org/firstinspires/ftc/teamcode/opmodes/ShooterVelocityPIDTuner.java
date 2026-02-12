@@ -3,6 +3,7 @@ package org.firstinspires.ftc.teamcode.opmodes;
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
+import com.qualcomm.robotcore.eventloop.opmode.Disabled;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -12,6 +13,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 @Config
 @TeleOp(name = "Shooter Velocity PIDF (6000RPM 23:20)", group = "Tuning")
+@Disabled
 public class ShooterVelocityPIDTuner extends LinearOpMode {
 
     /* ================= ENCODER / GEARING ================= */

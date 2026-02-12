@@ -13,6 +13,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 
 @Config
 @TeleOp(name = "Shooter Velocity Tuner", group = "Tuning")
+@Disabled
+
 public class ShooterVelocityTuner extends LinearOpMode {
     
     public static double TARGET_VELOCITY = 1000;

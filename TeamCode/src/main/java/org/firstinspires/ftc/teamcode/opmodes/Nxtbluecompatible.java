@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import com.acmerobotics.roadrunner.SequentialAction;
+import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.BezierCurve;
 import com.pedropathing.geometry.BezierLine;
@@ -19,7 +21,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-@Autonomous(name = "1 - idiotblueautocompatible")
+@Autonomous(name = "1 - Nxtbluecompatible")
 public class Nxtbluecompatible extends PathChainAutoOpMode {
 
     private Follower follower;
@@ -38,7 +40,7 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
     // =========================
     // BLUE turret target (mirror of RED target (128,125) -> (16,125))
     // =========================
-    public static double targetX = 16.0;
+    public static double targetX = 22;
     public static double targetY = 125.0;
 
     // Turret servo constants
@@ -56,19 +58,29 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
     // Shooter boost logic (same as your standard)
     private static final double SHOOT_RPM_BOOST = 1700.0;
     private static final double SHOOT_RPM_HOLD  = 1050.0;
-    private static final double BOOST_EXIT_RPM  = 1050.0;
+    private static final double BOOST_EXIT_RPM  = 1040.0;
     private static final double BOOST_REARM_RPM = 850.0;
     private boolean shooterBoostActive = true;
 
     // Requested params
-    private static final double SHOOT_CALLBACK_T = 0.98;
+    private static final double SHOOT_CALLBACK_T = 0.9;
     private static final double SHOOT_PATH_DECEL = 0.47;
     private static final double NONSHOOT_DECEL   = 0.5;
-    private static final double SHOOT_END_WAIT_S = 1.0;
+    private static final double SHOOT_END_WAIT_S = 1.3;
 
     // Shooting paths set (explicit)
     private final Set<PathChain> shooterPaths = new HashSet<>();
     private final Map<PathChain, Pose> predictedEndPoseByPath = new HashMap<>();
+    // =========================
+    // MIRROR HELPERS (BLUE -> RED)
+    // Mirror across the FIELD CENTERLINE in X:
+    // (x, y, heading) -> (144 - x, y, PI - heading)
+    // =========================
+    public static double FIELD_SIZE_X_IN = 144.0;
+
+    private static double mx(double x) { return FIELD_SIZE_X_IN - x; }
+
+    private static double mh(double headingRad) { return normalizeRadians(Math.PI - headingRad); }
 
     private static double normalizeRadians(double a) {
         while (a > Math.PI)  a -= 2.0 * Math.PI;
@@ -130,7 +142,7 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         run(actions.safeindexer());
 
         // Start pose = first pose of Path1 (BLUE)
-        follower.setStartingPose(new Pose(34.671, 134.428, Math.toRadians(270)));
+        follower.setStartingPose(new Pose(35, 134.428, mh(Math.toRadians(270))));
 
         buildPathChains();
         buildTaskList();
@@ -185,22 +197,17 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 1 (SHOOT)
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(34.671, 134.428),
-                        new Pose(52.538, 84.869)
+                        new Pose(35, 134.428), new Pose(53, 84.869)
                 ))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(270),
-                        Math.toRadians(180)
-                )
+                .setLinearHeadingInterpolation(Math.toRadians(270), mh(Math.toRadians(180)))
                 .setGlobalDeceleration(SHOOT_PATH_DECEL)
-                .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
+                .addParametricCallback(SHOOT_CALLBACK_T, this::launch3fasterWithDelay)
                 .build();
 
         // PATH 2 (INTAKE)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(52.538, 84.869),
-                        new Pose(22.0, 84.656)
+                        new Pose(53, 84.869), new Pose(22, 84.656)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(1)
@@ -211,14 +218,11 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 3 (GATE => INTAKE ONLY)
         path3 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(22.0, 84.656),
-                        new Pose(24.886, 78.275),
-                        new Pose(21.0, 74.021)
+                        new Pose(22, 84.656), new Pose(40, 78.275),
+                        new Pose(21, 80.0)
                 ))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180),
-                        Math.toRadians(90)
-                )
+                //.setLinearHeadingInterpolation(Math.toRadians(180), mh(Math.toRadians(90)))
+                .setConstantHeadingInterpolation(0)
                 .setTValueConstraint(0.95)
                 .setBrakingStrength(1)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -227,25 +231,20 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 4 (SHOOT)
         path4 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(21.0, 74.021),
-                        new Pose(52.538, 85.081)
+                        new Pose(21, 80.0), new Pose(53, 85.081)
                 ))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(90),
-                        Math.toRadians(180)
-                )
+                .setLinearHeadingInterpolation(Math.toRadians(180), mh(Math.toRadians(180)))
                 .setGlobalDeceleration(SHOOT_PATH_DECEL)
-                .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
+                .addParametricCallback(SHOOT_CALLBACK_T, this::launch3fasterWithDelay)
                 .build();
 
         // PATH 5 (INTAKE)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(52.538, 85.081),
-                        new Pose(46.369, 57.855),
-                        new Pose(14.0, 58.706)
+                        new Pose(53, 85.081), new Pose(46, 57.855),
+                        new Pose(14, 58.706)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(230), mh(Math.toRadians(180)))
                 .setBrakingStrength(1)
                 .setTValueConstraint(0.95)
 
@@ -255,14 +254,10 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 6 (GATE => INTAKE ONLY)
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(14.0, 58.706),
-                        new Pose(19.569, 62.535),
-                        new Pose(17.0, 66.789)
+                        new Pose(14, 58.706), new Pose(20, 62.535),
+                        new Pose(17, 66.789)
                 ))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180),
-                        Math.toRadians(270)
-                )
+                .setLinearHeadingInterpolation(Math.toRadians(180), mh(Math.toRadians(270)))
                 .setTValueConstraint(0.95)
                 .setBrakingStrength(1)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -271,25 +266,20 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 7 (SHOOT)
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(17.0, 66.789),
-                        new Pose(52.538, 84.656)
+                        new Pose(17, 66.789), new Pose(53, 84.656)
                 ))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(270),
-                        Math.toRadians(230)
-                )
+                .setLinearHeadingInterpolation(Math.toRadians(270), mh(Math.toRadians(230)))
                 .setGlobalDeceleration(SHOOT_PATH_DECEL)
-                .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
+                .addParametricCallback(SHOOT_CALLBACK_T, this::launch3fasterWithDelay)
                 .build();
 
         // PATH 8 (INTAKE)
         path8 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(52.538, 84.656),
-                        new Pose(51.900, 32.544),
-                        new Pose(14.0, 33.394)
+                        new Pose(53, 84.656), new Pose(52, 32.544),
+                        new Pose(14, 33.394)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(230), Math.toRadians(180))
+                .setLinearHeadingInterpolation(Math.toRadians(230), mh(Math.toRadians(180)))
                 .setBrakingStrength(1)
                 .setTValueConstraint(0.95)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -298,14 +288,10 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 9 (GATE => INTAKE ONLY)
         path9 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(14.0, 33.394),
-                        new Pose(30.629, 59.557),
-                        new Pose(17.0, 69.554)
+                        new Pose(14, 33.394), new Pose(31, 59.557),
+                        new Pose(17, 69.554)
                 ))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(180),
-                        Math.toRadians(270)
-                )
+                .setLinearHeadingInterpolation(Math.toRadians(180), mh(Math.toRadians(270)))
                 .setBrakingStrength(1)
                 .setTValueConstraint(0.95)
 
@@ -315,23 +301,18 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 10 (SHOOT)
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(17.0, 69.554),
-                        new Pose(52.538, 84.869)
+                        new Pose(17, 69.554), new Pose(53, 84.869)
                 ))
-                .setLinearHeadingInterpolation(
-                        Math.toRadians(270),
-                        Math.toRadians(230)
-                )
+                .setLinearHeadingInterpolation(Math.toRadians(270), mh(Math.toRadians(230)))
                 .setGlobalDeceleration(SHOOT_PATH_DECEL)
-                .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
+                .addParametricCallback(SHOOT_CALLBACK_T, this::launch3fasterWithDelay)
                 .build();
 
         // PATH 11 (INTAKE)
         path11 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(52.538, 84.869),
-                        new Pose(52.538, 30.00),
-                        new Pose(10.00, 30.00)
+                        new Pose(53, 84.869), new Pose(53, 30.00),
+                        new Pose(10, 30.00)
                 ))
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
@@ -342,36 +323,35 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         // PATH 12 (SHOOT) (reversed(true) per your source note)
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(10.00, 30.00),
-                        new Pose(52.325, 84.656)
+                        new Pose(10, 30.00), new Pose(52, 84.656)
                 ))
                 .setTangentHeadingInterpolation()
                 .setReversed()
                 .setTValueConstraint(0.95)
                 .setGlobalDeceleration(SHOOT_PATH_DECEL)
-                .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
+                .addParametricCallback(SHOOT_CALLBACK_T, this::launch3fasterWithDelay)
                 .build();
 
         // PATH 13 (PARK)
         path13 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(52.325, 84.656),
-                        new Pose(44.668, 75.722)
+                        new Pose(52, 84.656), new Pose(45, 75.722)
                 ))
                 .setTangentHeadingInterpolation()
-                .setNoDeceleration()
+                .setGlobalDeceleration(SHOOT_PATH_DECEL)
+
                 .build();
 
         // -------------------------
         // Register shooter paths for lead-aim prediction (end-of-path aim)
         // -------------------------
-        registerShooterLine(path1,  34.671, 134.428, 52.538, 84.869, false);
-        registerShooterLine(path4,  17.654, 74.021,  52.538, 85.081, false);
-        registerShooterLine(path7,  16.591, 66.789,  52.538, 84.656, false);
-        registerShooterLine(path10, 16.591, 69.554,  52.538, 84.869, false);
+        registerShooterLine(path1,  35, 134.428,  53, 84.869, false);
+        registerShooterLine(path4,  18, 74.021,  53, 85.081, false);
+        registerShooterLine(path7,  17, 66.789,  53, 84.656, false);
+        registerShooterLine(path10,  17, 69.554,  53, 84.869, false);
 
         // Path12 is a line and reversed(true)
-        registerShooterLine(path12, 14.251, 31.480,  52.325, 84.656, true);
+        registerShooterLine(path12,  14, 31.480,  52, 84.656, true);
     }
 
     @Override
@@ -406,13 +386,13 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         addPath(path9, 0.0);
 
         // 10 SHOOT (wait 1.0)
-        tasks.add(new PathChainTask(path10, SHOOT_END_WAIT_S));
+        tasks.add(new PathChainTask(path10, 2.0));
 
         // 11 INTAKE
-        addPath(path11, 0.0);
+        //addPath(path11, 0.0);
 
         // 12 SHOOT (wait 1.0)
-        tasks.add(new PathChainTask(path12, SHOOT_END_WAIT_S));
+        //tasks.add(new PathChainTask(path12, SHOOT_END_WAIT_S));
 
         // 13 PARK
         addPath(path13, 0.0);
@@ -444,9 +424,7 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         return Math.atan2(y2 - y1, x2 - x1);
     }
 
-    private void registerShooterLine(PathChain path,
-                                     double xStart, double yStart,
-                                     double xEnd, double yEnd,
+    private void registerShooterLine(PathChain path,  double xStart, double yStart,  double xEnd, double yEnd,
                                      boolean reversed) {
         double tangent = headingFromPoints(xStart, yStart, xEnd, yEnd);
         double endHeading = reversed ? normalizeRadians(tangent + Math.PI) : normalizeRadians(tangent);
@@ -464,21 +442,7 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
     }
 
     private Pose getTurretAimPose() {
-        Pose live = follower.getPose();
-
-        // Only lead-aim while driving shooter paths
-        if (taskPhase != 0) return live;
-
-        PathChain active = getActivePathIfAny();
-        if (active == null || !shooterPaths.contains(active)) return live;
-
-        double t = follower.getCurrentTValue();
-        if (t < TURRET_LEAD_SWITCH_T) {
-            Pose predicted = predictedEndPoseByPath.get(active);
-            if (predicted != null) return predicted;
-        }
-
-        return live;
+        return follower.getPose();
     }
 
     // =========================
@@ -515,10 +479,12 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
 
         // BLUE constraint: only <= center
         servoPosition = Math.min(turretCenterPosition, servoPosition);
+        servoPosition = Math.max(0.5, servoPosition);
 
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
         turret1Pos = Math.min(turretCenterPosition, turret1Pos);
+        turret1Pos = Math.max(0.5, turret1Pos);
 
         turret1.setPosition(turret1Pos - 0.01);
         turret2.setPosition(servoPosition - 0.01);
@@ -529,9 +495,18 @@ public class Nxtbluecompatible extends PathChainAutoOpMode {
         telemetry.addData("TurretAimT", "%.2f", t);
     }
 
+    private void launch3fasterWithDelay() {
+        run(new SequentialAction(
+                new SleepAction(0.2),
+                actions.launch3faster()
+        ));
+    }
+
     @Override
     public void stop() {
         try { PoseStore.save(follower.getPose()); } catch (Exception ignored) {}
         super.stop();
     }
 }
+
+

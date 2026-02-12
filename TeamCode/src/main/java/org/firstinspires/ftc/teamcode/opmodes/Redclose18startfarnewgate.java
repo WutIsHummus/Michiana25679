@@ -55,14 +55,17 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
     private static final double TURRET_LIVE_T = 0.95;
 
     // Shooter setpoints
-    private static final double BASE_TARGET_RPM   = 1150;
+    private static final double BASE_TARGET_RPM   = 1100;
     private static final double LATE_TARGET_RPM   = 1390;
 
     private boolean afterPath10 = false; // becomes true via callback at start of path10
+    private double desiredHoldRpm = BASE_TARGET_RPM;
+    private com.acmerobotics.roadrunner.Action currentHoldAction = null;
+    private double currentHoldRpm = Double.NaN;
 
     // Deceleration settings
-    private static final double GLOBAL_DECEL = 0.55;
-    private static final double PATH12FAR_DECEL = 0.46;
+    private static final double GLOBAL_DECEL = 0.57;
+    private static final double PATH12FAR_DECEL = 0.55;
 
     // =========================
     // New Path 6.5 (from your screenshot)
@@ -138,6 +141,8 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
 
         buildPathChains();
         buildTaskList();
+
+        desiredHoldRpm = BASE_TARGET_RPM;
     }
 
     @Override
@@ -148,6 +153,9 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         //run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
 
         pathTimer.resetTimer();
+        afterPath10 = false;
+        desiredHoldRpm = BASE_TARGET_RPM;
+        updateShooterHold(desiredHoldRpm);
     }
 
     @Override
@@ -158,7 +166,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         // Turret aiming (predictive until t>=0.95 on shoot paths)
         updateTurret();
 
-        // Shooter hold is NOT calculated in loop() (match your working structure)
 
         runTasks();
 
@@ -183,11 +190,8 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
-                        new SleepAction(0.1),
+                        new SleepAction(0.2),
                         actions.launch3faster()
                 )))
                 .build();
@@ -197,26 +201,24 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(83.421, 87.421),
-                        new Pose(122.0, 80.000)))
+                        new Pose(118.0, 80.000)))
                 .setTangentHeadingInterpolation()
-                .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
+                .addParametricCallback(0.0, () -> {
+                    desiredHoldRpm = BASE_TARGET_RPM - 20.0;
+                    updateShooterHold(desiredHoldRpm);
+                    run(actions.startIntake());
+                })
                 .build();
 
         // PATH 3 (shoot path)
         // Blue: (20,82) -> (56.792,87.421)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(122.000, 80.000),
+                        new Pose(118.0, 80.000),
                         new Pose(83.208, 87.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(SHOOT_DELAY_S),
                         actions.launch3faster()
@@ -229,27 +231,21 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(83.208, 87.421),
                         new Pose(85.335, 29.000),
-                        new Pose(130.0, 32.00)))
+                        new Pose(130.0, 36.00)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .build();
 
         // PATH 5 (shoot path)
         // Blue: (10,25) -> (54.665,35.734) -> (56.579,87.634)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(130.0, 32.00),
+                        new Pose(130.0, 36.00),
                         new Pose(85.335, 35.734),
                         new Pose(83.421, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(0.6)
                 .setGlobalDeceleration(0.55)
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(SHOOT_DELAY_S),
                         actions.launch3faster()
@@ -262,20 +258,17 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(83.421, 87.634),
                         new Pose(90.000, 48.000),
-                        new Pose(126.000, 52.000)))
+                        new Pose(126.000, 56.000)))
                 .setLinearHeadingInterpolation(Math.toRadians(-50), Math.toRadians(-355))
                 .setTValueConstraint(0.9)
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .build();
 
         // PATH 6.5 (intake)
         path6_5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(126.000, 52.000),
+                        new Pose(126.000, 56.00),
                         new Pose(120, 55),
                         new Pose(124, 66.000)
                 ))
@@ -283,9 +276,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .setNoDeceleration()
                 .setTValueConstraint(0.9)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .build();
 
         // PATH 7 (shoot path)
@@ -297,9 +287,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .setReversed()
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(0.65)
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(SHOOT_DELAY_S),
                         actions.launch3faster()
@@ -316,9 +303,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setNoDeceleration()
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .build();
 
         // PATH 9 (shoot path)
@@ -328,9 +312,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                         new Pose(83.421, 87.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(0.65)
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 30)))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(SHOOT_DELAY_S),
                         actions.launch3faster()
@@ -349,14 +330,13 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                 .addParametricCallback(0.0, () -> {
                     afterPath10 = true;
                     targetX = 118;
+                    desiredHoldRpm = LATE_TARGET_RPM;
+                    updateShooterHold(desiredHoldRpm);
                     run(actions.startIntake());
-                    run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30));
                 })
                 .addParametricCallback(0.5, () -> {
                     hood1.setPosition(0.45);
                 })
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
                 .build();
 
         // path12far (shoot)
@@ -366,9 +346,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                         new Pose(83.000, 13.000)))
                 .setConstantHeadingInterpolation(Math.toRadians(-360))
                 .setGlobalDeceleration(PATH12FAR_DECEL)
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(SHOOT_DELAY_S),
                         actions.launch3faster()
@@ -382,9 +359,6 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
                         new Pose(110.00, 13.00)))
                 .setTangentHeadingInterpolation()
                 .setGlobalDeceleration(0.5)
-                .addParametricCallback(0.0, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
-                .addParametricCallback(0.5, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
-                .addParametricCallback(1.0, () -> run(actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 30)))
                 .build();
     }
 
@@ -392,61 +366,48 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        final double WAIT_AFTER_SHOOT = 0.8;
+        final double WAIT_AFTER_SHOOT = 1.2;
 
         // IMPORTANT: no addPath() calls; use explicit PathChainTask everywhere (match working structure)
 
-        PathChainTask t1 = new PathChainTask(path1, 1.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t1 = new PathChainTask(path1, 1.25);
         tasks.add(t1);
 
-        PathChainTask t2 = new PathChainTask(path2, 0.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t2 = new PathChainTask(path2, 0.0);
         tasks.add(t2);
 
-        PathChainTask t3 = new PathChainTask(path3, WAIT_AFTER_SHOOT)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t3 = new PathChainTask(path3, WAIT_AFTER_SHOOT);
         tasks.add(t3);
 
-        PathChainTask t4 = new PathChainTask(path4, 0.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t4 = new PathChainTask(path4, 0.0);
         tasks.add(t4);
 
-        PathChainTask t5 = new PathChainTask(path5, WAIT_AFTER_SHOOT)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t5 = new PathChainTask(path5, WAIT_AFTER_SHOOT);
         tasks.add(t5);
 
-        PathChainTask t6 = new PathChainTask(path6, 0.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t6 = new PathChainTask(path6, 0.0);
         tasks.add(t6);
 
-        PathChainTask t6_5 = new PathChainTask(path6_5, 0.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t6_5 = new PathChainTask(path6_5, 0.0);
         tasks.add(t6_5);
 
-        PathChainTask t7 = new PathChainTask(path7, WAIT_AFTER_SHOOT)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t7 = new PathChainTask(path7, WAIT_AFTER_SHOOT);
         tasks.add(t7);
 
-        PathChainTask t8 = new PathChainTask(path8, 0.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t8 = new PathChainTask(path8, 0.0);
         tasks.add(t8);
 
         // After path10 starts, we switch to LATE rpm, but we still keep a hold wait action here too.
-        PathChainTask t9 = new PathChainTask(path9, WAIT_AFTER_SHOOT)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(BASE_TARGET_RPM, 9999));
+        PathChainTask t9 = new PathChainTask(path9, WAIT_AFTER_SHOOT);
         tasks.add(t9);
 
-        PathChainTask t10 = new PathChainTask(path10, 0.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 9999));
+        PathChainTask t10 = new PathChainTask(path10, 0.0);
         tasks.add(t10);
 
-        PathChainTask t12 = new PathChainTask(path12far, 1.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 9999));
+        PathChainTask t12 = new PathChainTask(path12far, 1.0);
         tasks.add(t12);
 
-        PathChainTask tLeave = new PathChainTask(leave, 0.0)
-                .addWaitAction(0, actions.holdShooterAtRPMclose(LATE_TARGET_RPM, 9999));
+        PathChainTask tLeave = new PathChainTask(leave, 0.0);
         tasks.add(tLeave);
     }
 
@@ -603,6 +564,19 @@ public class Redclose18startfarnewgate extends PathChainAutoOpMode {
         while (a > Math.PI)  a -= 2.0 * Math.PI;
         while (a < -Math.PI) a += 2.0 * Math.PI;
         return a;
+    }
+
+    private void updateShooterHold(double targetRpm) {
+        if (actions == null) return;
+        boolean holdMissing = currentHoldAction == null || !runningActions.contains(currentHoldAction);
+        if (holdMissing || Math.abs(targetRpm - currentHoldRpm) > 1e-6) {
+            if (currentHoldAction != null) {
+                stop(currentHoldAction);
+            }
+            currentHoldRpm = targetRpm;
+            currentHoldAction = actions.holdShooterAtRPMclose(targetRpm, 9999);
+            run(currentHoldAction);
+        }
     }
 
     @Override

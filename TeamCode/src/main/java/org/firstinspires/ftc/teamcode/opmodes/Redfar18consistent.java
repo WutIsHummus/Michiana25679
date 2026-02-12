@@ -1,5 +1,9 @@
 package org.firstinspires.ftc.teamcode.opmodes;
 
+import androidx.annotation.NonNull;
+
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.SequentialAction;
 import com.acmerobotics.roadrunner.SleepAction;
 import com.pedropathing.follower.Follower;
@@ -31,11 +35,23 @@ public class Redfar18consistent extends PathChainAutoOpMode {
     private PathChain path1, path2, path3, path4, path5, grab3wide, leave;
 
     // =========================
-    // Goal + turret constants (RED) = mirrored from BLUE
-    // BLUE targetX = 144 - 130 = 14
-    // RED  targetX = 144 - 14  = 130
+    // MIRROR HELPERS (BLUE -> RED)
+    // Mirror across the FIELD CENTERLINE in X:
+    // (x, y, heading) -> (144 - x, y, PI - heading)
     // =========================
-    public static double targetX = 130.0;
+    public static double FIELD_SIZE_X_IN = 144.0;
+
+    private static double mirrorX(double x) { return FIELD_SIZE_X_IN - x; }
+
+    private static double mirrorHeadingRad(double h) {
+        return normalizeRadians(Math.PI - h);
+    }
+
+    // =========================
+    // Goal + turret constants (RED)
+    // BLUE targetX = mirrorX(128) = 16  => RED targetX = 144 - 16 = 128
+    // =========================
+    public static double targetX = 128.0;
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;   // 0 deg
@@ -47,18 +63,20 @@ public class Redfar18consistent extends PathChainAutoOpMode {
     public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     // Keep identical behavior to your BLUE code (as requested: mirror everything)
-    private static final double TURRET_LIVE_T = 0.8;
+    private static final double TURRET_LIVE_T = 0.95;
 
-    private static final double TARGET_RPM = 1380;
+    private static final double TARGET_RPM = 1390;
     private static final double HOOD_POS   = 0.44;
-    // =========================
-// RPM Boost logic
-// =========================
-    private static final double SHOOT_RPM_BOOST = 9000.0;   // boost rpm
-    private static final double BOOST_EXIT_RPM  = TARGET_RPM; // exit boost when avg rpm >= this
-    private static final double BOOST_REARM_RPM = 850.0;      // re-arm boost when avg rpm <= this
-    private boolean shooterBoostActive = true;
+    private static final double START_BOOST_RPM = 8000.0;
 
+    private double desiredHoldRpm = TARGET_RPM;
+    private Action currentHoldAction = null;
+    private double currentHoldRpm = Double.NaN;
+    private Action shooterHoldUpdater = null;
+    private boolean startBoostActive = true;
+    private double pendingHoldRpm = TARGET_RPM;
+    private boolean holdUpdatePending = false;
+    private boolean preloadBoostActive = true;
 
     @Override
     public void init() {
@@ -109,10 +127,10 @@ public class Redfar18consistent extends PathChainAutoOpMode {
         // Required
         run(actions.safeindexer());
 
-        // Starting pose mirrored from BLUE:
-        // BLUE start: (57.217, 8.934, 180)
+        // Starting pose mirrored from your BLUE:
+        // BLUE start: (57.217, 8.934, PI)
         // RED  start: (144 - 57.217 = 86.783, 8.934, PI - PI = 0)
-        Pose startPose = new Pose(86.783, 8.934, Math.toRadians(0));
+        Pose startPose = new Pose(mirrorX(57.217), 8.934, mirrorHeadingRad(Math.toRadians(180)));
         follower.setStartingPose(startPose);
 
         // Init should aim at the goal as well (hardset once here)
@@ -120,12 +138,40 @@ public class Redfar18consistent extends PathChainAutoOpMode {
 
         buildPathChains();
         buildTaskList();
+
+        shooterHoldUpdater = new Action() {
+            @Override
+            public boolean run(@NonNull TelemetryPacket packet) {
+                double vR   = shootr.getVelocity();
+                double vL   = shootl.getVelocity();
+                double avgRpm = 0.5 * ((vR / 28.0) * 60.0 + (vL / 28.0) * 60.0);
+
+                if (startBoostActive && avgRpm >= TARGET_RPM) {
+                    startBoostActive = false;
+                }
+
+                double baseTarget = preloadBoostActive ? (TARGET_RPM + 50.0) : (TARGET_RPM + 30.0);
+                if (!follower.isBusy() && currentTaskIndex > 0) {
+                    preloadBoostActive = false;
+                }
+
+                desiredHoldRpm = startBoostActive ? START_BOOST_RPM : baseTarget;
+                pendingHoldRpm = desiredHoldRpm;
+                holdUpdatePending = true;
+                return true;
+            }
+        };
+        addBackgroundAction(shooterHoldUpdater);
     }
 
     @Override
     public void start() {
         super.start();
         pathTimer.resetTimer();
+        desiredHoldRpm = TARGET_RPM;
+        startBoostActive = true;
+        preloadBoostActive = true;
+        updateShooterHold(desiredHoldRpm);
     }
 
     @Override
@@ -134,107 +180,104 @@ public class Redfar18consistent extends PathChainAutoOpMode {
         follower.update();
 
         updateTurretAim();
-
-        double vR   = shootr.getVelocity();
-        double vL   = shootl.getVelocity();
-        double rpmR = (vR / 28.0) * 60.0;
-        double rpmL = (vL / 28.0) * 60.0;
-        double avgRpm = 0.5 * (rpmR + rpmL);
-
-        if (shooterBoostActive) {
-            if (avgRpm >= BOOST_EXIT_RPM) shooterBoostActive = false;
-        } else {
-            if (avgRpm <= BOOST_REARM_RPM) shooterBoostActive = true;
-        }
-
-        double requestedRpm = shooterBoostActive ? SHOOT_RPM_BOOST : TARGET_RPM;
-        run(actions.holdShooterAtRPMfar(requestedRpm, 30));
+        applyPendingHoldUpdate();
 
         runTasks();
-
-        telemetry.addData("Task", currentTaskIndex + "/" + tasks.size());
-        telemetry.addData("Phase", (taskPhase == 0) ? "DRIVE" : "WAIT");
-        telemetry.addData("T", follower.getCurrentTValue());
-        telemetry.addData("PathBusy", follower.isBusy());
-        telemetry.update();
     }
 
     @Override
     protected void buildPathChains() {
 
-        // NOTE:
-        // Your BLUE snippet had Path1 end as (55, 11.911) but Path2 starts at (45.093, 11.911),
-        // which breaks continuity. To mirror the *intended* chain, Path1 ends at (45.093, 11.911).
-        // If you truly want Path1 to end at (55, 11.911), tell me and I will mirror that version.
-        //
+        // This is the RED mirror of your BLUE paths.
+        // Mirror rule applied to every pose: x -> 144 - x, heading -> PI - heading.
+
         // BLUE Path1: (57.217, 8.934) -> (45.093, 11.911), heading 180 -> 180
         // RED  Path1: (86.783, 8.934) -> (98.907, 11.911), heading 0 -> 0
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(86.783, 8.934),
-                        new Pose(96.000, 11.911)
+                        new Pose(mirrorX(mirrorX(86.783)), 8.934),
+                        new Pose(mirrorX(mirrorX(93.500)), 11.911)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(0), Math.toRadians(0))
-                .setGlobalDeceleration(0.5)
+                .setConstantHeadingInterpolation(Math.toRadians(0))
+                .setBrakingStrength(2)
                 .addParametricCallback(0.9, () -> run(new SequentialAction(
-                        new SleepAction(1.8),
+                        new SleepAction(1.9),
                         actions.launch3faster()
                 )))
                 .build();
 
-        // BLUE Path2: (45.093, 11.911) -> (18, 10.422)
-        // RED  Path2: (98.907, 11.911) -> (126, 10.422)
+        // BLUE Path2: (45.093, 11.911) -> (18.00, 9.00)
+        // RED  Path2: (98.907, 11.911) -> (126.00, 9.00)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(98.907, 11.911),
-                        new Pose(126.00, 9.00)
+                        new Pose(mirrorX(mirrorX(98.907)), 11.911),
+                        new Pose(mirrorX(mirrorX(126.0)), 9.0)
                 ))
-                .setTangentHeadingInterpolation()
-                .setBrakingStrength(1.5)
+                .setConstantHeadingInterpolation(0)
+                .setBrakingStrength(2.5)
+
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
+
+        // BLUE grab3wide: (45.093, 11.911) -> (16.00, 9.00)
+        // RED  grab3wide: (98.907, 11.911) -> (128.00, 9.00)
         grab3wide = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(98.907, 11.911),
-                        new Pose(128.00, 9.00)
+                        new Pose(mirrorX(mirrorX(98.907)), 11.911),
+                        new Pose(mirrorX(mirrorX(128.0)), 9.00)
                 ))
                 .setTangentHeadingInterpolation()
-                .setBrakingStrength(2)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .setBrakingStrength(2)
+                .addPath(new BezierLine(
+                        new Pose(mirrorX(mirrorX(128.0)), 9.00),
+                        new Pose(mirrorX(mirrorX(120.0)), 9.00)
+                ))
+                .setConstantHeadingInterpolation(0)
+                .setBrakingStrength(2)
+                .addPath(new BezierLine(
+                        new Pose(mirrorX(mirrorX(120.0)), 9.00),
+                        new Pose(mirrorX(mirrorX(128.0)), 8.00)
+                ))
+                .setConstantHeadingInterpolation(0)
+                .setBrakingStrength(2)
+                .addParametricCallback(1.0, () -> targetX = 132.0)
                 .build();
+
+        // BLUE leave: (45.093, 11.911) -> (29.00, 12.00)
+        // RED  leave: (98.907, 11.911) -> (115.00, 12.00)
         leave = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(98.907, 11.911),
-                        new Pose(115.00, 12.00)
+                        new Pose(mirrorX(mirrorX(98.907)), 11.911),
+                        new Pose(mirrorX(mirrorX(105.0)), 14)
                 ))
-                .setTangentHeadingInterpolation()
-                .setBrakingStrength(2)
+                .setConstantHeadingInterpolation(0)
+                .setBrakingStrength(3)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
-        // BLUE Path3: (14, 10.422) -> (15.102, 10.422), reversed
-        // RED  Path3: (130, 10.422) -> (128.898, 10.422), reversed
+        // BLUE Path3: (14.0, 9.00) -> (15.102, 10.422), heading 200 -> 170
+        // RED  Path3: (130.0, 9.00) -> (128.898, 10.422), heading -20 -> 10
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(130.0, 9.00),
-                        new Pose(128.898, 10.422)
+                        new Pose(mirrorX(mirrorX(126.00)), 9.00),
+                        new Pose(mirrorX(mirrorX(128.898)), 8.00)
                 ))
                 .setTangentHeadingInterpolation()
-                .setBrakingStrength(2)
-                .setReversed()
+                .setBrakingStrength(3)
                 .build();
 
-        // Path4 is declared but not used in your BLUE snippet; leaving as-is (null)
+        // Path4 declared but unused in your BLUE snippet; leaving as-is (null)
 
-        // BLUE Path5: (18, 10.422) -> (44.880, 11.699), reversed, shoot at t=0.95
-        // RED  Path5: (126, 10.422) -> (99.120, 11.699), reversed
+        // BLUE Path5: (18.0, 9.00) -> (44.880, 11.699), reversed, shoot at t=0.95
+        // RED  Path5: (126.0, 9.00) -> (99.120, 11.699), reversed
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(126.0, 9.00),
-                        new Pose(99.120, 11.699)
+                        new Pose(mirrorX(mirrorX(126.0)), 9.00),
+                        new Pose(mirrorX(mirrorX(99.120)), 11.699)
                 ))
                 .setTangentHeadingInterpolation()
-                .setBrakingStrength(2.5)
+                .setBrakingStrength(3)
                 .setReversed()
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
                         new SleepAction(0.1),
@@ -247,10 +290,10 @@ public class Redfar18consistent extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        tasks.add(new PathChainTask(path1, 2.8));
-        addPath(grab3wide, 0.4);
-        tasks.add(new PathChainTask(path5, 1.0));
-
+        tasks.add(new PathChainTask(path1, 3.0));
+        addPath(grab3wide, 0);
+        //addPath(path3, 0);
+        tasks.add(new PathChainTask(path5, 1.5));
         addCycle2to5();
         addCycle2to5();
         addCycle2to5();
@@ -261,8 +304,27 @@ public class Redfar18consistent extends PathChainAutoOpMode {
     }
 
     private void addCycle2to5() {
-        addPath(path2, 0.1);
-        tasks.add(new PathChainTask(path5, 1.6));
+        addPath(path2, 0.5);
+        tasks.add(new PathChainTask(path5, 1.5));
+    }
+
+    private void updateShooterHold(double targetRpm) {
+        if (actions == null) return;
+        boolean holdMissing = currentHoldAction == null || !runningActions.contains(currentHoldAction);
+        if (holdMissing || Math.abs(targetRpm - currentHoldRpm) > 1e-6) {
+            if (currentHoldAction != null) {
+                stop(currentHoldAction);
+            }
+            currentHoldRpm = targetRpm;
+            currentHoldAction = actions.holdShooterAtRPMclose(targetRpm, 9999);
+            run(currentHoldAction);
+        }
+    }
+
+    private void applyPendingHoldUpdate() {
+        if (!holdUpdatePending) return;
+        holdUpdatePending = false;
+        updateShooterHold(pendingHoldRpm);
     }
 
     @Override
@@ -320,12 +382,11 @@ public class Redfar18consistent extends PathChainAutoOpMode {
     }
 
     private Pose poseAtEndOfPath1() {
-        // End pose of Path1 (mirrored): (98.907, 11.911), heading 0
+        // RED end pose of Path1: (98.907, 11.911), heading 0
         return new Pose(98.907, 11.911, Math.toRadians(0));
     }
 
     private Pose poseAtEndOfPath5() {
-        // RED line: (126, 10.422) -> (99.120, 11.699), reversed => heading = tangent + pi
         double h = headingFromLine(126.0, 10.422, 99.120, 11.699, true);
         return new Pose(99.120, 11.699, h);
     }

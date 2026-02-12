@@ -16,6 +16,9 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.BulkCacheManager;
+import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.HardwareWriteCache;
+import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.TelemetryThrottler;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 @Config
@@ -123,9 +126,8 @@ public class Blueconsistenttele extends OpMode {
     // slope 80 RPM/ft -> 80/12 RPM per inch
     public static double FAR_ZONE_SLOPE_RPM_PER_FT = 80.0;
 
-    // Far-shooting toggle state (MOVED to right trigger - edge triggered)
-    private boolean farShootingEnabled = false;
-    private boolean lastFarToggleTrigger = false;
+    // Far-shooting is always enabled (no toggle)
+    private final boolean farShootingEnabled = true;
 
     // Auto-shoot state machine
     private boolean lastA = false;
@@ -143,12 +145,12 @@ public class Blueconsistenttele extends OpMode {
     private boolean shootingconstant = true;
     private boolean lastY = false;
 
-    public static double HOOD_MIN_POS = 0.47;
+    public static double HOOD_MIN_POS = 0.475;
     public static double HOOD_MAX_POS_NORMAL = 0.54;
     public static double HOOD_FAR_ZONE_POS = 0.45;
 
     public static double HOOD_MIN_DIST_FT = 0;
-    public static double HOOD_MAX_DIST_FT = 7.0;
+    public static double HOOD_MAX_DIST_FT = 6;
 
     public static double TURRET1_BACKLASH_OFFSET = 0.015;
 
@@ -188,9 +190,14 @@ public class Blueconsistenttele extends OpMode {
 
     // Cached voltage sensor (optimization)
     private VoltageSensor voltageSensor;
+    private BulkCacheManager bulkCache;
+    private TelemetryThrottler telemetryThrottler;
 
     @Override
     public void init() {
+        HardwareWriteCache.clear(); // Reset cached writes on init
+        bulkCache = new BulkCacheManager(hardwareMap);
+        telemetryThrottler = new TelemetryThrottler(8.0); // ~8 Hz telemetry
         follower = Constants.createFollower(hardwareMap);
         try {
             if (PoseStore.hasSaved()) follower.setStartingPose(PoseStore.lastPose);
@@ -199,6 +206,9 @@ public class Blueconsistenttele extends OpMode {
             follower.setStartingPose(new Pose(0, 0, 0));
         }
         follower.startTeleopDrive();
+        if (PoseStore.hasSaved()) {
+            follower.setPose(PoseStore.lastPose);
+        }
 
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
         fr = hardwareMap.get(DcMotorEx.class, "frontright");
@@ -246,7 +256,7 @@ public class Blueconsistenttele extends OpMode {
         transferTimer = new ElapsedTime();
 
         telemetryA = new MultipleTelemetry(this.telemetry, FtcDashboard.getInstance().getTelemetry());
-        telemetryA.setMsTransmissionInterval(11);
+        telemetryA.setMsTransmissionInterval(100);
 
         try {
             limelight = hardwareMap.get(Limelight3A.class, "limelight");
@@ -258,8 +268,8 @@ public class Blueconsistenttele extends OpMode {
             limelight = null;
         }
 
-        if (indexfront != null) indexfront.setPosition(INDEX_FRONT_RETRACTED);
-        if (indexback  != null) indexback.setPosition(INDEX_BACK_EXTENDED);
+        if (indexfront != null) HardwareWriteCache.setServoPosition(indexfront, INDEX_FRONT_RETRACTED);
+        if (indexback  != null) HardwareWriteCache.setServoPosition(indexback, INDEX_BACK_EXTENDED);
 
         // Cache voltage sensor (optimization)
         try { voltageSensor = hardwareMap.voltageSensor.iterator().next(); }
@@ -271,6 +281,10 @@ public class Blueconsistenttele extends OpMode {
 
     @Override
     public void loop() {
+        if (bulkCache != null) {
+            bulkCache.clear(); // Manual bulk cache clear once per loop
+        }
+        follower.update(); // Update Pinpoint localization each loop
         // Cache gamepad states (minor but clean)
         final boolean dpadLeft  = gamepad1.dpad_left;
         final boolean dpadRight = gamepad1.dpad_right;
@@ -285,15 +299,6 @@ public class Blueconsistenttele extends OpMode {
         lastDpadLeft  = dpadLeft;
         lastDpadRight = dpadRight;
 
-        // =========================
-        // Far toggle moved to RIGHT TRIGGER (gamepad1) edge-trigger
-        // =========================
-        final boolean farToggleTrigger = gamepad1.right_trigger > 0.6;
-        if (farToggleTrigger && !lastFarToggleTrigger) farShootingEnabled = !farShootingEnabled;
-        lastFarToggleTrigger = farToggleTrigger;
-
-        follower.update();
-
         // gamepad2 relocalize (edge-triggered)
         final boolean g2Left = gamepad2.dpad_left;
         final boolean g2Up   = gamepad2.dpad_up;
@@ -303,7 +308,7 @@ public class Blueconsistenttele extends OpMode {
         // "Reverse heading" implemented as +PI (turn around).
         if (g2Left && !lastG2Left) follower.setPose(new Pose(104.0, mirrorY(134.0), Math.PI)); // mirrored across X + reversed
         if (g2Up   && !lastG2Up)   follower.setPose(new Pose(10.0, 10.0, Math.PI));           // swapped from DOWN + reversed
-        if (g2Down && !lastG2Down) follower.setPose(new Pose(134.5, 10.0, Math.PI));          // swapped from UP + reversed
+        if (g2Down && !lastG2Down) follower.setPose(new Pose(114.0, 3.0, Math.PI));          // swapped from UP + reversed
 
         lastG2Left = g2Left;
         lastG2Up   = g2Up;
@@ -340,8 +345,9 @@ public class Blueconsistenttele extends OpMode {
         final double currentY  = currentPose.getY();
         final double currentHeading = currentPose.getHeading();
 
+        /*
         // =========================
-        // Turret aim (mirrored target/goal already applied via constants above)
+        // Turret aim (disabled)
         // =========================
         final double deltaX = targetX - currentX;
         final double deltaY = targetY - currentY;
@@ -367,27 +373,28 @@ public class Blueconsistenttele extends OpMode {
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
 
-        turret1.setPosition(turret1Pos - 0.01);
-        turret2.setPosition(servoPosition - 0.01);
+        HardwareWriteCache.setServoPosition(turret1, turret1Pos - 0.01);
+        HardwareWriteCache.setServoPosition(turret2, servoPosition - 0.01);
+        */
 
         // Intake manual controls (bumpers) - only when not autoTransfer
         if (!autoTransfer) {
-            intakeback.setPower(gamepad1.left_bumper ? 1.0 : 0.0);
-            intakefront.setPower(gamepad1.right_bumper ? 1.0 : 0.0);
+            HardwareWriteCache.setMotorPower(intakeback, gamepad1.left_bumper ? 1.0 : 0.0);
+            HardwareWriteCache.setMotorPower(intakefront, gamepad1.right_bumper ? 1.0 : 0.0);
         }
 
         // dpad_down override (only when not shooting/transfer)
         final boolean g1Down = gamepad1.dpad_down;
         if (g1Down && !shooting && !autoTransfer) {
-            launchgate.setPosition(LAUNCHGATE_FULL_UP);
-            intakefront.setPower(-1.0);
-            intakeback.setPower(-1.0);
+            HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_FULL_UP);
+            HardwareWriteCache.setMotorPower(intakefront, -1.0);
+            HardwareWriteCache.setMotorPower(intakeback, 1.0);
         }
 
         // Launchgate idle rule
         final boolean intakeCommanded = gamepad1.left_bumper || gamepad1.right_bumper;
         if (!shooting && !autoTransfer && !g1Down) {
-            launchgate.setPosition(intakeCommanded ? LAUNCHGATE_DOWN : LAUNCHGATE_TWO_FIFTHS);
+            HardwareWriteCache.setServoPosition(launchgate, intakeCommanded ? LAUNCHGATE_DOWN : LAUNCHGATE_TWO_FIFTHS);
         }
 
         // Distance to goal (mirrored goal already applied via constants above)
@@ -422,45 +429,45 @@ public class Blueconsistenttele extends OpMode {
                     if (shootTimer.seconds() > 0 * shootDelayScale) { shootState = 1; shootTimer.reset(); }
                     break;
                 case 1:
-                    intakefront.setPower(-1.0);
-                    intakeback.setPower(-1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, -1.0);
+                    HardwareWriteCache.setMotorPower(intakeback, -1.0);
                     if (shootTimer.seconds() > 0.05 * shootDelayScale) { shootState = 2; shootTimer.reset(); }
                     break;
                 case 2:
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 3; shootTimer.reset(); }
                     break;
                 case 3:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.3 * shootDelayScale) { shootState = 4; shootTimer.reset(); }
                     break;
                 case 4:
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 5; shootTimer.reset(); }
                     break;
                 case 5:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.3 * shootDelayScale) { shootState = 6; shootTimer.reset(); }
                     break;
                 case 6:
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 7; shootTimer.reset(); }
                     break;
                 case 7:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.3 * shootDelayScale) { shooting = false; shootState = 8; }
                     break;
                 case 8:
-                    launchgate.setPosition(LAUNCHGATE_FULL_UP);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_FULL_UP);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) { shootState = 9; shootTimer.reset(); }
                     break;
                 case 9:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) { shooting = false; shootState = 10; }
                     break;
                 case 10:
-                    intakefront.setPower(0);
-                    intakeback.setPower(0);
+                    HardwareWriteCache.setMotorPower(intakefront, 0);
+                    HardwareWriteCache.setMotorPower(intakeback, 0);
                     if (shootTimer.seconds() > 0.2 * shootDelayScale) { shooting = false; shootState = 0; }
                     break;
             }
@@ -562,8 +569,8 @@ public class Blueconsistenttele extends OpMode {
             currentHoodPos = Math.max(0.0, Math.min(1.0, baseHoodPos));
         }
 
-        hood1.setPosition(currentHoodPos);
-        hood2.setPosition(currentHoodPos);
+        HardwareWriteCache.setServoPosition(hood1, currentHoodPos);
+        HardwareWriteCache.setServoPosition(hood2, currentHoodPos);
 
         // Shooter control (only compute PID/FF when shooterOn)
         if (shooterOn) {
@@ -604,11 +611,11 @@ public class Blueconsistenttele extends OpMode {
             double compensatedPower = shooterPower * (NOMINAL_VOLTAGE / Math.max(1.0, voltage));
             compensatedPower = Math.max(-1.0, Math.min(1.0, compensatedPower));
 
-            shootr.setPower(compensatedPower);
-            shootl.setPower(compensatedPower);
+            HardwareWriteCache.setMotorPower(shootr, compensatedPower);
+            HardwareWriteCache.setMotorPower(shootl, compensatedPower);
         } else {
-            shootr.setPower(0);
-            shootl.setPower(0);
+            HardwareWriteCache.setMotorPower(shootr, 0);
+            HardwareWriteCache.setMotorPower(shootl, 0);
             shooterPID.reset();
         }
 
@@ -624,51 +631,51 @@ public class Blueconsistenttele extends OpMode {
         if (autoTransfer) {
             switch (transferState) {
                 case 0:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (transferTimer.seconds() > 0.1) { transferState = 1; transferTimer.reset(); }
                     break;
                 case 1:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.1) { transferState = 2; transferTimer.reset(); }
                     break;
                 case 2:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_HALF);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_HALF);
                     if (transferTimer.seconds() > 0.1) { transferState = 3; transferTimer.reset(); }
                     break;
                 case 3:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.15) { transferState = 4; transferTimer.reset(); }
                     break;
                 case 4:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_FULL_UP);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_FULL_UP);
                     if (transferTimer.seconds() > 0.1) { transferState = 5; transferTimer.reset(); }
                     break;
                 case 5:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
                     if (transferTimer.seconds() > 0.1) { transferState = 6; transferTimer.reset(); }
                     break;
                 case 6:
-                    intakeback.setPower(1.0);
-                    intakefront.setPower(1.0);
-                    launchgate.setPosition(LAUNCHGATE_FULL_UP);
+                    HardwareWriteCache.setMotorPower(intakeback, 1.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 1.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_FULL_UP);
                     if (transferTimer.seconds() > 0.1) { transferState = 7; transferTimer.reset(); }
                     break;
                 case 7:
-                    launchgate.setPosition(LAUNCHGATE_DOWN);
-                    intakeback.setPower(0.0);
-                    intakefront.setPower(0.0);
+                    HardwareWriteCache.setServoPosition(launchgate, LAUNCHGATE_DOWN);
+                    HardwareWriteCache.setMotorPower(intakeback, 0.0);
+                    HardwareWriteCache.setMotorPower(intakefront, 0.0);
                     autoTransfer = false;
                     transferState = 0;
                     break;
@@ -693,17 +700,19 @@ public class Blueconsistenttele extends OpMode {
 
         setLedColor(ledColor);
 
-        telemetryA.addData("Pose", "x=%.1f y=%.1f h=%.1f", currentX, currentY, Math.toDegrees(currentHeading));
-        telemetryA.addData("FarShootingEnabled", farShootingEnabled ? "ON" : "OFF");
-        telemetryA.addData("InFarWindow", inFarWindow);
-        telemetryA.addData("InFarDistance", inFarDistance);
-        telemetryA.addData("TargetRPM", "%.0f", calculatedTargetRPM);
-        telemetryA.addData("ActualRPM", "%.0f", avgVelocityRPM);
-        telemetryA.addData("RPM Error", "%.0f", rpmError);
-        telemetryA.addData("HoodBase", "%.3f", baseHoodPos);
-        telemetryA.addData("HoodBoost", "%.3f", hoodBoost);
-        telemetryA.addData("HoodPos", "%.3f", currentHoodPos);
-        telemetryA.update();
+        if (telemetryThrottler == null || telemetryThrottler.shouldUpdate()) {
+            telemetryA.addData("Pose", "x=%.1f y=%.1f h=%.1f", currentX, currentY, Math.toDegrees(currentHeading));
+            telemetryA.addData("FarShootingEnabled", farShootingEnabled ? "ON" : "OFF");
+            telemetryA.addData("InFarWindow", inFarWindow);
+            telemetryA.addData("InFarDistance", inFarDistance);
+            telemetryA.addData("TargetRPM", "%.0f", calculatedTargetRPM);
+            telemetryA.addData("ActualRPM", "%.0f", avgVelocityRPM);
+            telemetryA.addData("RPM Error", "%.0f", rpmError);
+            telemetryA.addData("HoodBase", "%.3f", baseHoodPos);
+            telemetryA.addData("HoodBoost", "%.3f", hoodBoost);
+            telemetryA.addData("HoodPos", "%.3f", currentHoodPos);
+            telemetryA.update();
+        }
     }
 
     private static double rpmToTicksPerSec(double rpm) {
@@ -717,16 +726,16 @@ public class Blueconsistenttele extends OpMode {
     }
 
     private void setLedColor(double position) {
-        if (led1 != null) led1.setPosition(position);
-        if (led2 != null) led2.setPosition(position);
+        if (led1 != null) HardwareWriteCache.setServoPosition(led1, position);
+        if (led2 != null) HardwareWriteCache.setServoPosition(led2, position);
     }
 
     @Override
     public void stop() {
-        shootr.setPower(0);
-        shootl.setPower(0);
-        intakefront.setPower(0);
-        intakeback.setPower(0);
+        HardwareWriteCache.setMotorPower(shootr, 0);
+        HardwareWriteCache.setMotorPower(shootl, 0);
+        HardwareWriteCache.setMotorPower(intakefront, 0);
+        HardwareWriteCache.setMotorPower(intakeback, 0);
         fl.setPower(0);
         fr.setPower(0);
         bl.setPower(0);

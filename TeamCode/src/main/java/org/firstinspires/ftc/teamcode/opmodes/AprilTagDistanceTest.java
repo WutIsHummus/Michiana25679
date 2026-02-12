@@ -16,6 +16,8 @@ import java.util.List;
 
 @Config
 @TeleOp(name = "AprilTag Distance Test")
+@Disabled
+
 public class AprilTagDistanceTest extends OpMode {
     
     private Limelight3A limelight;
