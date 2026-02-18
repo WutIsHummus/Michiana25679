@@ -32,7 +32,7 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
 
     private RobotActions actions;
 
-    private PathChain path1, path2, path3, path4, path5, grab3wide, leave;
+    private PathChain path1, path2, path3, path4, path5, grab3wide, leave, grabout, shootout;
 
     // =========================
     // MIRROR HELPERS (RED -> BLUE)
@@ -215,6 +215,17 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
+        grabout = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(mirrorX(98.907), 11.911),
+                        new Pose(mirrorX(126.0), 18.0)
+                ))
+                .setTangentHeadingInterpolation()
+                .setBrakingStrength(2.5)
+
+                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .build();
+
         grab3wide = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(mirrorX(98.907), 11.911),
@@ -266,6 +277,19 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
                         actions.launch3faster()
                 )))
                 .build();
+        shootout = follower.pathBuilder()
+                .addPath(new BezierLine(
+                        new Pose(mirrorX(126.0), 9.00),
+                        new Pose(mirrorX(99.120), 11.699)
+                ))
+                .setTangentHeadingInterpolation()
+                .setBrakingStrength(3)
+                .setReversed()
+                .addParametricCallback(0.95, () -> run(new SequentialAction(
+                        new SleepAction(0.1),
+                        actions.launch3faster()
+                )))
+                .build();
     }
 
     @Override
@@ -276,10 +300,12 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
         addPath(grab3wide, 0);
         //addPath(path3, 0);
         tasks.add(new PathChainTask(path5, 1.5));
+        addPath(path2, 0.5);
+        tasks.add(new PathChainTask(path5, 2.5));
         addCycle2to5();
         addCycle2to5();
-        addCycle2to5();
-        addCycle2to5();
+        addPath(grabout, 0.5);
+        tasks.add(new PathChainTask(shootout, 1.5));
         addCycle2to5();
 
         tasks.add(new PathChainTask(leave, 0));

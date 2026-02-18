@@ -84,7 +84,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
     // =========================
     private static final double P65_END_X  = 15.74002954;
     private static final double P65_END_Y  = 69.341211225;
-    private static final double P65_C1_X   = 18.71787296;
+    private static final double P65_C1_X   = 18.71784296;
     private static final double P65_C1_Y   = 62.3220088;
 
     // =========================
@@ -191,7 +191,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         poseX(84.000, 8.000),
-                        poseX(83.421, 87.421)))
+                        poseX(83.421, 84.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
@@ -205,7 +205,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         // PATH 2 (intake)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        poseX(83.421, 87.421),
+                        poseX(83.421, 84.421),
                         poseX(118.0, 80.000)))
                 .setTangentHeadingInterpolation()
                 .addParametricCallback(0.0, () -> {
@@ -219,7 +219,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         poseX(118.0, 80.000),
-                        poseX(83.208, 87.421)))
+                        poseX(83.208, 84.421)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
@@ -232,7 +232,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         // PATH 4 (intake)
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        poseX(83.208, 87.421),
+                        poseX(83.208, 84.421),
                         poseX(85.335, 29.000),
                         poseX(130.0, 36.00)))
                 .setTangentHeadingInterpolation()
@@ -244,7 +244,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         poseX(130.0, 36.00),
                         poseX(85.335, 35.734),
-                        poseX(83.421, 87.634)))
+                        poseX(83.421, 84.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(0.6)
                 .setGlobalDeceleration(0.55)
@@ -257,7 +257,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         // PATH 6 (intake)
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        poseX(83.421, 87.634),
+                        poseX(83.421, 84.634),
                         poseX(90.000, 48.000),
                         poseX(126.000, 56.000)))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(-50)), mh(Math.toRadians(-355)))
@@ -310,7 +310,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         poseX(131.000, 20.000),
-                        poseX(83.421, 87.634)))
+                        poseX(83.421, 84.634)))
                 .setTangentHeadingInterpolation().setReversed()
                 .setGlobalDeceleration(0.65)
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
@@ -322,7 +322,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         // PATH 10 (intake) - latch RPM change
         path10 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        poseX(83.421, 87.634),
+                        poseX(83.421, 84.634),
                         poseX(70.000, 9.00),
                         poseX(128.00, 8.721)
                 ))
@@ -498,7 +498,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
 
     // --- Predicted end poses (mirrored from RedClose18startfarnewgate) ---
     private Pose poseAtEndOfPath1() {
-        double tangent = Math.atan2(87.421 - 8.000, 56.579 - 56.000);
+        double tangent = Math.atan2(84.421 - 8.000, 56.579 - 56.000);
         double h = tangent + Math.PI; // reversed
         while (h > Math.PI)  h -= 2.0 * Math.PI;
         while (h < -Math.PI) h += 2.0 * Math.PI;
@@ -508,11 +508,11 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         if (h > 0) h -= 2.0 * Math.PI;
         if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
 
-        return poseX(83.421, 87.421, h);
+        return poseX(83.421, 84.421, h);
     }
 
     private Pose poseAtEndOfPath3() {
-        double tangent = Math.atan2(87.421 - 82.000, 56.792 - 20.000);
+        double tangent = Math.atan2(84.421 - 82.000, 56.792 - 20.000);
         double h = tangent + Math.PI; // reversed
         while (h > Math.PI)  h -= 2.0 * Math.PI;
         while (h < -Math.PI) h += 2.0 * Math.PI;
@@ -522,11 +522,11 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         if (h > 0) h -= 2.0 * Math.PI;
         if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
 
-        return poseX(83.208, 87.421, h);
+        return poseX(83.208, 84.421, h);
     }
 
     private Pose poseAtEndOfPath5() {
-        double tangent = Math.atan2(87.634 - 35.734, 56.579 - 54.665);
+        double tangent = Math.atan2(84.634 - 35.734, 56.579 - 54.665);
         double h = tangent + Math.PI; // reversed
         while (h > Math.PI)  h -= 2.0 * Math.PI;
         while (h < -Math.PI) h += 2.0 * Math.PI;
@@ -536,7 +536,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         if (h > 0) h -= 2.0 * Math.PI;
         if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
 
-        return poseX(83.421, 87.634, h);
+        return poseX(83.421, 84.634, h);
     }
 
     private Pose poseAtEndOfPath7() {
@@ -544,7 +544,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
     }
 
     private Pose poseAtEndOfPath9() {
-        double tangent = Math.atan2(87.634 - 20.000, 56.579 - 9.000);
+        double tangent = Math.atan2(84.634 - 20.000, 56.579 - 9.000);
         double h = tangent + Math.PI; // reversed
         while (h > Math.PI)  h -= 2.0 * Math.PI;
         while (h < -Math.PI) h += 2.0 * Math.PI;
@@ -554,7 +554,7 @@ public class BlueClose18startfarnewgate extends PathChainAutoOpMode {
         if (h > 0) h -= 2.0 * Math.PI;
         if (Math.abs(h) < 1e-9) h = -2.0 * Math.PI;
 
-        return poseX(83.421, 87.634, h);
+        return poseX(83.421, 84.634, h);
     }
 
     private Pose poseAtEndOfPath12far() {
