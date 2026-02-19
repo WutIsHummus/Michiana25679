@@ -16,8 +16,8 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "SoloBlue18")
-public class SoloBlue18 extends PathChainAutoOpMode {
+@Autonomous(name = "RedSolo18")
+public class RedSolo18 extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -29,21 +29,29 @@ public class SoloBlue18 extends PathChainAutoOpMode {
 
     private RobotActions actions;
 
-    // ===== Paths (new set) =====
+    // ===== Paths (mirrored from SoloBlue18) =====
     private PathChain path1, path2, path3, path4, path5, path6, path7, path8, path9, path10, path11, path12, path13;
+
+    // =========================================================
+    // MIRROR RULE (Blue -> Red) with corrected field length:
+    //   newX = (144 - oldX) - 3  == 141 - oldX
+    // Heading mirror:
+    //   newHeading = PI - oldHeading
+    // =========================================================
+    private static final double FIELD_SIZE_X_IN = 141.0; // effective after (144-x) then -3
+    private static double rx(double x) { return FIELD_SIZE_X_IN - x; }
+    private static double rh(double headingRad) { return normalizeRadians(Math.PI - headingRad); }
+
+    private static Pose p(double x, double y) { return new Pose(rx(x), y); }
+    private static Pose p(double x, double y, double headingRad) { return new Pose(rx(x), y, rh(headingRad)); }
 
     // =========================
     // Turret target (dynamic: close vs far)
+    // Blue close target was mx(124)=20; red becomes 141-20=121
+    // Far target mirror preserves the +4 shift on red (since blue far was close-4)
     // =========================
-    private static final double FIELD_SIZE_X = 144.0;
-    private static double mx(double x) { return FIELD_SIZE_X - x; }
-
-    // Close target baseline (same convention as your other blue autos)
-    private static final double TARGET_X_CLOSE = mx(124.0);
-
-    // Far shooting: offset 4" in the OPPOSITE direction from before (so subtract instead of add)
-    private static final double TARGET_X_FAR_OFFSET_IN = 4.0;
-    private static final double TARGET_X_FAR = TARGET_X_CLOSE - TARGET_X_FAR_OFFSET_IN;
+    private static final double TARGET_X_CLOSE = rx(20.0);            // = 121.0
+    private static final double TARGET_X_FAR   = TARGET_X_CLOSE + 4.0; // mirrored from blue far (16 -> 125)
 
     public static double targetX = TARGET_X_CLOSE;
     public static double targetY = 125.0;
@@ -64,9 +72,8 @@ public class SoloBlue18 extends PathChainAutoOpMode {
     private static final double CLOSE_RPM = 1070;
     private static final double FAR_RPM   = 1390;
 
-    // Hood: close vs far
     private static final double HOOD_CLOSE = 0.475;
-    private static final double HOOD_FAR   = 0.45;   // adjust if your tuned far hood differs
+    private static final double HOOD_FAR   = 0.45;  // keep your tuned far hood here
 
     private com.acmerobotics.roadrunner.Action currentHoldAction = null;
     private double currentHoldRpm = Double.NaN;
@@ -74,12 +81,10 @@ public class SoloBlue18 extends PathChainAutoOpMode {
     // Timing rules
     private static final double SHOOT_T = 0.95;
 
-    // Preload delay unchanged unless you say otherwise
+    // Preload delay (and you asked to increase shooting waits by +0.1)
     private static final double PRELOAD_DELAY_S = 0.5;
-
-    // Increase shooting waits by +0.1s (this is the delay right before launching)
     private static final double SHOOT_EXTRA_DELAY_S = 0.1;
-    private static final double SHOOT_DELAY_S = 0.10 + SHOOT_EXTRA_DELAY_S; // was 0.10 -> now 0.20
+    private static final double SHOOT_DELAY_S = 0.10 + SHOOT_EXTRA_DELAY_S; // 0.20
 
     // Decel
     private static final double GLOBAL_DECEL = 0.58;
@@ -133,8 +138,8 @@ public class SoloBlue18 extends PathChainAutoOpMode {
 
         run(actions.safeindexer());
 
-        // Start pose = Path1 start pose (heading 270 deg)
-        follower.setStartingPose(new Pose(57.489, 9.276, Math.toRadians(270)));
+        // Start pose mirrored from blue:
+        follower.setStartingPose(p(57.489, 9.276, Math.toRadians(270)));
 
         buildPathChains();
         buildTaskList();
@@ -166,14 +171,14 @@ public class SoloBlue18 extends PathChainAutoOpMode {
     @Override
     protected void buildPathChains() {
 
-        // Path1: (57.489,9.276)->(57.914,85.347) constant heading 270
-        // Preload shoot here; DO NOT spin intake during path1
+        // Path1: (57.489,9.276)->(57.914,85.347) constant heading 270 (preload shoot)
+        // DO NOT spin intake during path1
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(57.489, 9.276),
-                        new Pose(57.914, 85.347)
+                        p(57.489, 9.276),
+                        p(57.914, 85.347)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(270))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(270)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, () -> {
@@ -181,7 +186,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
                     setCloseShootingState();
                 })
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
-                        new SleepAction(PRELOAD_DELAY_S + SHOOT_EXTRA_DELAY_S), // increased by +0.1
+                        new SleepAction(PRELOAD_DELAY_S + SHOOT_EXTRA_DELAY_S),
                         actions.launch3faster()
                 )))
                 .build();
@@ -189,20 +194,20 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path2: (57.914,85.347)->(18.117,84.012) constant heading 180 (intake)
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(57.914, 85.347),
-                        new Pose(18.117, 84.012)
+                        p(57.914, 85.347),
+                        p(18.117, 84.012)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // Path3: (18.117,84.012)->(58.171,85.065) constant heading 180 (close shoot)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(18.117, 84.012),
-                        new Pose(58.171, 85.065)
+                        p(18.117, 84.012),
+                        p(58.171, 85.065)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, this::setCloseShootingState)
@@ -215,21 +220,21 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path4: curve (58.171,85.065)->(65.394,28.004)->(10.210,35.521) constant heading 180 (intake)
         path4 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(58.171, 85.065),
-                        new Pose(65.394, 28.004),
-                        new Pose(10.210, 35.521)
+                        p(58.171, 85.065),
+                        p(65.394, 28.004),
+                        p(10.210, 35.521)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // Path5: (10.210,35.521)->(58.058,84.713) constant heading 180 (close shoot)
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(10.210, 35.521),
-                        new Pose(58.058, 84.713)
+                        p(10.210, 35.521),
+                        p(58.058, 84.713)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, this::setCloseShootingState)
@@ -242,31 +247,31 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path6: curve (58.058,84.713)->(64.662,59.770)->(10.003,58.130) constant heading 180 (intake)
         path6 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(58.058, 84.713),
-                        new Pose(64.662, 59.770),
-                        new Pose(10.003, 58.130)
+                        p(58.058, 84.713),
+                        p(64.662, 59.770),
+                        p(10.003, 58.130)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // Path7: (10.003,58.130)->(16.784,68.028) linear heading 180->270 (intake)
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(10.003, 58.130),
-                        new Pose(16.784, 68.028)
+                        p(10.003, 58.130),
+                        p(16.784, 68.028)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(270))
+                .setLinearHeadingInterpolation(rh(Math.toRadians(180)), rh(Math.toRadians(270)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // Path8: (16.784,68.028)->(58.074,85.157) linear heading 270->180 (close shoot)
         path8 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(16.784, 68.028),
-                        new Pose(58.074, 85.157)
+                        p(16.784, 68.028),
+                        p(58.074, 85.157)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(180))
+                .setLinearHeadingInterpolation(rh(Math.toRadians(270)), rh(Math.toRadians(180)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, this::setCloseShootingState)
@@ -279,21 +284,21 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path9: curve (58.074,85.157)->(12.645,62.026)->(9.672,20.263) linear heading 180->270 (intake/drive)
         path9 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(58.074, 85.157),
-                        new Pose(12.645, 62.026),
-                        new Pose(9.672, 20.263)
+                        p(58.074, 85.157),
+                        p(12.645, 62.026),
+                        p(9.672, 20.263)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(270))
+                .setLinearHeadingInterpolation(rh(Math.toRadians(180)), rh(Math.toRadians(270)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // Path10: (9.672,20.263)->(57.954,84.994) linear heading 270->270 (close shoot)
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(9.672, 20.263),
-                        new Pose(57.954, 84.994)
+                        p(9.672, 20.263),
+                        p(57.954, 84.994)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(270))
+                .setLinearHeadingInterpolation(rh(Math.toRadians(270)), rh(Math.toRadians(270)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, this::setCloseShootingState)
@@ -306,21 +311,21 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path11: curve (57.954,84.994)->(65.840,11.093)->(10.767,9.981) linear heading 270->180 (intake)
         path11 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(57.954, 84.994),
-                        new Pose(65.840, 11.093),
-                        new Pose(10.767, 9.981)
+                        p(57.954, 84.994),
+                        p(65.840, 11.093),
+                        p(10.767, 9.981)
                 ))
-                .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(180))
+                .setLinearHeadingInterpolation(rh(Math.toRadians(270)), rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .build();
 
         // Path12: (10.767,9.981)->(51.487,14.095) constant heading 180 (FAR shoot)
         path12 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(10.767, 9.981),
-                        new Pose(51.487, 14.095)
+                        p(10.767, 9.981),
+                        p(51.487, 14.095)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, this::setFarShootingState)
@@ -333,10 +338,10 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path13: (51.487,14.095)->(35.254,70.477) constant heading 180 (park / no shoot)
         path13 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(51.487, 14.095),
-                        new Pose(35.254, 70.477)
+                        p(51.487, 14.095),
+                        p(35.254, 70.477)
                 ))
-                .setConstantHeadingInterpolation(Math.toRadians(180))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.stopIntake()))
                 .build();
     }
@@ -425,13 +430,13 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         PathChain active = getActivePathIfAny();
         if (active == null) return live;
 
-        // Predict end pose for shoot paths only
-        if (active == path1)  return new Pose(57.914, 85.347, Math.toRadians(270));
-        if (active == path3)  return new Pose(58.171, 85.065, Math.toRadians(180));
-        if (active == path5)  return new Pose(58.058, 84.713, Math.toRadians(180));
-        if (active == path8)  return new Pose(58.074, 85.157, Math.toRadians(180));
-        if (active == path10) return new Pose(57.954, 84.994, Math.toRadians(270));
-        if (active == path12) return new Pose(51.487, 14.095, Math.toRadians(180));
+        // Predict end pose for shoot paths only (mirrored)
+        if (active == path1)  return p(57.914, 85.347, Math.toRadians(270));
+        if (active == path3)  return p(58.171, 85.065, Math.toRadians(180));
+        if (active == path5)  return p(58.058, 84.713, Math.toRadians(180));
+        if (active == path8)  return p(58.074, 85.157, Math.toRadians(180));
+        if (active == path10) return p(57.954, 84.994, Math.toRadians(270));
+        if (active == path12) return p(51.487, 14.095, Math.toRadians(180));
 
         return live;
     }
@@ -462,7 +467,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
     }
 
     private void setFarShootingState() {
-        targetX = TARGET_X_FAR; // opposite direction: -4"
+        targetX = TARGET_X_FAR;
         if (hood1 != null) hood1.setPosition(HOOD_FAR);
         updateShooterHold(FAR_RPM);
         run(actions.stopIntake());
