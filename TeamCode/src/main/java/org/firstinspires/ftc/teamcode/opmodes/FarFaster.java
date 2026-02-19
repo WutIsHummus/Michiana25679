@@ -389,8 +389,9 @@ public class FarFaster extends PathChainAutoOpMode {
     @Override
     public void stop() {
         try {
-            PoseStore.save(follower.getPose());
+            PoseStore.saveBlue(follower.getPose());
         } catch (Exception ignored) {}
         super.stop();
     }
 }
+

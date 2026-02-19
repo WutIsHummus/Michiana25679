@@ -200,14 +200,14 @@ public class Blueconsistenttele extends OpMode {
         telemetryThrottler = new TelemetryThrottler(8.0); // ~8 Hz telemetry
         follower = Constants.createFollower(hardwareMap);
         try {
-            if (PoseStore.hasSaved()) follower.setStartingPose(PoseStore.lastPose);
+            if (PoseStore.hasSavedBlue()) follower.setStartingPose(PoseStore.bluePose);
             else follower.setStartingPose(new Pose(0, 0, 0));
         } catch (Exception ignored) {
             follower.setStartingPose(new Pose(0, 0, 0));
         }
         follower.startTeleopDrive();
-        if (PoseStore.hasSaved()) {
-            follower.setPose(PoseStore.lastPose);
+        if (PoseStore.hasSavedBlue()) {
+            follower.setPose(PoseStore.bluePose);
         }
 
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
@@ -742,3 +742,4 @@ public class Blueconsistenttele extends OpMode {
         br.setPower(0);
     }
 }
+

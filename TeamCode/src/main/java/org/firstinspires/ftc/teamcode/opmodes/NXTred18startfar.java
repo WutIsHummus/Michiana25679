@@ -575,7 +575,8 @@ public class NXTred18startfar extends PathChainAutoOpMode {
 
     @Override
     public void stop() {
-        try { PoseStore.save(follower.getPose()); } catch (Exception ignored) {}
+        try { PoseStore.saveRed(follower.getPose()); } catch (Exception ignored) {}
         super.stop();
     }
 }
+

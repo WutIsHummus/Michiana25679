@@ -181,7 +181,7 @@ public class Redconsistelttele extends OpMode {
         telemetryThrottler = new TelemetryThrottler(8.0); // ~8 Hz telemetry
         follower = Constants.createFollower(hardwareMap);
         try {
-            if (PoseStore.hasSaved()) follower.setStartingPose(PoseStore.lastPose);
+            if (PoseStore.hasSavedRed()) follower.setStartingPose(PoseStore.redPose);
             else follower.setStartingPose(new Pose(0, 0, 0));
         } catch (Exception ignored) {
             follower.setStartingPose(new Pose(0, 0, 0));
@@ -726,3 +726,4 @@ public class Redconsistelttele extends OpMode {
         br.setPower(0);
     }
 }
+

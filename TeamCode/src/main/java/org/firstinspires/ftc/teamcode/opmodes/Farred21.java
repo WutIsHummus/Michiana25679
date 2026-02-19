@@ -409,8 +409,9 @@ public class Farred21 extends PathChainAutoOpMode {
     @Override
     public void stop() {
         try {
-            PoseStore.save(follower.getPose());
+            PoseStore.saveRed(follower.getPose());
         } catch (Exception ignored) {}
         super.stop();
     }
 }
+

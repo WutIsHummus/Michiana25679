@@ -415,7 +415,8 @@ public class Bluefar18consistent extends PathChainAutoOpMode {
 
     @Override
     public void stop() {
-        try { PoseStore.save(follower.getPose()); } catch (Exception ignored) {}
+        try { PoseStore.saveBlue(follower.getPose()); } catch (Exception ignored) {}
         super.stop();
     }
 }
+

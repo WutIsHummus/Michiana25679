@@ -459,8 +459,9 @@ public class Classified15 extends PathChainAutoOpMode {
     @Override
     public void stop() {
         try {
-            org.firstinspires.ftc.teamcode.opmodes.PoseStore.save(follower.getPose());
+            org.firstinspires.ftc.teamcode.opmodes.PoseStore.saveBlue(follower.getPose());
         } catch (Exception ignored) {}
         super.stop();
     }
 }
+
