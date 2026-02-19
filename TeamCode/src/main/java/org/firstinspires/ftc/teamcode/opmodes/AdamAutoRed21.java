@@ -19,8 +19,8 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "1 - AdamAutoBlue21")
-public class AdamAutoBlue21 extends PathChainAutoOpMode {
+@Autonomous(name = "1 - AdamAutoRed21")
+public class AdamAutoRed21 extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -35,21 +35,21 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
     private PathChain path1, path2, path3, path4, path5, grab3wide, leave, shootout, grabout;
 
     // =========================
-    // MIRROR HELPERS (RED -> BLUE)
+    // MIRROR HELPERS (BLUE -> RED)
     // Mirror across the FIELD CENTERLINE in X:
     // (x, y, heading) -> (144 - x, y, PI - heading)
     // =========================
     public static double FIELD_SIZE_X_IN = 144.0;
 
-    private static double mirrorX(double x) { return FIELD_SIZE_X_IN - x; }
+    private static double mirrorX(double x) { return x; }
 
     private static double mirrorHeadingRad(double h) {
-        return normalizeRadians(Math.PI - h);
+        return normalizeRadians(h);
     }
 
     // =========================
-    // Goal + turret constants (BLUE)
-    // RED targetX = 128  => BLUE targetX = 144 - 128 = 16
+    // Goal + turret constants (RED)
+    // RED targetX = 128
     // =========================
     public static double targetX = mirrorX(128.0);
     public static double targetY = 125.0;

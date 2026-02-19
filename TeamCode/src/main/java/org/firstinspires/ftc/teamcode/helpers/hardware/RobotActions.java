@@ -86,7 +86,7 @@ public class RobotActions {
     public final Turret turret;
 
     // PID Constants - Short Range (< 6 feet) - EXACT COPY from FullTesting
-    public static double p = 0.0012;
+    public static double p = 0.0009;
     public static double i = 0.0;
     public static double d = 0.0000;
     public static double f = 0.00065;
@@ -96,7 +96,7 @@ public class RobotActions {
     public static double hood1Position = 0.54;
 
     // Long range PIDF (>= 6 feet)
-    public static double pLong = 0.0012;
+    public static double pLong = 0.0009;
     public static double iLong = 0.0;
     public static double dLong = 0;
     public static double fLong = 0.0009;
