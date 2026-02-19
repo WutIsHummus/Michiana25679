@@ -51,7 +51,7 @@ public class AdamAutoRed21 extends PathChainAutoOpMode {
     // Goal + turret constants (RED)
     // RED targetX = 128
     // =========================
-    public static double targetX = mirrorX(128.0);
+    public static double targetX = mirrorX(124.0);
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;   // 0 deg
@@ -247,7 +247,7 @@ public class AdamAutoRed21 extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(2)
                 // Blue mirror of RED targetX=132 -> BLUE targetX=12
-                .addParametricCallback(1.0, () -> targetX = mirrorX(132.0))
+                .addParametricCallback(1.0, () -> targetX = mirrorX(128))
                 .build();
 
         leave = follower.pathBuilder()
@@ -279,7 +279,7 @@ public class AdamAutoRed21 extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(3)
                 .setReversed()
-                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.1, () -> run(actions.stopIntake()))
 
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
                         new SleepAction(0.1),

@@ -20,8 +20,8 @@ import org.firstinspires.ftc.teamcode.helpers.hardware.RobotActions;
 import org.firstinspires.ftc.teamcode.helpers.hardware.actions.PathChainAutoOpMode;
 import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
-@Autonomous(name = "FarBlueOneSpike")
-public class FarBlueOneSpike extends PathChainAutoOpMode {
+@Autonomous(name = "FarRedOneSpike")
+public class FarRedOneSpike extends PathChainAutoOpMode {
 
     private Follower follower;
 
@@ -36,9 +36,8 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
     // ===== Paths (same order you posted) =====
     private PathChain path1, path2, path3, path4, path5, path6, path7;
 
-    // ===== Goal + turret constants (BLUE) =====
-    // Keep identical to your current Blue auto behavior
-    public static double targetX = 13.0;   // Blue goal X
+    // ===== Goal + turret constants (RED mirrored from blue) =====
+    public static double targetX = 128;
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;   // 0 deg
@@ -54,6 +53,11 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
     private static final double TARGET_RPM = 1370;
     private static final double HOOD_POS   = 0.44;
     private static final double START_BOOST_RPM = 8000.0;
+
+    private static double mx(double x) { return 144.0 - x; }
+    private static double mh(double headingRad) { return normalizeRadians(Math.PI - headingRad); }
+    private static Pose rpose(double x, double y) { return new Pose(mx(x), y); }
+    private static Pose rpose(double x, double y, double headingRad) { return new Pose(mx(x), y, mh(headingRad)); }
 
     private double desiredHoldRpm = TARGET_RPM;
     private Action currentHoldAction = null;
@@ -114,7 +118,7 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         run(actions.safeindexer());
 
         // Starting pose from your visualizer
-        Pose startPose = new Pose(57.702, 9.489, Math.toRadians(180));
+        Pose startPose = rpose(57.702, 9.489, Math.toRadians(180));
         follower.setStartingPose(startPose);
 
         // Hard-aim once at init
@@ -177,8 +181,8 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         // Linear heading: 180 -> 180
         path1 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(57.702, 9.489),
-                        new Pose(52.0, 14.0)
+                        rpose(57.702, 9.489),
+                        rpose(52.0, 14.0)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
                 .setBrakingStrength(2.0)
@@ -194,9 +198,9 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         // Constant heading: 180
         path2 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        new Pose(52.0, 14.0),
-                        new Pose(55.478, 37.817),
-                        new Pose(13.0, 34.697)
+                        rpose(52.0, 14.0),
+                        rpose(55.478, 37.817),
+                        rpose(13.0, 34.697)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .setBrakingStrength(2.5)
@@ -208,8 +212,8 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         // Tangent heading, reversed = true
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(13.0, 34.697),
-                        new Pose(52.0, 18.0)
+                        rpose(13.0, 34.697),
+                        rpose(52.0, 18.0)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .setBrakingStrength(3.0)
@@ -226,8 +230,8 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         // Tangent heading
         path4 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(52.0, 18.0),
-                        new Pose(12.755, 10.970)
+                        rpose(52.0, 18.0),
+                        rpose(12.755, 10.970)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(2.5)
@@ -239,8 +243,8 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         // Tangent heading, reversed = true
         path5 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(12.755, 10.970),
-                        new Pose(49.430, 12.028)
+                        rpose(12.755, 10.970),
+                        rpose(49.430, 12.028)
                 ))
                 .setTangentHeadingInterpolation()
                 .setReversed()
@@ -258,8 +262,8 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         // Tangent heading
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(49.430, 12.028),
-                        new Pose(18.0, 10.900)
+                        rpose(49.430, 12.028),
+                        rpose(18.0, 10.900)
                 ))
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(2.5)
@@ -271,8 +275,8 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
         // Tangent heading, reversed = true
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(18.0, 10.900),
-                        new Pose(49.378, 11.576)
+                        rpose(18.0, 10.900),
+                        rpose(49.378, 11.576)
                 ))
                 .setTangentHeadingInterpolation()
                 .setReversed()
@@ -388,24 +392,24 @@ public class FarBlueOneSpike extends PathChainAutoOpMode {
     }
 
     private Pose poseAtEndOfPath1() {
-        return new Pose(51.108, 15.793, Math.toRadians(180));
+        return rpose(51.108, 15.793, Math.toRadians(180));
     }
 
     private Pose poseAtEndOfPath3() {
         // reversed line: (10.158,34.697)->(50.871,15.675)
         // end heading is tangent + PI because reversed
         double h = headingFromLine(10.158, 34.697, 50.871, 15.675, true);
-        return new Pose(50.871, 15.675, h);
+        return rpose(50.871, 15.675, h);
     }
 
     private Pose poseAtEndOfPath5() {
         double h = headingFromLine(12.755, 10.970, 49.430, 12.028, true);
-        return new Pose(49.430, 12.028, h);
+        return rpose(49.430, 12.028, h);
     }
 
     private Pose poseAtEndOfPath7() {
         double h = headingFromLine(12.174, 10.900, 49.378, 11.576, true);
-        return new Pose(49.378, 11.576, h);
+        return rpose(49.378, 11.576, h);
     }
 
     private void setTurretToAimAtPose(Pose pose) {
