@@ -70,7 +70,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
     // Shooter RPM + hood positions
     // =========================
     private static final double CLOSE_RPM = 1070;
-    private static final double FAR_RPM   = 1390;
+    private static final double FAR_RPM   = 1370;
 
     private static final double HOOD_CLOSE = 0.475;
     private static final double HOOD_FAR   = 0.45;  // keep your tuned far hood here
@@ -230,8 +230,9 @@ public class RedSolo18 extends PathChainAutoOpMode {
 
         // Path5: (10.210,35.521)->(58.058,84.713) constant heading 180 (close shoot)
         path5 = follower.pathBuilder()
-                .addPath(new BezierLine(
+                .addPath(new BezierCurve(
                         p(10.210, 35.521),
+                        p(65.394, 28.004),
                         p(58.058, 84.713)
                 ))
                 .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
@@ -249,7 +250,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         p(58.058, 84.713),
                         p(64.662, 59.770),
-                        p(10.003, 58.130)
+                        p(10.003, 55.0)
                 ))
                 .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -258,7 +259,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
         // Path7: (10.003,58.130)->(16.784,68.028) linear heading 180->270 (intake)
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(10.003, 58.130),
+                        p(10.003, 55.0),
                         p(16.784, 68.028)
                 ))
                 .setLinearHeadingInterpolation(rh(Math.toRadians(180)), rh(Math.toRadians(270)))
@@ -353,7 +354,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
         final double WAIT_AFTER_SHOOT = 1.2;
 
         tasks.add(new PathChainTask(path1, 2.0));
-        tasks.add(new PathChainTask(path2, 0.0));
+        tasks.add(new PathChainTask(path2, 0.2));
         tasks.add(new PathChainTask(path3, WAIT_AFTER_SHOOT));
         tasks.add(new PathChainTask(path4, 0.0));
         tasks.add(new PathChainTask(path5, WAIT_AFTER_SHOOT));

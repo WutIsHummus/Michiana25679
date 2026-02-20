@@ -63,7 +63,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
     }
 
     // Your existing comment said RED targetX=129 -> BLUE=15, keep that logic:
-    public static double targetX = mirrorX(129.0);
+    public static double targetX = mirrorX(132.0);
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;
@@ -333,8 +333,8 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
         final double WAIT_AFTER_SHOOT = 1.2;
 
         // Run in exact provided order: Path1..Path13
-        tasks.add(new PathChainTask(path1, 3.0));                 // preload: wait is inside callback
-        tasks.add(new PathChainTask(path2, 0.0));                 // intake
+        tasks.add(new PathChainTask(path1, 3.2));                 // preload: wait is inside callback
+        tasks.add(new PathChainTask(path2, 0.3));                 // intake
         tasks.add(new PathChainTask(path3, WAIT_AFTER_SHOOT));    // shoot
         tasks.add(new PathChainTask(path4, 0.0));                 // intake
         tasks.add(new PathChainTask(path5, WAIT_AFTER_SHOOT));    // shoot
@@ -343,8 +343,8 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
         tasks.add(new PathChainTask(path8, WAIT_AFTER_SHOOT));    // shoot
         tasks.add(new PathChainTask(path9, 0.0));                 // intake
         tasks.add(new PathChainTask(path10, WAIT_AFTER_SHOOT));   // shoot
-        tasks.add(new PathChainTask(path11, 0.0));                // intake
-        tasks.add(new PathChainTask(path12, WAIT_AFTER_SHOOT));   // shoot
+        tasks.add(new PathChainTask(path9, 0.0));                // intake
+        tasks.add(new PathChainTask(path10, WAIT_AFTER_SHOOT));   // shoot
         tasks.add(new PathChainTask(path13, 0.0));                // park
     }
 

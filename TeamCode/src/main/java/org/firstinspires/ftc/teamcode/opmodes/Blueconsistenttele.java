@@ -4,8 +4,8 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.arcrobotics.ftclib.controller.PIDFController;
-import com.pedropathing.follower.Follower;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -16,15 +16,17 @@ import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.BulkCacheManager;
 import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.HardwareWriteCache;
 import org.firstinspires.ftc.teamcode.helpers.hardware.optimization.LoopOptimizations.TelemetryThrottler;
-import org.firstinspires.ftc.teamcode.pedroPathing.constants.Constants;
 
 @Config
 @TeleOp(name = "1 - Blue New")
 public class Blueconsistenttele extends OpMode {
-    private Follower follower;  // Follower includes Pinpoint localization
+    private GoBildaPinpointDriver pinpoint;
     private MultipleTelemetry telemetryA;
 
     private DcMotorEx fl, fr, bl, br;
@@ -152,7 +154,7 @@ public class Blueconsistenttele extends OpMode {
     public static double HOOD_MIN_DIST_FT = 0;
     public static double HOOD_MAX_DIST_FT = 6;
 
-    public static double TURRET1_BACKLASH_OFFSET = 0.015;
+    public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     private static final double NOMINAL_VOLTAGE = 12.0;
 
@@ -175,7 +177,7 @@ public class Blueconsistenttele extends OpMode {
     public static double LED_BLUE   = 0.611;
 
     public static double LAUNCHGATE_DOWN     = 0.50; // full down
-    public static double LAUNCHGATE_FULL_UP  = 0.88; // full up
+    public static double LAUNCHGATE_FULL_UP  = 0.8; // full up
     public static double LAUNCHGATE_HALF     = (LAUNCHGATE_DOWN + LAUNCHGATE_FULL_UP) * 0.5; // halfway up
     public static double LAUNCHGATE_TWO_FIFTHS = 0.5;
 
@@ -192,22 +194,35 @@ public class Blueconsistenttele extends OpMode {
     private VoltageSensor voltageSensor;
     private BulkCacheManager bulkCache;
     private TelemetryThrottler telemetryThrottler;
+    
+    public static double PINPOINT_FORWARD_POD_Y = 7.5;
+    public static double PINPOINT_STRAFE_POD_X = 0.0;
+    public static GoBildaPinpointDriver.EncoderDirection PINPOINT_FORWARD_DIR =
+            GoBildaPinpointDriver.EncoderDirection.REVERSED;
+    public static GoBildaPinpointDriver.EncoderDirection PINPOINT_STRAFE_DIR =
+            GoBildaPinpointDriver.EncoderDirection.FORWARD;
+
+    public static double PINPOINT_TO_PEDRO_X_SIGN = 1.0;
+    public static double PINPOINT_TO_PEDRO_X_OFFSET = 0.0;
+    public static double PINPOINT_TO_PEDRO_Y_SIGN = 1.0;
+    public static double PINPOINT_TO_PEDRO_Y_OFFSET = 0.0;
+    public static double PINPOINT_TO_PEDRO_H_SIGN = 1.0;
+    public static double PINPOINT_TO_PEDRO_H_OFFSET_RAD = 0.0;
 
     @Override
     public void init() {
         HardwareWriteCache.clear(); // Reset cached writes on init
         bulkCache = new BulkCacheManager(hardwareMap);
         telemetryThrottler = new TelemetryThrottler(8.0); // ~8 Hz telemetry
-        follower = Constants.createFollower(hardwareMap);
+        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
+        pinpoint.setOffsets(PINPOINT_FORWARD_POD_Y, PINPOINT_STRAFE_POD_X, DistanceUnit.INCH);
+        pinpoint.setEncoderDirections(PINPOINT_FORWARD_DIR, PINPOINT_STRAFE_DIR);
+        pinpoint.resetPosAndIMU();
         try {
-            if (PoseStore.hasSavedBlue()) follower.setStartingPose(PoseStore.bluePose);
-            else follower.setStartingPose(new Pose(0, 0, 0));
+            if (PoseStore.hasSavedBlue()) setRobotPose(PoseStore.bluePose);
+            else setRobotPose(new Pose(0, 0, 0));
         } catch (Exception ignored) {
-            follower.setStartingPose(new Pose(0, 0, 0));
-        }
-        follower.startTeleopDrive();
-        if (PoseStore.hasSavedBlue()) {
-            follower.setPose(PoseStore.bluePose);
+            setRobotPose(new Pose(0, 0, 0));
         }
 
         fl = hardwareMap.get(DcMotorEx.class, "frontleft");
@@ -284,7 +299,7 @@ public class Blueconsistenttele extends OpMode {
         if (bulkCache != null) {
             bulkCache.clear(); // Manual bulk cache clear once per loop
         }
-        follower.update(); // Update Pinpoint localization each loop
+        pinpoint.update();
         // Cache gamepad states (minor but clean)
         final boolean dpadLeft  = gamepad1.dpad_left;
         final boolean dpadRight = gamepad1.dpad_right;
@@ -306,9 +321,9 @@ public class Blueconsistenttele extends OpMode {
 
         // Requested: for relocalization on up/down arrows, swap them and reverse heading.
         // "Reverse heading" implemented as +PI (turn around).
-        if (g2Left && !lastG2Left) follower.setPose(new Pose(104.0, mirrorY(134.0), Math.PI)); // mirrored across X + reversed
-        if (g2Up   && !lastG2Up)   follower.setPose(new Pose(10.0, 10.0, Math.PI));           // swapped from DOWN + reversed
-        if (g2Down && !lastG2Down) follower.setPose(new Pose(114.0, 3.0, Math.PI));          // swapped from UP + reversed
+        if (g2Left && !lastG2Left) setRobotPose(new Pose(104.0, mirrorY(134.0), Math.PI)); // mirrored across X + reversed
+        if (g2Up   && !lastG2Up)   setRobotPose(new Pose(10.0, 10.0, Math.PI));           // swapped from DOWN + reversed
+        if (g2Down && !lastG2Down) setRobotPose(new Pose(114.0, 3.0, Math.PI));          // swapped from UP + reversed
 
         lastG2Left = g2Left;
         lastG2Up   = g2Up;
@@ -318,7 +333,7 @@ public class Blueconsistenttele extends OpMode {
         final boolean xPressed = gamepad1.x;
         if (xPressed && !lastX) {
             double snapHeadingRad = Math.toRadians(SNAP_HEADING_DEG);
-            follower.setPose(new Pose(SNAP_X, SNAP_Y, snapHeadingRad));
+            setRobotPose(new Pose(SNAP_X, SNAP_Y, snapHeadingRad));
         }
         lastX = xPressed;
 
@@ -340,14 +355,13 @@ public class Blueconsistenttele extends OpMode {
         br.setPower(brPower);
 
         // Pose
-        Pose currentPose = follower.getPose();
+        Pose currentPose = getRobotPose();
         final double currentX  = currentPose.getX();
         final double currentY  = currentPose.getY();
         final double currentHeading = currentPose.getHeading();
 
-        /*
         // =========================
-        // Turret aim (disabled)
+        // Turret aim
         // =========================
         final double deltaX = targetX - currentX;
         final double deltaY = targetY - currentY;
@@ -373,16 +387,14 @@ public class Blueconsistenttele extends OpMode {
         double turret1Pos = servoPosition + TURRET1_BACKLASH_OFFSET;
         turret1Pos = Math.max(0.0, Math.min(1.0, turret1Pos));
 
-        HardwareWriteCache.setServoPosition(turret1, turret1Pos - 0.01);
-        HardwareWriteCache.setServoPosition(turret2, servoPosition - 0.01);
-        */
+        turret1.setPosition(turret1Pos - 0.01);
+        turret2.setPosition(servoPosition - 0.01);
 
         // Intake manual controls (bumpers) - only when not autoTransfer
         if (!autoTransfer) {
             HardwareWriteCache.setMotorPower(intakeback, gamepad1.left_bumper ? 1.0 : 0.0);
             HardwareWriteCache.setMotorPower(intakefront, gamepad1.right_bumper ? 1.0 : 0.0);
         }
-
         // dpad_down override (only when not shooting/transfer)
         final boolean g1Down = gamepad1.dpad_down;
         if (g1Down && !shooting && !autoTransfer) {
@@ -728,6 +740,31 @@ public class Blueconsistenttele extends OpMode {
     private void setLedColor(double position) {
         if (led1 != null) HardwareWriteCache.setServoPosition(led1, position);
         if (led2 != null) HardwareWriteCache.setServoPosition(led2, position);
+    }
+
+    private static double normalizeRadians(double angle) {
+        while (angle > Math.PI) angle -= 2.0 * Math.PI;
+        while (angle < -Math.PI) angle += 2.0 * Math.PI;
+        return angle;
+    }
+
+    private Pose getRobotPose() {
+        Pose2D ppPose = pinpoint.getPosition();
+        double ppX = ppPose.getX(DistanceUnit.INCH);
+        double ppY = ppPose.getY(DistanceUnit.INCH);
+        double ppH = ppPose.getHeading(AngleUnit.RADIANS);
+
+        double pedroX = PINPOINT_TO_PEDRO_X_SIGN * ppX + PINPOINT_TO_PEDRO_X_OFFSET;
+        double pedroY = PINPOINT_TO_PEDRO_Y_SIGN * ppY + PINPOINT_TO_PEDRO_Y_OFFSET;
+        double pedroH = normalizeRadians(PINPOINT_TO_PEDRO_H_SIGN * ppH + PINPOINT_TO_PEDRO_H_OFFSET_RAD);
+        return new Pose(pedroX, pedroY, pedroH);
+    }
+
+    private void setRobotPose(Pose pedroPose) {
+        double ppX = (pedroPose.getX() - PINPOINT_TO_PEDRO_X_OFFSET) / PINPOINT_TO_PEDRO_X_SIGN;
+        double ppY = (pedroPose.getY() - PINPOINT_TO_PEDRO_Y_OFFSET) / PINPOINT_TO_PEDRO_Y_SIGN;
+        double ppH = normalizeRadians((pedroPose.getHeading() - PINPOINT_TO_PEDRO_H_OFFSET_RAD) / PINPOINT_TO_PEDRO_H_SIGN);
+        pinpoint.setPosition(new Pose2D(DistanceUnit.INCH, ppX, ppY, AngleUnit.RADIANS, ppH));
     }
 
     @Override

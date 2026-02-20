@@ -42,7 +42,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
     private static final double TARGET_X_CLOSE = mx(124.0);
 
     // Far shooting: offset 4" in the OPPOSITE direction from before (so subtract instead of add)
-    private static final double TARGET_X_FAR_OFFSET_IN = 4.0;
+    private static final double TARGET_X_FAR_OFFSET_IN = 2.0;
     private static final double TARGET_X_FAR = TARGET_X_CLOSE - TARGET_X_FAR_OFFSET_IN;
 
     public static double targetX = TARGET_X_CLOSE;
@@ -62,7 +62,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
     // Shooter RPM + hood positions
     // =========================
     private static final double CLOSE_RPM = 1070;
-    private static final double FAR_RPM   = 1390;
+    private static final double FAR_RPM   = 1370;
 
     // Hood: close vs far
     private static final double HOOD_CLOSE = 0.475;
@@ -190,7 +190,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         new Pose(57.914, 85.347),
-                        new Pose(18.117, 84.012)
+                        new Pose(20.0, 84.012)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -199,7 +199,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path3: (18.117,84.012)->(58.171,85.065) constant heading 180 (close shoot)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(18.117, 84.012),
+                        new Pose(20.0, 84.012),
                         new Pose(58.171, 85.065)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -217,7 +217,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(58.171, 85.065),
                         new Pose(65.394, 28.004),
-                        new Pose(10.210, 35.521)
+                        new Pose(14.0, 35.521)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -225,8 +225,9 @@ public class SoloBlue18 extends PathChainAutoOpMode {
 
         // Path5: (10.210,35.521)->(58.058,84.713) constant heading 180 (close shoot)
         path5 = follower.pathBuilder()
-                .addPath(new BezierLine(
-                        new Pose(10.210, 35.521),
+                .addPath(new BezierCurve(
+                        new Pose(14.0, 35.521),
+                        new Pose(65.394, 28.004),
                         new Pose(58.058, 84.713)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
@@ -244,7 +245,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         new Pose(58.058, 84.713),
                         new Pose(64.662, 59.770),
-                        new Pose(10.003, 58.130)
+                        new Pose(14.0, 53.0)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -253,7 +254,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         // Path7: (10.003,58.130)->(16.784,68.028) linear heading 180->270 (intake)
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        new Pose(10.003, 58.130),
+                        new Pose(14.0, 53.0),
                         new Pose(16.784, 68.028)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(270))
@@ -307,7 +308,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
         path11 = follower.pathBuilder()
                 .addPath(new BezierCurve(
                         new Pose(57.954, 84.994),
-                        new Pose(65.840, 11.093),
+                        new Pose(65.840, 9.00),
                         new Pose(10.767, 9.981)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(180))

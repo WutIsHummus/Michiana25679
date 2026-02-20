@@ -51,7 +51,7 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
     // Goal + turret constants (BLUE)
     // RED targetX = 128  => BLUE targetX = 144 - 128 = 16
     // =========================
-    public static double targetX = mirrorX(129.0);
+    public static double targetX = mirrorX(131.0);
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;   // 0 deg
@@ -63,7 +63,7 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
     public static double TURRET1_BACKLASH_OFFSET = 0.025;
 
     // Keep identical behavior to RED code (mirrored)
-    private static final double TURRET_LIVE_T = 0.9;
+    private static final double TURRET_LIVE_T = 0.85;
 
     private static final double TARGET_RPM = 1370;
     private static final double HOOD_POS   = 0.44;
@@ -199,7 +199,7 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
                 .setConstantHeadingInterpolation(mirrorHeadingRad(Math.toRadians(0)))
                 .setBrakingStrength(2)
                 .addParametricCallback(0.9, () -> run(new SequentialAction(
-                        new SleepAction(2.0),
+                        new SleepAction(2.2),
                         actions.launch3faster()
                 )))
                 .build();
@@ -306,7 +306,7 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
     protected void buildTaskList() {
         tasks.clear();
 
-        tasks.add(new PathChainTask(path1, 3.0));
+        tasks.add(new PathChainTask(path1, 3.2));
         addPath(grab3wide, 0);
         //addPath(path3, 0);
         tasks.add(new PathChainTask(path5, 1.5));
