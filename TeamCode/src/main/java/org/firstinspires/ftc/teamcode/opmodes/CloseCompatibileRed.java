@@ -59,7 +59,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
     public static double targetX = 14.0;
     public static double targetY = 125.0; // 19.0
 
-    // Turret servo constants (FLIP left/right for RED)
+    // Turret servo constants (FLIP lefti mea/right for RED)
     public static double turretCenterPosition = 0.51;
     public static double turretLeftPosition   = 0.85; // flipped
     public static double turretRightPosition  = 0.15; // flipped
@@ -177,7 +177,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
-                        new SleepAction(PRELOAD_DELAY_S),
+                        new SleepAction(0.75),
                         actions.launch3faster()
                 )))
                 .build();
@@ -186,7 +186,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         p(54.086, 87.900),
                         p(37.774, 88.596),
-                        p(20.0, 75.0)
+                        p(20.0, 80.0)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(180)), mh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -194,7 +194,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
 
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(20.0, 75.0),
+                        p(20.0, 80.0),
                         p(59.0, 88.114)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
@@ -210,7 +210,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         p(59.0, 88.114),
                         p(57.0, 56.723),
-                        p(13.0, 56.0)
+                        p(14.0, 54.0)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -218,9 +218,9 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
 
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        p(13.0, 56.0),
+                        p(13.0, 54.0),
                         p(19.0, 60.644),
-                        p(20.0, 65.879)
+                        p(18.0, 65.879)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(180)), mh(Math.toRadians(270)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -228,12 +228,14 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
 
         path6 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(20.0, 65.879),
+                        p(18.0, 65.879),
                         p(59.0, 87.594)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(270)), mh(Math.toRadians(180)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
+                .addParametricCallback(0.2, () -> run(actions.stopIntake()))
+
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(0.10),
                         actions.launch3faster()
@@ -244,7 +246,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         p(59.0, 87.594),
                         p(75.0, 30.869),
-                        p(18.0, 35.656)
+                        p(17.0, 35.656)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -252,9 +254,9 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
 
         path8 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        p(18.0, 35.656),
+                        p(17.0, 35.656),
                         p(22.0, 50.521),
-                        p(21.0, 70.321)
+                        p(20.0, 70.321)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(180)), mh(Math.toRadians(270)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -262,7 +264,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
 
         path9 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(21.0, 70.321),
+                        p(20.0, 70.321),
                         p(58.0, 87.600)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(270)), mh(Math.toRadians(180)))
@@ -282,20 +284,20 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
         path10 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         p(58.0, 88.117),
-                        p(20.0, 63.189)
+                        p(20.0, 62.5)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
         // path11 (drive)
         path11 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(20.0, 63.189),
+                        p(20.0, 62.5),
                         p(32.0, 63.328)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(180)), mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
         // path12 (intake)
@@ -318,7 +320,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
                 .setConstantHeadingInterpolation(Math.toRadians(180))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(0.10),
                         actions.launch3faster()
@@ -332,7 +334,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
                         p(49.0, 76.606)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                 .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                 .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
     }
 
@@ -343,7 +345,7 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
         final double WAIT_AFTER_SHOOT = 1.2;
 
         // Existing 1..9 order
-        tasks.add(new PathChainTask(path1, 2.0));
+        tasks.add(new PathChainTask(path1, 2.15));
         tasks.add(new PathChainTask(path2, 0.0));
         tasks.add(new PathChainTask(path3, WAIT_AFTER_SHOOT));
         tasks.add(new PathChainTask(path4, 0.0));
@@ -464,3 +466,4 @@ public class CloseCompatibileRed extends PathChainAutoOpMode {
         }
     }
 }
+

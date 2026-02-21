@@ -79,7 +79,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
     // Here we do the exact same but with post-mirror shift:
     // targetX = (144 - 129) - 4 = 11
     // =========================
-    public static double targetX = mx(129.0);
+    public static double targetX = 126.00;
     public static double targetY = 125.0;
 
     public static double turretCenterPosition = 0.51;
@@ -187,7 +187,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
                         p(53.176, 15.740)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(PRELOAD_WAIT_S),
                         actions.launch3faster()
@@ -198,7 +198,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         p(53.176, 15.740),
-                        p(10.291, 9.216)
+                        p(10.291, 8.0)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -207,11 +207,11 @@ public class SoloFar18Red extends PathChainAutoOpMode {
         // Path3 (shoot): (10.291, 9.216) -> (53.421, 15.582)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(10.291, 9.216),
+                        p(10.291, 8.0),
                         p(53.421, 15.582)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -236,7 +236,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
                         p(53.685, 15.694)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -262,7 +262,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
                         p(16.486, 68.065)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(180)), mh(Math.toRadians(270)))
-                .addParametricCallback(0.0, () -> run(actions.startIntake()))
+                .addParametricCallback(0.5, () -> run(actions.startIntake()))
                 .build();
 
         // Path8 (shoot): (16.486, 68.065) -> (53.575, 15.592)
@@ -272,7 +272,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
                         p(53.575, 15.592)
                 ))
                 .setLinearHeadingInterpolation(mh(Math.toRadians(270)), mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -296,7 +296,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
                         p(53.715, 15.258)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -320,7 +320,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
                         p(53.465, 15.303)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -334,7 +334,7 @@ public class SoloFar18Red extends PathChainAutoOpMode {
                         p(44.589, 21.232)
                 ))
                 .setConstantHeadingInterpolation(mh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
     }
 
@@ -347,14 +347,14 @@ public class SoloFar18Red extends PathChainAutoOpMode {
         tasks.add(new PathChainTask(path1, 3.2));                 // preload (wait inside callback)
         tasks.add(new PathChainTask(path2, 0.3));                 // intake
         tasks.add(new PathChainTask(path3, WAIT_AFTER_SHOOT));    // shoot
-        tasks.add(new PathChainTask(path4, 0.0));                 // intake
+        tasks.add(new PathChainTask(path4, 0.1));                 // intake
         tasks.add(new PathChainTask(path5, WAIT_AFTER_SHOOT));    // shoot
-        tasks.add(new PathChainTask(path6, 0.0));                 // intake
-        tasks.add(new PathChainTask(path7, 0.0));                 // intake
+        tasks.add(new PathChainTask(path6, 0.1));                 // intake
+        tasks.add(new PathChainTask(path7, 0.1));                 // intake
         tasks.add(new PathChainTask(path8, WAIT_AFTER_SHOOT));    // shoot
-        tasks.add(new PathChainTask(path9, 0.0));                 // intake
+        tasks.add(new PathChainTask(path9, 0.1));                 // intake
         tasks.add(new PathChainTask(path10, WAIT_AFTER_SHOOT));   // shoot
-        tasks.add(new PathChainTask(path9, 0.0));                // intake
+        tasks.add(new PathChainTask(path9, 0.3));                // intake
         tasks.add(new PathChainTask(path10, WAIT_AFTER_SHOOT));   // shoot
         tasks.add(new PathChainTask(path13, 0.0));                // park
     }
@@ -466,3 +466,4 @@ public class SoloFar18Red extends PathChainAutoOpMode {
         return a;
     }
 }
+

@@ -197,7 +197,7 @@ public class blue18startclose extends PathChainAutoOpMode {
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(180))
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 // NOTE: if your Pedro version uses a different API name, change this line accordingly.
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_CALLBACK_T, () -> run(new SequentialAction(
                         new SleepAction(0.3),
                         actions.launch3faster()
@@ -223,7 +223,7 @@ public class blue18startclose extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setReversed()
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
                 .build();
 
@@ -282,7 +282,7 @@ public class blue18startclose extends PathChainAutoOpMode {
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(230))
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_CALLBACK_T, () -> run(actions.launch3faster()))
                 .build();
 
@@ -507,4 +507,5 @@ public class blue18startclose extends PathChainAutoOpMode {
         super.stop();
     }
 }
+
 

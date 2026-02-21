@@ -150,7 +150,7 @@ public class AdamAutoRed21 extends PathChainAutoOpMode {
                     startBoostActive = false;
                 }
 
-                double baseTarget = preloadBoostActive ? (TARGET_RPM + 70.0) : (TARGET_RPM + 20.0);
+                double baseTarget = preloadBoostActive ? (TARGET_RPM + 40.0) : (TARGET_RPM + 20.0);
                 if (!follower.isBusy() && currentTaskIndex > 0) {
                     preloadBoostActive = false;
                 }
@@ -279,7 +279,7 @@ public class AdamAutoRed21 extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(3)
                 .setReversed()
-                .addParametricCallback(0.1, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
 
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
                         new SleepAction(0.1),

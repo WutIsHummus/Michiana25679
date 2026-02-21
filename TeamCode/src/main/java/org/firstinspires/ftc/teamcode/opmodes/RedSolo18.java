@@ -47,11 +47,11 @@ public class RedSolo18 extends PathChainAutoOpMode {
 
     // =========================
     // Turret target (dynamic: close vs far)
-    // Blue close target was mx(124)=20; red becomes 141-20=121
-    // Far target mirror preserves the +4 shift on red (since blue far was close-4)
+    // Blue uses close=20 and far=18 in this routine. Mirrored with x=141-oldX:
+    // red close=121, red far=123.
     // =========================
-    private static final double TARGET_X_CLOSE = rx(20.0);            // = 121.0
-    private static final double TARGET_X_FAR   = TARGET_X_CLOSE + 4.0; // mirrored from blue far (16 -> 125)
+    private static final double TARGET_X_CLOSE = 124.0;
+    private static final double TARGET_X_FAR   = 124.0;
 
     public static double targetX = TARGET_X_CLOSE;
     public static double targetY = 125.0;
@@ -120,8 +120,8 @@ public class RedSolo18 extends PathChainAutoOpMode {
 
         // Servo init
         hood1.setPosition(HOOD_CLOSE);
-        turret1.setPosition(0.175);
-        turret2.setPosition(0.175);
+        turret1.setPosition(0.875);
+        turret2.setPosition(0.875);
         launchgate.setPosition(0.5);
         reargate.setPosition(0.7);
 
@@ -178,7 +178,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
                         p(57.489, 9.276),
                         p(57.914, 85.347)
                 ))
-                .setConstantHeadingInterpolation(rh(Math.toRadians(270)))
+                .setConstantHeadingInterpolation(rh(Math.toRadians(240)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, () -> {
@@ -195,7 +195,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
         path2 = follower.pathBuilder()
                 .addPath(new BezierLine(
                         p(57.914, 85.347),
-                        p(18.117, 84.012)
+                        p(19.0, 84.012)
                 ))
                 .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -204,7 +204,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
         // Path3: (18.117,84.012)->(58.171,85.065) constant heading 180 (close shoot)
         path3 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(18.117, 84.012),
+                        p(19.0, 84.012),
                         p(58.171, 85.065)
                 ))
                 .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
@@ -222,7 +222,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         p(58.171, 85.065),
                         p(65.394, 28.004),
-                        p(10.210, 35.521)
+                        p(12.0, 35.521)
                 ))
                 .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -231,7 +231,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
         // Path5: (10.210,35.521)->(58.058,84.713) constant heading 180 (close shoot)
         path5 = follower.pathBuilder()
                 .addPath(new BezierCurve(
-                        p(10.210, 35.521),
+                        p(12.0, 35.521),
                         p(65.394, 28.004),
                         p(58.058, 84.713)
                 ))
@@ -250,7 +250,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
                 .addPath(new BezierCurve(
                         p(58.058, 84.713),
                         p(64.662, 59.770),
-                        p(10.003, 55.0)
+                        p(11.0, 53.0)
                 ))
                 .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
                 .addParametricCallback(0.0, () -> run(actions.startIntake()))
@@ -259,7 +259,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
         // Path7: (10.003,58.130)->(16.784,68.028) linear heading 180->270 (intake)
         path7 = follower.pathBuilder()
                 .addPath(new BezierLine(
-                        p(10.003, 55.0),
+                        p(11.0, 53.0),
                         p(16.784, 68.028)
                 ))
                 .setLinearHeadingInterpolation(rh(Math.toRadians(180)), rh(Math.toRadians(270)))
@@ -299,7 +299,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
                         p(9.672, 20.263),
                         p(57.954, 84.994)
                 ))
-                .setLinearHeadingInterpolation(rh(Math.toRadians(270)), rh(Math.toRadians(270)))
+                .setLinearHeadingInterpolation(rh(Math.toRadians(270)), rh(Math.toRadians(240)))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
                 .addParametricCallback(0.0, this::setCloseShootingState)
@@ -343,7 +343,7 @@ public class RedSolo18 extends PathChainAutoOpMode {
                         p(35.254, 70.477)
                 ))
                 .setConstantHeadingInterpolation(rh(Math.toRadians(180)))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
     }
 
@@ -486,3 +486,4 @@ public class RedSolo18 extends PathChainAutoOpMode {
         }
     }
 }
+

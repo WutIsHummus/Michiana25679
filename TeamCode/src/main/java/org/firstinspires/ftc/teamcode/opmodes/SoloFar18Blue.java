@@ -175,7 +175,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
                         new Pose(53.176, 15.740)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(PRELOAD_WAIT_S),
                         actions.launch3faster()
@@ -199,7 +199,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
                         new Pose(53.421, 15.582)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -224,7 +224,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
                         new Pose(53.685, 15.694)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -260,7 +260,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
                         new Pose(53.575, 15.592)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(270), Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -284,7 +284,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
                         new Pose(53.715, 15.258)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -308,7 +308,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
                         new Pose(53.465, 15.303)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(STANDARD_SHOOT_WAIT_S),
                         actions.launch3faster()
@@ -322,7 +322,7 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
                         new Pose(44.589, 21.232)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
     }
 
@@ -455,3 +455,4 @@ public class SoloFar18Blue extends PathChainAutoOpMode {
         return a;
     }
 }
+

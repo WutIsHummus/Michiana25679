@@ -89,13 +89,13 @@ public class Blueconsistenttele extends OpMode {
     public static double turretCenterPosition = 0.51;
     public static double turretLeftPosition = 0.15;
     public static double turretRightPosition = 0.855;
-    public static double turretMaxAngle = 137;
+    public static double turretMaxAngle = 140;
 
     // Shooter PIDF Constants
     public static double TICKS_PER_REV = 28.0;
     public static double GEAR_RATIO = 1.0;
 
-    public static double p = 0.0012;
+    public static double p = 0.0009;
     public static double i = 0.0;
     public static double d = 0.0000;
     public static double f = 0.0007;
@@ -103,7 +103,7 @@ public class Blueconsistenttele extends OpMode {
     public static double kS = 0.0;
     public static double I_ZONE = 250.0;
 
-    public static double pLong = 0.0012;
+    public static double pLong = 0.0007;
     public static double iLong = 0.0;
     public static double dLong = 0;
     public static double fLong = 0.0008;
@@ -154,7 +154,7 @@ public class Blueconsistenttele extends OpMode {
     public static double HOOD_MIN_DIST_FT = 0;
     public static double HOOD_MAX_DIST_FT = 6;
 
-    public static double TURRET1_BACKLASH_OFFSET = 0.025;
+    public static double TURRET1_BACKLASH_OFFSET = 0.03;
 
     private static final double NOMINAL_VOLTAGE = 12.0;
 
@@ -426,12 +426,10 @@ public class Blueconsistenttele extends OpMode {
         // Timing scale
         final double shootDelayScale = farShootingEnabled ? 1.0 : 1.0;
 
-        // A button auto-shoot
+        // A button relocalization
         final boolean currentA = gamepad1.a;
-        if (currentA && !lastA && !shooting) {
-            shooting = true;
-            shootState = 0;
-            shootTimer.reset();
+        if (currentA && !lastA) {
+            setRobotPose(new Pose(1.5, 143.1, 0));
         }
         lastA = currentA;
 
@@ -586,17 +584,18 @@ public class Blueconsistenttele extends OpMode {
 
         // Shooter control (only compute PID/FF when shooterOn)
         if (shooterOn) {
-            shooterPID.setPIDF(currentP, currentI, currentD, currentF);
-            shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
-
-            final double targetTPS = rpmToTicksPerSec(calculatedTargetRPM);
-
             final double vR = shootr.getVelocity();
             final double vL = shootl.getVelocity();
             final double vAvg = 0.5 * (vR + vL);
 
             avgVelocityRPM = ticksPerSecToRPM(vAvg);
             rpmError = avgVelocityRPM - calculatedTargetRPM;
+
+            final double effectiveP = (inFarDistance && Math.abs(rpmError) <= 100.0) ? 0.005 : currentP;
+            shooterPID.setPIDF(effectiveP, currentI, currentD, currentF);
+            shooterPID.setIntegrationBounds(-currentIZone, currentIZone);
+
+            final double targetTPS = rpmToTicksPerSec(calculatedTargetRPM);
 
             double pidfOutput = shooterPID.calculate(vAvg, targetTPS);
 

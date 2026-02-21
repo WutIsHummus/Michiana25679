@@ -176,7 +176,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
                 .setConstantHeadingInterpolation(Math.toRadians(270))
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .addParametricCallback(0.0, () -> {
+                .addParametricCallback(0.5, () -> {
                     run(actions.stopIntake());
                     setCloseShootingState();
                 })
@@ -338,7 +338,7 @@ public class SoloBlue18 extends PathChainAutoOpMode {
                         new Pose(35.254, 70.477)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
     }
 

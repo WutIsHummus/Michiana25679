@@ -276,7 +276,7 @@ public class CloseCompatibleBlue extends PathChainAutoOpMode {
                         new Pose(16.764, 63.189)
                 ))
                 .setConstantHeadingInterpolation(Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
         // path11 (drive): (16.764,63.189) -> (29.508,63.328), linear 180->180
@@ -286,7 +286,7 @@ public class CloseCompatibleBlue extends PathChainAutoOpMode {
                         new Pose(29.508, 63.328)
                 ))
                 .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
 
         // path12 (intake): curve (29.508,63.328)->(30.900,45.931)->(10.641,35.254)
@@ -309,7 +309,7 @@ public class CloseCompatibleBlue extends PathChainAutoOpMode {
                 .setConstantHeadingInterpolation(180)
                 .setTValueConstraint(0.96)
                 .setGlobalDeceleration(GLOBAL_DECEL)
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .addParametricCallback(SHOOT_T, () -> run(new SequentialAction(
                         new SleepAction(0.10),
                         actions.launch3faster()
@@ -323,7 +323,7 @@ public class CloseCompatibleBlue extends PathChainAutoOpMode {
                         new Pose(45.194, 76.606)
                 ))
                 .setConstantHeadingInterpolation(180)
-                .addParametricCallback(0.0, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
                 .build();
     }
 
@@ -455,3 +455,4 @@ public class CloseCompatibleBlue extends PathChainAutoOpMode {
         }
     }
 }
+

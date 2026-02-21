@@ -279,7 +279,7 @@ public class AdamAutoBlue21 extends PathChainAutoOpMode {
                 .setTangentHeadingInterpolation()
                 .setBrakingStrength(3)
                 .setReversed()
-                .addParametricCallback(0.1, () -> run(actions.stopIntake()))
+                .addParametricCallback(0.5, () -> run(actions.stopIntake()))
 
                 .addParametricCallback(0.95, () -> run(new SequentialAction(
                         new SleepAction(0.1),
